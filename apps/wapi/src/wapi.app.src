@@ -19,6 +19,7 @@
         file_storage_proto,
         swag_server_wallet,
         swag_client_payres,
+        party_client,
         scoper,
         jose,
         jsx,
@@ -29,7 +30,6 @@
         snowflake,
         woody_user_identity,
         payproc_errors,
-        ff_server,
         uac
     ]},
     {env, []}

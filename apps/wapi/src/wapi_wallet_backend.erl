@@ -141,10 +141,10 @@ marshal(account_params, {IdentityID, CurrencyID}) ->
     };
 
 marshal(context, Ctx) ->
-    ff_codec:marshal(context, Ctx);
+    wapi_codec:marshal(context, Ctx);
 
 marshal(T, V) ->
-    ff_codec:marshal(T, V).
+    wapi_codec:marshal(T, V).
 
 %%
 
@@ -197,10 +197,10 @@ unmarshal(wallet_account_balance, #account_AccountBalance{
     };
 
 unmarshal(context, Ctx) ->
-    ff_codec:unmarshal(context, Ctx);
+    wapi_codec:unmarshal(context, Ctx);
 
 unmarshal(T, V) ->
-    ff_codec:unmarshal(T, V).
+    wapi_codec:unmarshal(T, V).
 
 maybe_unmarshal(_, undefined) ->
     undefined;

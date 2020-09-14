@@ -6,8 +6,18 @@
 -define(BENDER_DOMAIN, <<"wapi">>).
 
 %% Context
--type md() :: ff_entity_context:md().
--type context() :: ff_entity_context:context().
+-type context() :: #{namespace() => md()}.
+-type namespace() :: binary().
+-type md()        :: %% as stolen from `machinery_msgpack`
+    nil                |
+    boolean()          |
+    integer()          |
+    float()            |
+    binary()           | %% string
+    {binary, binary()} | %% binary
+    [md()]             |
+    #{md() => md()}    .
+
 -type handler_context() :: wapi_handler:context().
 -type id() :: binary().
 -type hash() :: integer().

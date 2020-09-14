@@ -23,7 +23,10 @@
 -export([
     create/1,
     get/1,
-    get_by_external_id/1
+    get_by_external_id/1,
+    create_quote/1,
+    get_events/1,
+    get_event/1
 ]).
 
 % common-api is used since it is the domain used in production RN
@@ -58,7 +61,10 @@ groups() ->
             [
                 create,
                 get,
-                get_by_external_id
+                get_by_external_id,
+                create_quote,
+                get_events,
+                get_event
             ]
         }
     ].
@@ -66,42 +72,27 @@ groups() ->
 %%
 %% starting/stopping
 %%
--spec init_per_suite(config()) ->
-    config().
-init_per_suite(Config) ->
-    %% TODO remove this after cut off wapi
-    ok = application:set_env(wapi, transport, thrift),
-    ct_helper:makeup_cfg([
-        ct_helper:test_case_name(init),
-        ct_payment_system:setup(#{
-            optional_apps => [
-                bender_client,
-                wapi_woody_client,
-                wapi
-            ]
-        })
-    ], Config).
+-spec init_per_suite(config()) -> config().
 
--spec end_per_suite(config()) ->
-    _.
+init_per_suite(C) ->
+    wapi_ct_helper:init_suite(?MODULE, C).
+
+-spec end_per_suite(config()) -> _.
+
 end_per_suite(C) ->
-    %% TODO remove this after cut off wapi
-    ok = application:unset_env(wapi, transport),
-    ok = ct_payment_system:shutdown(C).
+    _ = wapi_ct_helper:stop_mocked_service_sup(?config(suite_test_sup, C)),
+    _ = [application:stop(App) || App <- ?config(apps, C)],
+    ok.
 
 -spec init_per_group(group_name(), config()) ->
     config().
 init_per_group(Group, Config) when Group =:= base ->
-    ok = ff_context:save(ff_context:create(#{
+    ok = wapi_context:save(wapi_context:create(#{
         party_client => party_client:create_client(),
         woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
     })),
-    Party = create_party(Config),
-    BasePermissions = [
-        {[party], read},
-        {[party], write}
-    ],
-    {ok, Token} = wapi_ct_helper:issue_token(Party, BasePermissions, {deadline, 10}, ?DOMAIN),
+    Party = genlib:bsuuid(),
+    {ok, Token} = wapi_ct_helper:issue_token(Party, [{[party], write}], unlimited, ?DOMAIN),
     Config1 = [{party, Party} | Config],
     [{context, wapi_ct_helper:get_context(Token)} | Config1];
 init_per_group(_, Config) ->
@@ -115,14 +106,14 @@ end_per_group(_Group, _C) ->
 -spec init_per_testcase(test_case_name(), config()) ->
     config().
 init_per_testcase(Name, C) ->
-    C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
-    ok = ct_helper:set_context(C1),
+    C1 = wapi_ct_helper:makeup_cfg([wapi_ct_helper:test_case_name(Name), wapi_ct_helper:woody_ctx()], C),
+    ok = wapi_context:save(C1),
     [{test_sup, wapi_ct_helper:start_mocked_service_sup(?MODULE)} | C1].
 
 -spec end_per_testcase(test_case_name(), config()) ->
     config().
 end_per_testcase(_Name, C) ->
-    ok = ct_helper:unset_context(),
+    ok = wapi_context:cleanup(),
     wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
     ok.
 
@@ -133,6 +124,7 @@ end_per_testcase(_Name, C) ->
 create(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
+        {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
         {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
         {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
         {fistful_withdrawal, fun('Create', _) -> {ok, ?WITHDRAWAL(PartyID)} end}
@@ -148,7 +140,7 @@ create(C) ->
                     <<"currency">> => <<"RUB">>
                 }
         })},
-        ct_helper:cfg(context, C)
+        wapi_ct_helper:cfg(context, C)
     ).
 
 -spec get(config()) ->
@@ -165,7 +157,7 @@ get(C) ->
                 <<"withdrawalID">> => ?STRING
             }
         },
-    ct_helper:cfg(context, C)
+    wapi_ct_helper:cfg(context, C)
 ).
 
 -spec get_by_external_id(config()) ->
@@ -183,7 +175,82 @@ get_by_external_id(C) ->
                 <<"externalID">> => ?STRING
             }
         },
-    ct_helper:cfg(context, C)
+    wapi_ct_helper:cfg(context, C)
+).
+
+-spec create_quote(config()) ->
+    _.
+create_quote(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+        {fistful_withdrawal, fun('GetQuote', _) -> {ok, ?WITHDRAWAL_QUOTE} end}
+    ], C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_withdrawals_api:create_quote/3,
+        #{
+            body => genlib_map:compact(#{
+                <<"walletID">> => ?STRING,
+                <<"destinationID">> => ?STRING,
+                <<"currencyFrom">> => <<"RUB">>,
+                <<"currencyTo">> => <<"USD">>,
+                <<"cash">> => #{
+                    <<"amount">> => 100,
+                    <<"currency">> => <<"RUB">>
+                }
+        })},
+        wapi_ct_helper:cfg(context, C)
+    ).
+
+-spec get_events(config()) ->
+    _.
+get_events(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_withdrawal,
+            fun
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
+                ('GetEvents', [_, #'EventRange'{limit = 0}]) -> {ok, []};
+                ('GetEvents', _) -> {ok, [?WITHDRAWAL_EVENT(?WITHDRAWAL_STATUS_CHANGE)]}
+            end
+        }
+    ], C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_withdrawals_api:poll_withdrawal_events/3,
+        #{
+            binding => #{
+                <<"withdrawalID">> => ?STRING
+            },
+            qs_val => #{
+                <<"limit">> => 10
+            }
+        },
+    wapi_ct_helper:cfg(context, C)
+).
+
+-spec get_event(config()) ->
+    _.
+get_event(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_withdrawal,
+            fun
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
+                ('GetEvents', [_, #'EventRange'{limit = 0}]) -> {ok, []};
+                ('GetEvents', _) -> {ok, [?WITHDRAWAL_EVENT(?WITHDRAWAL_STATUS_CHANGE)]}
+            end
+        }
+    ], C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_withdrawals_api:get_withdrawal_events/3,
+        #{
+            binding => #{
+                <<"withdrawalID">> => ?STRING,
+                <<"eventID">> => ?INTEGER
+            }
+        },
+    wapi_ct_helper:cfg(context, C)
 ).
 
 %%
@@ -194,8 +261,3 @@ call_api(F, Params, Context) ->
     {Url, PreparedParams, Opts} = wapi_client_lib:make_request(Context, Params),
     Response = F(Url, PreparedParams, Opts),
     wapi_client_lib:handle_response(Response).
-
-create_party(_C) ->
-    ID = genlib:bsuuid(),
-    _ = ff_party:create(ID),
-    ID.

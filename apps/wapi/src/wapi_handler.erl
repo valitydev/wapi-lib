@@ -69,10 +69,10 @@ process_request(Tag, OperationID, Req, SwagContext, Opts, WoodyContext) ->
     _ = logger:info("Processing request ~p", [OperationID]),
     try
         %% TODO remove this fistful specific step, when separating the wapi service.
-        ok = ff_context:save(create_ff_context(WoodyContext, Opts)),
+        ok = wapi_context:save(create_wapi_context(WoodyContext, Opts)),
 
         Context      = create_handler_context(SwagContext, WoodyContext),
-        Handler      = get_handler(Tag, genlib_app:env(?APP, transport)),
+        Handler      = get_handler(Tag),
         case wapi_auth:authorize_operation(OperationID, Req, Context) of
             ok ->
                 ok = logger:debug("Operation ~p authorized", [OperationID]),
@@ -87,7 +87,7 @@ process_request(Tag, OperationID, Req, SwagContext, Opts, WoodyContext) ->
         error:{woody_error, {Source, Class, Details}} ->
             process_woody_error(Source, Class, Details)
     after
-        ff_context:cleanup()
+        wapi_context:cleanup()
     end.
 
 -spec throw_result(request_result()) ->
@@ -95,9 +95,8 @@ process_request(Tag, OperationID, Req, SwagContext, Opts, WoodyContext) ->
 throw_result(Res) ->
     erlang:throw({?request_result, Res}).
 
-get_handler(wallet, thrift)  -> wapi_wallet_thrift_handler;
-get_handler(wallet, _)  -> wapi_wallet_handler;
-get_handler(payres, _)  -> wapi_payres_handler.
+get_handler(wallet)  -> wapi_wallet_handler;
+get_handler(payres)  -> wapi_payres_handler.
 
 -spec create_woody_context(tag(), req_data(), wapi_auth:context(), opts()) ->
     woody_context:ctx().
@@ -142,11 +141,11 @@ process_woody_error(_Source, resource_unavailable, _Details) ->
 process_woody_error(_Source, result_unknown, _Details) ->
     wapi_handler_utils:reply_error(504).
 
--spec create_ff_context(woody_context:ctx(), opts()) ->
-    ff_context:context().
-create_ff_context(WoodyContext, Opts) ->
+-spec create_wapi_context(woody_context:ctx(), opts()) ->
+    wapi_context:context().
+create_wapi_context(WoodyContext, Opts) ->
     ContextOptions = #{
         woody_context => WoodyContext,
         party_client => maps:get(party_client, Opts)
     },
-    ff_context:create(ContextOptions).
+    wapi_context:create(ContextOptions).

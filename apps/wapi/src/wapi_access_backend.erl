@@ -97,7 +97,7 @@ get_context_from_state(withdrawal, #wthd_WithdrawalState{context = Context}) ->
     Context.
 
 get_owner(ContextThrift) ->
-    Context = ff_codec:unmarshal(context, ContextThrift),
+    Context = wapi_codec:unmarshal(context, ContextThrift),
     wapi_backend_utils:get_from_ctx(<<"owner">>, Context).
 
 is_resource_owner(Owner, HandlerCtx) ->
