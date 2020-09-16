@@ -36,6 +36,16 @@
     {forbidden_currency, _} |
     {forbidden_amount, _} |
     {inconsistent_currency, _} |
+    {quote, token_expired} |
+    {identity_providers_mismatch, {id(), id()}} |
+    {destination_resource, {bin_data, not_found}}.
+
+-type create_quote_error() ::
+    {destination, notfound | unauthorized} |
+    {wallet, notfound | unauthorized} |
+    {forbidden_currency, _} |
+    {forbidden_amount, _} |
+    {inconsistent_currency, _} |
     {identity_providers_mismatch, {id(), id()}} |
     {destination_resource, {bin_data, not_found}}.
 
