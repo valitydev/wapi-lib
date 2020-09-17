@@ -169,7 +169,7 @@ create_identity_thrift_name(C) ->
                 }
             }
         },
-        ct_helper:cfg(context, C)
+        wapi_ct_helper:cfg(context, C)
     ).
 
 -spec get_identity(config()) ->
