@@ -178,7 +178,7 @@ unmarshal_webhook(#webhooker_Webhook{
         <<"id">> => integer_to_binary(ID),
         <<"identityID">> => IdentityID,
         <<"walletID">> => WalletID,
-        <<"active">> => ff_codec:unmarshal(bool, Enabled),
+        <<"active">> => wapi_codec:unmarshal(bool, Enabled),
         <<"scope">> => unmarshal_webhook_scope(EventFilter),
         <<"url">> => URL,
         <<"publicKey">> => PubKey

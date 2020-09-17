@@ -69,7 +69,7 @@ process_request(Tag, OperationID, Req, SwagContext, Opts, WoodyContext) ->
     _ = logger:info("Processing request ~p", [OperationID]),
     try
         %% TODO remove this fistful specific step, when separating the wapi service.
-        ok = wapi_context:save(create_wapi_context(WoodyContext, Opts)),
+        ok = wapi_context:save(create_wapi_context(WoodyContext)),
 
         Context      = create_handler_context(SwagContext, WoodyContext),
         Handler      = get_handler(Tag),
@@ -141,11 +141,10 @@ process_woody_error(_Source, resource_unavailable, _Details) ->
 process_woody_error(_Source, result_unknown, _Details) ->
     wapi_handler_utils:reply_error(504).
 
--spec create_wapi_context(woody_context:ctx(), opts()) ->
+-spec create_wapi_context(woody_context:ctx()) ->
     wapi_context:context().
-create_wapi_context(WoodyContext, Opts) ->
+create_wapi_context(WoodyContext) ->
     ContextOptions = #{
-        woody_context => WoodyContext,
-        party_client => maps:get(party_client, Opts)
+        woody_context => WoodyContext
     },
     wapi_context:create(ContextOptions).

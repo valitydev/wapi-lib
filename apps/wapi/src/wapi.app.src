@@ -29,7 +29,6 @@
         base64url,
         snowflake,
         woody_user_identity,
-        payproc_errors,
         uac
     ]},
     {env, []}

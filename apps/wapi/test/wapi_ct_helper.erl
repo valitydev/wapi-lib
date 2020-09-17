@@ -36,8 +36,6 @@
 -type test_case_name() :: atom().
 -type app_name() :: atom().
 -type app_env() :: [{atom(), term()}].
-% -type app_with_env() :: {app_name(), app_env()}.
-% -type startup_ctx() :: #{atom() => _}.
 
 -define(SIGNEE, wapi).
 

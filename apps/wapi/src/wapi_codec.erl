@@ -74,49 +74,6 @@ marshal(blocking, blocked) ->
 marshal(blocking, unblocked) ->
     unblocked;
 
-marshal(identity_provider, Provider) when is_binary(Provider) ->
-    Provider;
-
-marshal(transaction_info, TransactionInfo = #{
-    id := TransactionID,
-    extra := Extra
-}) ->
-    Timestamp = maps:get(timestamp, TransactionInfo, undefined),
-    AddInfo = maps:get(additional_info, TransactionInfo, undefined),
-    #'TransactionInfo'{
-        id = marshal(id, TransactionID),
-        timestamp = marshal(timestamp, Timestamp),
-        extra = Extra,
-        additional_info = marshal(additional_transaction_info, AddInfo)
-    };
-
-marshal(additional_transaction_info, AddInfo = #{}) ->
-    #'AdditionalTransactionInfo'{
-        rrn = marshal(string, maps:get(rrn, AddInfo, undefined)),
-        approval_code = marshal(string, maps:get(approval_code, AddInfo, undefined)),
-        acs_url = marshal(string, maps:get(acs_url, AddInfo, undefined)),
-        pareq = marshal(string, maps:get(pareq, AddInfo, undefined)),
-        md = marshal(string, maps:get(md, AddInfo, undefined)),
-        term_url = marshal(string, maps:get(term_url, AddInfo, undefined)),
-        pares = marshal(string, maps:get(pares, AddInfo, undefined)),
-        eci = marshal(string, maps:get(eci, AddInfo, undefined)),
-        cavv = marshal(string, maps:get(cavv, AddInfo, undefined)),
-        xid = marshal(string, maps:get(xid, AddInfo, undefined)),
-        cavv_algorithm = marshal(string, maps:get(cavv_algorithm, AddInfo, undefined)),
-        three_ds_verification = marshal(
-            three_ds_verification,
-            maps:get(three_ds_verification, AddInfo, undefined)
-        )
-    };
-
-marshal(three_ds_verification, Value) when
-    Value =:= authentication_successful orelse
-    Value =:= attempts_processing_performed orelse
-    Value =:= authentication_failed orelse
-    Value =:= authentication_could_not_be_performed
-->
-    Value;
-
 marshal(account_change, {created, Account}) ->
     {created, marshal(account, Account)};
 marshal(account, #{
@@ -222,11 +179,6 @@ marshal(cash, {Amount, CurrencyRef}) ->
         amount   = marshal(amount, Amount),
         currency = marshal(currency_ref, CurrencyRef)
     };
-marshal(cash_range, {{BoundLower, CashLower}, {BoundUpper, CashUpper}}) ->
-    #'CashRange'{
-        lower = {BoundLower, marshal(cash, CashLower)},
-        upper = {BoundUpper, marshal(cash, CashUpper)}
-    };
 marshal(currency_ref, CurrencyID) when is_binary(CurrencyID) ->
     #'CurrencyRef'{
         symbolic_code = CurrencyID
@@ -251,24 +203,7 @@ marshal(sub_failure, Failure) ->
         code = marshal(string, wapi_failure:code(Failure)),
         sub = maybe_marshal(sub_failure, wapi_failure:sub_failure(Failure))
     };
-marshal(fees, Fees) ->
-    #'Fees'{
-        fees = maps:map(fun(_Constant, Value) -> marshal(cash, Value) end, maps:get(fees, Fees))
-    };
 
-marshal(timestamp, {DateTime, USec}) ->
-    DateTimeinSeconds = genlib_time:daytime_to_unixtime(DateTime),
-    {TimeinUnit, Unit} =
-        case USec of
-            0 ->
-                {DateTimeinSeconds, second};
-            USec ->
-                MicroSec = erlang:convert_time_unit(DateTimeinSeconds, second, microsecond),
-                {MicroSec + USec, microsecond}
-        end,
-    genlib_rfc3339:format_relaxed(TimeinUnit, Unit);
-marshal(timestamp_ms, V) ->
-    wapi_time:to_rfc3339(V);
 marshal(domain_revision, V) when is_integer(V) ->
     V;
 marshal(party_revision, V) when is_integer(V) ->
@@ -311,77 +246,6 @@ unmarshal(blocking, blocked) ->
     blocked;
 unmarshal(blocking, unblocked) ->
     unblocked;
-
-unmarshal(transaction_info, #'TransactionInfo'{
-    id = TransactionID,
-    timestamp = Timestamp,
-    extra = Extra,
-    additional_info = AddInfo
-}) ->
-    genlib_map:compact(#{
-        id => unmarshal(string, TransactionID),
-        timestamp => maybe_unmarshal(string, Timestamp),
-        extra => Extra,
-        additional_info => maybe_unmarshal(additional_transaction_info, AddInfo)
-    });
-
-unmarshal(additional_transaction_info, #'AdditionalTransactionInfo'{
-    rrn = RRN,
-    approval_code = ApprovalCode,
-    acs_url = AcsURL,
-    pareq = Pareq,
-    md = MD,
-    term_url = TermURL,
-    pares = Pares,
-    eci = ECI,
-    cavv = CAVV,
-    xid = XID,
-    cavv_algorithm = CAVVAlgorithm,
-    three_ds_verification = ThreeDSVerification
-}) ->
-    genlib_map:compact(#{
-        rrn => maybe_unmarshal(string, RRN),
-        approval_code => maybe_unmarshal(string, ApprovalCode),
-        acs_url => maybe_unmarshal(string, AcsURL),
-        pareq => maybe_unmarshal(string, Pareq),
-        md => maybe_unmarshal(string, MD),
-        term_url => maybe_unmarshal(string, TermURL),
-        pares => maybe_unmarshal(string, Pares),
-        eci => maybe_unmarshal(string, ECI),
-        cavv => maybe_unmarshal(string, CAVV),
-        xid => maybe_unmarshal(string, XID),
-        cavv_algorithm => maybe_unmarshal(string, CAVVAlgorithm),
-        three_ds_verification => maybe_unmarshal(three_ds_verification, ThreeDSVerification)
-    });
-
-unmarshal(three_ds_verification, Value) when
-    Value =:= authentication_successful orelse
-    Value =:= attempts_processing_performed orelse
-    Value =:= authentication_failed orelse
-    Value =:= authentication_could_not_be_performed
-->
-    Value;
-
-unmarshal(complex_action, #ff_repairer_ComplexAction{
-    timer = TimerAction,
-    remove = RemoveAction
-}) ->
-    unmarshal(timer_action, TimerAction) ++ unmarshal(remove_action, RemoveAction);
-unmarshal(timer_action, undefined) ->
-    [];
-unmarshal(timer_action, {set_timer, SetTimer}) ->
-    [{set_timer, unmarshal(set_timer_action, SetTimer)}];
-unmarshal(timer_action, {unset_timer, #ff_repairer_UnsetTimerAction{}}) ->
-    [unset_timer];
-unmarshal(remove_action, undefined) ->
-    [];
-unmarshal(remove_action, #ff_repairer_RemoveAction{}) ->
-    [remove];
-
-unmarshal(set_timer_action, {timeout, Timeout}) ->
-    {timeout, unmarshal(integer, Timeout)};
-unmarshal(set_timer_action, {deadline, Deadline}) ->
-    {deadline, unmarshal(timestamp, Deadline)};
 
 unmarshal(account_change, {created, Account}) ->
     {created, unmarshal(account, Account)};
@@ -484,24 +348,12 @@ unmarshal(cash, #'Cash'{
 }) ->
     {unmarshal(amount, Amount), unmarshal(currency_ref, CurrencyRef)};
 
-unmarshal(cash_range, #'CashRange'{
-    lower = {BoundLower, CashLower},
-    upper = {BoundUpper, CashUpper}
-}) ->
-    {
-        {BoundLower, unmarshal(cash, CashLower)},
-        {BoundUpper, unmarshal(cash, CashUpper)}
-    };
-
 unmarshal(currency_ref, #'CurrencyRef'{
     symbolic_code = SymbolicCode
 }) ->
     unmarshal(string, SymbolicCode);
 unmarshal(amount, V) ->
     unmarshal(integer, V);
-
-unmarshal(event_range, #'EventRange'{'after' = After, limit = Limit}) ->
-    {maybe_unmarshal(integer, After), maybe_unmarshal(integer, Limit)};
 
 unmarshal(failure, Failure) ->
     genlib_map:compact(#{
@@ -515,19 +367,6 @@ unmarshal(sub_failure, Failure) ->
         sub => maybe_unmarshal(sub_failure, Failure#'SubFailure'.sub)
     });
 
-unmarshal(range, #evsink_EventRange{
-    'after' = Cursor,
-    limit   = Limit
-}) ->
-    {Cursor, Limit, forward};
-
-unmarshal(fees, Fees) ->
-    #{
-        fees => maps:map(fun(_Constant, Value) -> unmarshal(cash, Value) end, Fees#'Fees'.fees)
-    };
-
-unmarshal(timestamp_ms, V) ->
-    wapi_time:from_rfc3339(V);
 unmarshal(domain_revision, V) when is_integer(V) ->
     V;
 unmarshal(party_revision, V) when is_integer(V) ->
@@ -542,12 +381,6 @@ unmarshal(context, Ctx) when is_map(Ctx) ->
 
 unmarshal(msgpack, V) ->
     wapi_msgpack_codec:unmarshal(msgpack, V);
-
-unmarshal(range, #'EventRange'{
-    'after' = Cursor,
-    limit   = Limit
-}) ->
-    {Cursor, Limit, forward};
 
 unmarshal(bool, V) when is_boolean(V) ->
     V.
@@ -584,18 +417,5 @@ bank_card_codec_test() ->
     Binary = wapi_thrift_utils:serialize(Type, marshal(bank_card, BankCard)),
     Decoded = wapi_thrift_utils:deserialize(Type, Binary),
     ?assertEqual(BankCard, unmarshal(bank_card, Decoded)).
-
--spec fees_codec_test() -> _.
-fees_codec_test() ->
-    Expected = #{
-        fees => #{
-            operation_amount => {100, <<"RUB">>},
-            surplus => {200, <<"RUB">>}
-        }
-    },
-    Type = {struct, struct, {ff_proto_base_thrift, 'Fees'}},
-    Binary = wapi_thrift_utils:serialize(Type, marshal(fees, Expected)),
-    Decoded = wapi_thrift_utils:deserialize(Type, Binary),
-    ?assertEqual(Expected, unmarshal(fees, Decoded)).
 
 -endif.

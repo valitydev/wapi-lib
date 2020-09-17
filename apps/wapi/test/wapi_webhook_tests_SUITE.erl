@@ -120,8 +120,6 @@ end_per_testcase(_Name, C) ->
 -spec create_webhook_ok_test(config()) ->
     _.
 create_webhook_ok_test(C) ->
-    {ok, Identity} = create_identity(C),
-    IdentityID = maps:get(<<"id">>, Identity),
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
         {webhook_manager, fun('Create', _) -> {ok, ?WEBHOOK(?DESTINATION_EVENT_FILTER)} end},
@@ -132,7 +130,7 @@ create_webhook_ok_test(C) ->
         fun swag_client_wallet_webhooks_api:create_webhook/3,
         #{
             body => #{
-                <<"identityID">> => IdentityID,
+                <<"identityID">> => ?STRING,
                 <<"url">> => ?STRING,
                 <<"scope">> => #{
                     <<"topic">> => <<"DestinationsTopic">>,
@@ -147,8 +145,6 @@ create_webhook_ok_test(C) ->
     _.
 get_webhooks_ok_test(C) ->
     PartyID = ?config(party, C),
-    {ok, Identity} = create_identity(C),
-    IdentityID = maps:get(<<"id">>, Identity),
     wapi_ct_helper:mock_services([
         {webhook_manager, fun('GetList', _) -> {ok,
             [?WEBHOOK(?WITHDRAWAL_EVENT_FILTER), ?WEBHOOK(?DESTINATION_EVENT_FILTER)]} end},
@@ -159,7 +155,7 @@ get_webhooks_ok_test(C) ->
         fun swag_client_wallet_webhooks_api:get_webhooks/3,
         #{
             qs_val => #{
-                <<"identityID">> => IdentityID
+                <<"identityID">> => ?STRING
             }
         },
         wapi_ct_helper:cfg(context, C)
@@ -168,8 +164,6 @@ get_webhooks_ok_test(C) ->
 -spec get_webhook_ok_test(config()) ->
     _.
 get_webhook_ok_test(C) ->
-    {ok, Identity} = create_identity(C),
-    IdentityID = maps:get(<<"id">>, Identity),
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
         {webhook_manager, fun('Get', _) -> {ok, ?WEBHOOK(?WITHDRAWAL_EVENT_FILTER)} end},
@@ -182,7 +176,7 @@ get_webhook_ok_test(C) ->
                 <<"webhookID">> => integer_to_binary(?INTEGER)
             },
             qs_val => #{
-                <<"identityID">> => IdentityID
+                <<"identityID">> => ?STRING
             }
         },
         wapi_ct_helper:cfg(context, C)
@@ -191,8 +185,6 @@ get_webhook_ok_test(C) ->
 -spec delete_webhook_ok_test(config()) ->
     _.
 delete_webhook_ok_test(C) ->
-    {ok, Identity} = create_identity(C),
-    IdentityID = maps:get(<<"id">>, Identity),
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
         {webhook_manager, fun('Delete', _) -> {ok, ok} end},
@@ -205,7 +197,7 @@ delete_webhook_ok_test(C) ->
                 <<"webhookID">> => integer_to_binary(?INTEGER)
             },
             qs_val => #{
-                <<"identityID">> => IdentityID
+                <<"identityID">> => ?STRING
             }
         },
         wapi_ct_helper:cfg(context, C)
@@ -219,20 +211,3 @@ call_api(F, Params, Context) ->
     {Url, PreparedParams, Opts} = wapi_client_lib:make_request(Context, Params),
     Response = F(Url, PreparedParams, Opts),
     wapi_client_lib:handle_response(Response).
-
-create_identity(C) ->
-    PartyID = ?config(party, C),
-    Params = #{
-        <<"provider">> => <<"good-one">>,
-        <<"class">> => <<"person">>,
-        <<"name">> => <<"HAHA NO2">>
-    },
-    wapi_wallet_ff_backend:create_identity(Params, create_context(PartyID, C)).
-
-create_context(PartyID, C) ->
-    maps:merge(wapi_ct_helper:create_auth_ctx(PartyID), create_woody_ctx(C)).
-
-create_woody_ctx(C) ->
-    #{
-        woody_context => wapi_ct_helper:get_woody_ctx(C)
-    }.

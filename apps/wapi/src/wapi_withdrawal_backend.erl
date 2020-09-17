@@ -40,15 +40,6 @@
     {identity_providers_mismatch, {id(), id()}} |
     {destination_resource, {bin_data, not_found}}.
 
--type create_quote_error() ::
-    {destination, notfound | unauthorized} |
-    {wallet, notfound | unauthorized} |
-    {forbidden_currency, _} |
-    {forbidden_amount, _} |
-    {inconsistent_currency, _} |
-    {identity_providers_mismatch, {id(), id()}} |
-    {destination_resource, {bin_data, not_found}}.
-
 -export([create/2]).
 -export([get/2]).
 -export([get_by_external_id/2]).
