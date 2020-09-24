@@ -93,7 +93,6 @@ end_per_suite(C) ->
     config().
 init_per_group(Group, Config) when Group =:= base ->
     ok = wapi_context:save(wapi_context:create(#{
-        party_client => party_client:create_client(),
         woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
     })),
     Party = genlib:bsuuid(),
@@ -151,9 +150,8 @@ create_identity(C) ->
 create_identity_thrift_name(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
-        {fistful_identity, fun('Create', _) ->
-            {ok, ?IDENTITY(PartyID, ?DEFAULT_CONTEXT_NO_NAME(PartyID))}
-        end}
+        {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
+        {fistful_identity, fun('Create', _) -> {ok, ?IDENTITY(PartyID, ?DEFAULT_CONTEXT_NO_NAME(PartyID))} end}
     ], C),
     {ok, #{
         <<"name">> := ?STRING

@@ -88,7 +88,6 @@ end_per_suite(C) ->
     config().
 init_per_group(Group, Config) when Group =:= base ->
     ok = wapi_context:save(wapi_context:create(#{
-        party_client => party_client:create_client(),
         woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
     })),
     Party = genlib:bsuuid(),
@@ -146,8 +145,6 @@ create_webhook_ok_test(C) ->
 -spec create_withdrawal_webhook_ok_test(config()) ->
     _.
 create_withdrawal_webhook_ok_test(C) ->
-    {ok, Identity} = create_identity(C),
-    IdentityID = maps:get(<<"id">>, Identity),
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
         {webhook_manager, fun('Create', _) -> {ok, ?WEBHOOK(?WITHDRAWAL_EVENT_FILTER)} end},
@@ -159,7 +156,7 @@ create_withdrawal_webhook_ok_test(C) ->
         fun swag_client_wallet_webhooks_api:create_webhook/3,
         #{
             body => #{
-                <<"identityID">> => IdentityID,
+                <<"identityID">> => ?STRING,
                 <<"url">> => ?STRING,
                 <<"scope">> => #{
                     <<"topic">> => <<"WithdrawalsTopic">>,
@@ -168,7 +165,7 @@ create_withdrawal_webhook_ok_test(C) ->
                 }
             }
         },
-        ct_helper:cfg(context, C)
+        wapi_helper:cfg(context, C)
     ).
 
 -spec get_webhooks_ok_test(config()) ->

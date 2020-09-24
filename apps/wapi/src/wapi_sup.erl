@@ -41,12 +41,8 @@ init([]) ->
     {wapi_swagger_server:logic_handlers(), [supervisor:child_spec()]}.
 
 get_logic_handler_info() ->
-    HandlerOptions = #{
-        %% TODO: Remove after fistful and wapi split
-        party_client => party_client:create_client()
-    },
     {#{
-        wallet  => {wapi_wallet_handler, HandlerOptions}
+        wallet  => {wapi_wallet_handler, #{}}
     }, []}.
 
 -spec enable_health_logging(erl_health:check()) ->

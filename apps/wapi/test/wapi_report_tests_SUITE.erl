@@ -87,7 +87,6 @@ end_per_suite(C) ->
     config().
 init_per_group(Group, Config) when Group =:= base ->
     ok = wapi_context:save(wapi_context:create(#{
-        party_client => party_client:create_client(),
         woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
     })),
     Party = genlib:bsuuid(),
@@ -270,8 +269,3 @@ call_api(F, Params, Context) ->
     {Url, PreparedParams, Opts} = wapi_client_lib:make_request(Context, Params),
     Response = F(Url, PreparedParams, Opts),
     wapi_client_lib:handle_response(Response).
-
-create_party(_C) ->
-    ID = genlib:bsuuid(),
-    _ = ff_party:create(ID),
-    ID.
