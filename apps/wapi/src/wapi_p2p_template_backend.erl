@@ -203,7 +203,7 @@ marshal_template_metadata(#{
     }.
 
 marshal(T, V) ->
-    ff_codec:marshal(T, V).
+    wapi_codec:marshal(T, V).
 
 %%
 
@@ -270,7 +270,7 @@ unmarshal(blocking, blocked) ->
     true;
 
 unmarshal(T, V) ->
-    ff_codec:unmarshal(T, V).
+    wapi_codec:unmarshal(T, V).
 
 %%
 

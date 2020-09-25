@@ -4,10 +4,17 @@
 -include_lib("wapi_wallet_dummy_data.hrl").
 -include_lib("damsel/include/dmsl_domain_config_thrift.hrl").
 
+-export([cfg/2]).
+-export([cfg/3]).
+-export([makeup_cfg/2]).
+-export([woody_ctx/0]).
+-export([get_woody_ctx/1]).
+-export([test_case_name/1]).
+-export([get_test_case_name/1]).
+
 -export([init_suite/2]).
 -export([start_app/1]).
 -export([start_app/2]).
--export([start_wapi/1]).
 -export([issue_token/4]).
 -export([get_context/1]).
 -export([get_keysource/2]).
@@ -25,10 +32,66 @@
 -define(DOMAIN,         <<"wallet-api">>).
 
 %%
--type config()          :: [{atom(), any()}].
+-type config() :: [{atom(), any()}].
+-type test_case_name() :: atom().
 -type app_name() :: atom().
+-type app_env() :: [{atom(), term()}].
 
 -define(SIGNEE, wapi).
+
+-spec cfg(atom(), config()) -> term().
+
+cfg(Key, Config) ->
+    case lists:keyfind(Key, 1, Config) of
+        {Key, V} -> V;
+        _        -> error({'ct config entry missing', Key})
+    end.
+
+-spec cfg(atom(), _, config()) -> config().
+
+cfg(Key, Value, Config) ->
+    lists:keystore(Key, 1, Config, {Key, Value}).
+
+-type config_mut_fun() :: fun((config()) -> config()).
+
+-spec makeup_cfg([config_mut_fun()], config()) -> config().
+
+makeup_cfg(CMFs, C0) ->
+    lists:foldl(fun (CMF, C) -> CMF(C) end, C0, CMFs).
+
+-spec woody_ctx() -> config_mut_fun().
+
+woody_ctx() ->
+    fun (C) -> cfg('$woody_ctx', construct_woody_ctx(C), C) end.
+
+construct_woody_ctx(C) ->
+    woody_context:new(construct_rpc_id(get_test_case_name(C))).
+
+construct_rpc_id(TestCaseName) ->
+    woody_context:new_rpc_id(
+        <<"undefined">>,
+        list_to_binary(lists:sublist(atom_to_list(TestCaseName), 32)),
+        woody_context:new_req_id()
+    ).
+
+-spec get_woody_ctx(config()) -> woody_context:ctx().
+
+get_woody_ctx(C) ->
+    cfg('$woody_ctx', C).
+
+%%
+
+-spec test_case_name(test_case_name()) -> config_mut_fun().
+
+test_case_name(TestCaseName) ->
+    fun (C) -> cfg('$test_case_name', TestCaseName, C) end.
+
+-spec get_test_case_name(config()) -> test_case_name().
+
+get_test_case_name(C) ->
+    cfg('$test_case_name', C).
+
+%
 
 -spec init_suite(module(), config()) ->
     config().
@@ -36,47 +99,51 @@ init_suite(Module, Config) ->
     SupPid = start_mocked_service_sup(Module),
     Apps1 =
         start_app(scoper) ++
-        start_app(woody),
-    ServiceURLs = mock_services_([
-        {
-            'Repository',
-            {dmsl_domain_config_thrift, 'Repository'},
-            fun('Checkout', _) -> {ok, ?SNAPSHOT} end
-        }
-    ], SupPid),
-    Apps2 =
-        start_app(dmt_client, [{max_cache_size, #{}}, {service_urls, ServiceURLs}, {cache_update_interval, 50000}]) ++
-        start_wapi(Config),
-    [{apps, lists:reverse(Apps2 ++ Apps1)}, {suite_test_sup, SupPid} | Config].
+        start_app(woody) ++
+        start_app({wapi, Config}),
+    [{apps, lists:reverse(Apps1)}, {suite_test_sup, SupPid} | Config].
 
 -spec start_app(app_name()) ->
     [app_name()].
 
 start_app(scoper = AppName) ->
-    start_app(AppName, []);
+    start_app_with(AppName, [
+        {storage, scoper_storage_logger}
+    ]);
 
 start_app(woody = AppName) ->
-    start_app(AppName, [
+    start_app_with(AppName, [
         {acceptors_pool_size, 4}
     ]);
 
-start_app(wapi_woody_client = AppName) ->
-    start_app(AppName, [
-        {service_urls, #{
-            cds_storage         => "http://cds:8022/v2/storage",
-            identdoc_storage    => "http://cds:8022/v1/identity_document_storage",
-            fistful_stat        => "http://fistful-magista:8022/stat"
+start_app({wapi = AppName, Config}) ->
+    JwkPath = get_keysource("jwk.json", Config),
+    start_app_with(AppName, [
+        {ip, "::"},
+        {port, 8080},
+        {realm, <<"external">>},
+        {public_endpoint, <<"localhost:8080">>},
+        {access_conf, #{
+            jwt => #{
+                keyset => #{
+                    wapi     => {pem_file, get_keysource("private.pem", Config)}
+                }
+            }
         }},
-        {service_retries, #{
-            fistful_stat    => #{
-                'GetWallets'   => {linear, 3, 1000},
-                '_'            => finish
+        {signee, wapi},
+        {lechiffre_opts,  #{
+            encryption_key_path => JwkPath,
+            decryption_key_paths => [JwkPath]
+        }},
+        {swagger_handler_opts, #{
+            validation_opts => #{
+                custom_validator => wapi_swagger_validator
             }
         }}
     ]);
 
 start_app(AppName) ->
-    genlib_app:start_application(AppName).
+    [genlib_app:start_application(AppName)].
 
 -spec start_app(app_name(), list()) ->
     [app_name()].
@@ -84,23 +151,25 @@ start_app(AppName) ->
 start_app(AppName, Env) ->
     genlib_app:start_application_with(AppName, Env).
 
--spec start_wapi(config()) ->
-    [app_name()].
-start_wapi(Config) ->
-    start_app(wapi, [
-        {ip, ?WAPI_IP},
-        {port, ?WAPI_PORT},
-        {realm, <<"external">>},
-        {public_endpoint, <<"localhost:8080">>},
-        {access_conf, #{
-            jwt => #{
-                keyset => #{
-                    wapi => {pem_file, get_keysource("keys/local/private.pem", Config)}
-                }
-            }
-        }},
-        {signee, ?SIGNEE}
-    ]).
+-spec start_app_with(app_name(), app_env()) -> [app_name()].
+
+start_app_with(AppName, Env) ->
+    _ = application:load(AppName),
+    _ = set_app_env(AppName, Env),
+    case application:ensure_all_started(AppName) of
+        {ok, Apps} ->
+            Apps;
+        {error, Reason} ->
+            exit({start_app_failed, AppName, Reason})
+    end.
+
+set_app_env(AppName, Env) ->
+    lists:foreach(
+        fun ({K, V}) ->
+            ok = application:set_env(AppName, K, V)
+        end,
+        Env
+    ).
 
 -spec get_keysource(_, config()) ->
     _.
