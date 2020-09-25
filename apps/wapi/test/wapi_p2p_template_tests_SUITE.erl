@@ -99,14 +99,14 @@ end_per_group(_Group, _C) ->
 -spec init_per_testcase(test_case_name(), config()) ->
     config().
 init_per_testcase(Name, C) ->
-    C1 = wapi_helper:makeup_cfg([wapi_helper:test_case_name(Name), wapi_helper:woody_ctx()], C),
-    ok = wapi_helper:set_context(C1),
+    C1 = wapi_ct_helper:makeup_cfg([wapi_ct_helper:test_case_name(Name), wapi_ct_helper:woody_ctx()], C),
+    ok = wapi_context:save(C1),
     [{test_sup, wapi_ct_helper:start_mocked_service_sup(?MODULE)} | C1].
 
 -spec end_per_testcase(test_case_name(), config()) ->
     config().
 end_per_testcase(_Name, C) ->
-    ok = wapi_helper:unset_context(),
+    ok = wapi_context:cleanup(),
     wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
     ok.
 
@@ -117,6 +117,7 @@ end_per_testcase(_Name, C) ->
 create_ok_test(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
+        {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
         {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
         {fistful_p2p_template, fun('Create', _) -> {ok, ?P2PTEMPLATE(PartyID)} end}
     ], C),
@@ -140,7 +141,7 @@ create_ok_test(C) ->
                 }
             }
         },
-        wapi_helper:cfg(context, C)
+        ?config(context, C)
     ).
 
 -spec get_ok_test(config()) ->
@@ -157,7 +158,7 @@ get_ok_test(C) ->
                 <<"p2pTransferTemplateID">> => ?STRING
             }
         },
-        wapi_helper:cfg(context, C)
+        ?config(context, C)
     ).
 
 -spec block_ok_test(config()) ->
@@ -176,7 +177,7 @@ block_ok_test(C) ->
                 <<"p2pTransferTemplateID">> => ?STRING
             }
         },
-        wapi_helper:cfg(context, C)
+        ?config(context, C)
     ).
 
 -spec issue_access_token_ok_test(config()) ->
@@ -200,7 +201,7 @@ issue_access_token_ok_test(C) ->
                 <<"validUntil">> => ValidUntil
             }
         },
-        wapi_helper:cfg(context, C)
+        ?config(context, C)
     ).
 
 -spec issue_transfer_ticket_ok_test(config()) ->
@@ -208,6 +209,7 @@ issue_access_token_ok_test(C) ->
 issue_transfer_ticket_ok_test(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
+        {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
         {fistful_p2p_template, fun
             ('GetContext', _)   -> {ok, ?DEFAULT_CONTEXT(PartyID)};
             ('Get', _)          -> {ok, ?P2PTEMPLATE(PartyID)}
@@ -215,7 +217,7 @@ issue_transfer_ticket_ok_test(C) ->
     ], C),
     ValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(100000)),
     TemplateToken = create_template_token(PartyID, ValidUntil),
-    Context = maps:merge(wapi_helper:cfg(context, C), #{ token => TemplateToken }),
+    Context = maps:merge(?config(context, C), #{ token => TemplateToken }),
     {ok, #{<<"token">> := _Token}} = call_api(
         fun swag_client_wallet_p2_p_templates_api:issue_p2_p_transfer_ticket/3,
         #{
@@ -234,6 +236,7 @@ issue_transfer_ticket_ok_test(C) ->
 issue_transfer_ticket_with_access_expiration_ok_test(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
+        {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
         {fistful_p2p_template, fun
             ('GetContext', _)   -> {ok, ?DEFAULT_CONTEXT(PartyID)};
             ('Get', _)          -> {ok, ?P2PTEMPLATE(PartyID)}
@@ -242,7 +245,7 @@ issue_transfer_ticket_with_access_expiration_ok_test(C) ->
     AccessValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(100000)),
     TemplateToken = create_template_token(PartyID, AccessValidUntil),
     ValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(200000)),
-    Context = maps:merge(wapi_helper:cfg(context, C), #{ token => TemplateToken }),
+    Context = maps:merge(?config(context, C), #{ token => TemplateToken }),
     {ok, #{<<"token">> := _Token, <<"validUntil">> := AccessValidUntil}} = call_api(
         fun swag_client_wallet_p2_p_templates_api:issue_p2_p_transfer_ticket/3,
         #{

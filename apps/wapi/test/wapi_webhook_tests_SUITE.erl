@@ -165,7 +165,7 @@ create_withdrawal_webhook_ok_test(C) ->
                 }
             }
         },
-        wapi_helper:cfg(context, C)
+        ?config(context, C)
     ).
 
 -spec get_webhooks_ok_test(config()) ->
