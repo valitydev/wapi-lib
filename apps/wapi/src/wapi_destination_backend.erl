@@ -119,7 +119,7 @@ when Type =:= <<"BankCardDestinationResource">> ->
                 cardholder_name => BankCard#'BankCard'.cardholder_name,
                 exp_date => {Month, Year}
             }}},
-            {ok, ff_codec:marshal(resource, CostructedResource)};
+            {ok, wapi_codec:marshal(resource, CostructedResource)};
         {error, {decryption_failed, _} = Error} ->
             logger:warning("Resource token decryption failed: ~p", [Error]),
             {error, invalid_resource_token}
@@ -133,7 +133,7 @@ when Type =:= <<"CryptoWalletDestinationResource">> ->
         id => CryptoWalletID,
         currency => marshal_crypto_currency_data(Resource)
     })}},
-    {ok, ff_codec:marshal(resource, CostructedResource)}.
+    {ok, wapi_codec:marshal(resource, CostructedResource)}.
 
 service_call(Params, Context) ->
     wapi_handler_utils:service_call(Params, Context).
@@ -167,13 +167,13 @@ marshal(resource, #{
         bin => maps:get(<<"bin">>, BankCard),
         masked_pan => maps:get(<<"lastDigits">>, BankCard)
     }}},
-    ff_codec:marshal(resource, Resource);
+    wapi_codec:marshal(resource, Resource);
 
 marshal(context, Context) ->
-    ff_codec:marshal(context, Context);
+    wapi_codec:marshal(context, Context);
 
 marshal(T, V) ->
-    ff_codec:marshal(T, V).
+    wapi_codec:marshal(T, V).
 
 maybe_marshal(_, undefined) ->
     undefined;
@@ -243,10 +243,10 @@ unmarshal(resource, {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = #'Cr
     });
 
 unmarshal(context, Context) ->
-    ff_codec:unmarshal(context, Context);
+    wapi_codec:unmarshal(context, Context);
 
 unmarshal(T, V) ->
-    ff_codec:unmarshal(T, V).
+    wapi_codec:unmarshal(T, V).
 
 maybe_unmarshal(_, undefined) ->
     undefined;

@@ -58,7 +58,7 @@ decode_token_payload(#{<<"version">> := 1}) ->
     token_payload().
 encode_quote(Quote) ->
     Type = {struct, struct, {ff_proto_withdrawal_thrift, 'Quote'}},
-    Bin = ff_proto_utils:serialize(Type, Quote),
+    Bin = wapi_thrift_utils:serialize(Type, Quote),
     base64:encode(Bin).
 
 -spec decode_quote(token_payload()) ->
@@ -66,7 +66,7 @@ encode_quote(Quote) ->
 decode_quote(Encoded) ->
     Type = {struct, struct, {ff_proto_withdrawal_thrift, 'Quote'}},
     Bin = base64:decode(Encoded),
-    ff_proto_utils:deserialize(Type, Bin).
+    wapi_thrift_utils:deserialize(Type, Bin).
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").

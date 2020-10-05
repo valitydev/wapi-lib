@@ -22,10 +22,10 @@
     {quote_invalid_wallet, _}     |
     {quote, {invalid_body, _}}    |
     {quote, {invalid_destination, _}} |
+    {quote, token_expired} |
     {forbidden_currency, _} |
     {forbidden_amount, _} |
     {inconsistent_currency, _} |
-    {quote, token_expired} |
     {identity_providers_mismatch, {id(), id()}} |
     {destination_resource, {bin_data, not_found}}.
 
@@ -35,6 +35,7 @@
     {forbidden_currency, _} |
     {forbidden_amount, _} |
     {inconsistent_currency, _} |
+    {quote, token_expired} |
     {identity_providers_mismatch, {id(), id()}} |
     {destination_resource, {bin_data, not_found}}.
 
@@ -49,7 +50,7 @@
 
 %% Pipeline
 
--import(ff_pipeline, [do/1, unwrap/1, unwrap/2]).
+-import(wapi_pipeline, [do/1, unwrap/1, unwrap/2]).
 
 -spec create(req_data(), handler_context()) ->
     {ok, response_data()} | {error, create_error()}.
@@ -474,10 +475,10 @@ marshal(create_quote_params, Params = #{
     };
 
 marshal(context, Context) ->
-    ff_codec:marshal(context, Context);
+    wapi_codec:marshal(context, Context);
 
 marshal(T, V) ->
-    ff_codec:marshal(T, V).
+    wapi_codec:marshal(T, V).
 
 maybe_marshal(_, undefined) ->
     undefined;
@@ -552,7 +553,7 @@ unmarshal(event, ?event(EventId, OccuredAt, ?statusChange(Status))) ->
     });
 
 unmarshal(T, V) ->
-    ff_codec:unmarshal(T, V).
+    wapi_codec:unmarshal(T, V).
 
 maybe_unmarshal(_, undefined) ->
     undefined;

@@ -184,7 +184,7 @@ unmarshal_webhook(#webhooker_Webhook{
    genlib_map:compact(#{
         <<"id">> => integer_to_binary(ID),
         <<"identityID">> => IdentityID,
-        <<"active">> => ff_codec:unmarshal(bool, Enabled),
+        <<"active">> => wapi_codec:unmarshal(bool, Enabled),
         <<"scope">> => unmarshal_webhook_scope(EventFilter, WalletID),
         <<"url">> => URL,
         <<"publicKey">> => PubKey
