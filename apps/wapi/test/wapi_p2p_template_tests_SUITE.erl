@@ -312,6 +312,7 @@ quote_transfer_ok_test(C) ->
 create_p2p_transfer_with_template_ok_test(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
+        {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
         {fistful_identity, fun
             ('Get', _) -> {ok, ?IDENTITY(PartyID)}
         end},
