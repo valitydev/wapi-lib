@@ -5,6 +5,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("wapi_wallet_dummy_data.hrl").
 -include_lib("fistful_proto/include/ff_proto_p2p_template_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_p2p_transfer_thrift.hrl").
 
 -export([init/1]).
 
@@ -23,6 +24,8 @@
 -export([issue_access_token_ok_test/1]).
 -export([issue_transfer_ticket_ok_test/1]).
 -export([issue_transfer_ticket_with_access_expiration_ok_test/1]).
+-export([quote_transfer_ok_test/1]).
+-export([create_p2p_transfer_with_template_ok_test/1]).
 
 % common-api is used since it is the domain used in production RN
 % TODO: change to wallet-api (or just omit since it is the default one) when new tokens will be a thing
@@ -61,7 +64,9 @@ groups() ->
                 block_ok_test,
                 issue_access_token_ok_test,
                 issue_transfer_ticket_ok_test,
-                issue_transfer_ticket_with_access_expiration_ok_test
+                issue_transfer_ticket_with_access_expiration_ok_test,
+                quote_transfer_ok_test,
+                create_p2p_transfer_with_template_ok_test
             ]
         }
     ].
@@ -86,8 +91,13 @@ init_per_group(Group, Config) when Group =:= base ->
     })),
     Party = genlib:bsuuid(),
     {ok, Token} = wapi_ct_helper:issue_token(Party, [{[party], write}], unlimited, ?DOMAIN),
+    ContextPcidss = wapi_client_lib:get_context("wapi-pcidss:8080", Token, 10000, ipv4),
     Config1 = [{party, Party} | Config],
-    [{context, wapi_ct_helper:get_context(Token)} | Config1];
+    [
+        {context, wapi_ct_helper:get_context(Token)},
+        {context_pcidss, ContextPcidss} |
+        Config1
+    ];
 init_per_group(_, Config) ->
     Config.
 
@@ -119,7 +129,7 @@ create_ok_test(C) ->
     wapi_ct_helper:mock_services([
         {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
         {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
-        {fistful_p2p_template, fun('Create', _) -> {ok, ?P2PTEMPLATE(PartyID)} end}
+        {fistful_p2p_template, fun('Create', _) -> {ok, ?P2P_TEMPLATE(PartyID)} end}
     ], C),
     {ok, _} = call_api(
         fun swag_client_wallet_p2_p_templates_api:create_p2_p_transfer_template/3,
@@ -149,7 +159,7 @@ create_ok_test(C) ->
 get_ok_test(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
-        {fistful_p2p_template, fun('Get', _) -> {ok, ?P2PTEMPLATE(PartyID)} end}
+        {fistful_p2p_template, fun('Get', _) -> {ok, ?P2P_TEMPLATE(PartyID)} end}
     ], C),
     {ok, _} = call_api(
         fun swag_client_wallet_p2_p_templates_api:get_p2_p_transfer_template_by_id/3,
@@ -167,7 +177,7 @@ block_ok_test(C) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services([
         {fistful_p2p_template, fun
-            ('Get', _)          -> {ok, ?P2PTEMPLATE(PartyID)}
+            ('Get', _)          -> {ok, ?P2P_TEMPLATE(PartyID)}
         end}
     ], C),
     {ok, _} = call_api(
@@ -187,7 +197,7 @@ issue_access_token_ok_test(C) ->
     wapi_ct_helper:mock_services([
         {fistful_p2p_template, fun
             ('GetContext', _)   -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-            ('Get', _)          -> {ok, ?P2PTEMPLATE(PartyID)}
+            ('Get', _)          -> {ok, ?P2P_TEMPLATE(PartyID)}
         end}
     ], C),
     ValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(100000)),
@@ -212,12 +222,11 @@ issue_transfer_ticket_ok_test(C) ->
         {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
         {fistful_p2p_template, fun
             ('GetContext', _)   -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-            ('Get', _)          -> {ok, ?P2PTEMPLATE(PartyID)}
+            ('Get', _)          -> {ok, ?P2P_TEMPLATE(PartyID)}
         end}
     ], C),
     ValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(100000)),
     TemplateToken = create_template_token(PartyID, ValidUntil),
-    Context = maps:merge(?config(context, C), #{ token => TemplateToken }),
     {ok, #{<<"token">> := _Token}} = call_api(
         fun swag_client_wallet_p2_p_templates_api:issue_p2_p_transfer_ticket/3,
         #{
@@ -228,7 +237,7 @@ issue_transfer_ticket_ok_test(C) ->
                 <<"validUntil">> => ValidUntil
             }
         },
-        Context
+        wapi_ct_helper:get_context(TemplateToken)
     ).
 
 -spec issue_transfer_ticket_with_access_expiration_ok_test(config()) ->
@@ -239,13 +248,12 @@ issue_transfer_ticket_with_access_expiration_ok_test(C) ->
         {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
         {fistful_p2p_template, fun
             ('GetContext', _)   -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-            ('Get', _)          -> {ok, ?P2PTEMPLATE(PartyID)}
+            ('Get', _)          -> {ok, ?P2P_TEMPLATE(PartyID)}
         end}
     ], C),
     AccessValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(100000)),
     TemplateToken = create_template_token(PartyID, AccessValidUntil),
     ValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(200000)),
-    Context = maps:merge(?config(context, C), #{ token => TemplateToken }),
     {ok, #{<<"token">> := _Token, <<"validUntil">> := AccessValidUntil}} = call_api(
         fun swag_client_wallet_p2_p_templates_api:issue_p2_p_transfer_ticket/3,
         #{
@@ -256,8 +264,98 @@ issue_transfer_ticket_with_access_expiration_ok_test(C) ->
                 <<"validUntil">> => ValidUntil
             }
         },
-        Context
+        wapi_ct_helper:get_context(TemplateToken)
     ).
+
+-spec quote_transfer_ok_test(config()) ->
+    _.
+quote_transfer_ok_test(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {fistful_identity, fun
+            ('Get', _) -> {ok, ?IDENTITY(PartyID)}
+        end},
+        {fistful_p2p_template, fun
+            ('GetContext', _)   -> {ok, ?DEFAULT_CONTEXT(PartyID)};
+            ('GetQuote', _)     -> {ok, ?P2P_TEMPLATE_QUOTE}
+        end}
+    ], C),
+    SenderToken   = ?TEST_PAYMENT_TOKEN,
+    ReceiverToken = ?TEST_PAYMENT_TOKEN,
+    {ok, #{<<"token">> := _QuoteToken}} = call_api(
+        fun swag_client_wallet_p2_p_templates_api:quote_p2_p_transfer_with_template/3,
+        #{
+            binding => #{
+                <<"p2pTransferTemplateID">> => ?STRING
+            },
+            body => #{
+                <<"body">> => #{
+                    <<"amount">> => ?INTEGER,
+                    <<"currency">> => ?RUB
+                },
+                <<"sender">> => #{
+                    <<"type">> => <<"BankCardSenderResource">>,
+                    <<"token">> => SenderToken
+                },
+                <<"receiver">> => #{
+                    <<"type">> => <<"BankCardReceiverResource">>,
+                    <<"token">> => ReceiverToken
+                }
+            }
+        },
+        ?config(context, C)
+    ).
+
+
+-spec create_p2p_transfer_with_template_ok_test(config()) ->
+    _.
+create_p2p_transfer_with_template_ok_test(C) ->
+    PartyID = ?config(party, C),
+    wapi_ct_helper:mock_services([
+        {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
+        {fistful_identity, fun
+            ('Get', _) -> {ok, ?IDENTITY(PartyID)}
+        end},
+        {fistful_p2p_template, fun
+            ('GetContext', _)   -> {ok, ?DEFAULT_CONTEXT(PartyID)};
+            ('Get', _)          -> {ok, ?P2P_TEMPLATE(PartyID)};
+            ('CreateTransfer', _) -> {ok, ?P2P_TEMPLATE_TRANSFER(PartyID)}
+        end}
+    ], C),
+    SenderToken   = ?TEST_PAYMENT_TOKEN,
+    ReceiverToken = ?TEST_PAYMENT_TOKEN,
+    ValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(100000)),
+    TemplateToken = create_template_token(PartyID, ValidUntil),
+    Ticket = create_transfer_ticket(TemplateToken),
+    {ok, #{<<"id">> := _TransferID}} = call_api(
+        fun swag_client_wallet_p2_p_templates_api:create_p2_p_transfer_with_template/3,
+        #{
+            binding => #{
+                <<"p2pTransferTemplateID">> => ?STRING
+            },
+            body => #{
+                <<"body">> => #{
+                    <<"amount">> => 101,
+                    <<"currency">> => ?RUB
+                },
+                <<"sender">> => #{
+                    <<"type">> => <<"BankCardSenderResourceParams">>,
+                    <<"token">> => SenderToken,
+                    <<"authData">> => <<"session id">>
+                },
+                <<"receiver">> => #{
+                    <<"type">> => <<"BankCardReceiverResourceParams">>,
+                    <<"token">> => ReceiverToken
+                },
+                <<"contactInfo">> => #{
+                    <<"email">> => <<"some@mail.com">>,
+                    <<"phoneNumber">> => <<"+79990000101">>
+                }
+            }
+        },
+        wapi_ct_helper:get_context(Ticket)
+    ).
+
 
 %% Utility
 
@@ -274,3 +372,19 @@ create_template_token(PartyID, ValidUntil) ->
         {p2p_templates, ?STRING, #{<<"expiration">> => ValidUntil}},
         {deadline, Deadline}
     ).
+
+create_transfer_ticket(TemplateToken) ->
+    ValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(100000)),
+    {ok, #{<<"token">> := Ticket}} = call_api(
+        fun swag_client_wallet_p2_p_templates_api:issue_p2_p_transfer_ticket/3,
+        #{
+            binding => #{
+                <<"p2pTransferTemplateID">> => ?STRING
+            },
+            body => #{
+                <<"validUntil">> => ValidUntil
+            }
+        },
+        wapi_ct_helper:get_context(TemplateToken)
+    ),
+    Ticket.
