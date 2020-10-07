@@ -113,10 +113,10 @@ marshal(body, #{
     };
 
 marshal(context, Ctx) ->
-    ff_codec:marshal(context, Ctx);
+    wapi_codec:marshal(context, Ctx);
 
 marshal(T, V) ->
-    ff_codec:marshal(T, V).
+    wapi_codec:marshal(T, V).
 
 unmarshal(transfer, #w2w_transfer_W2WTransferState{
     id = ID,
@@ -157,7 +157,7 @@ unmarshal(transfer_status, {failed, #w2w_status_Failed{failure = Failure}}) ->
     };
 
 unmarshal(T, V) ->
-    ff_codec:unmarshal(T, V).
+    wapi_codec:unmarshal(T, V).
 
 maybe_unmarshal(_T, undefined) ->
     undefined;

@@ -69,10 +69,10 @@ process_request(Tag, OperationID, Req, SwagContext, Opts, WoodyContext) ->
     _ = logger:info("Processing request ~p", [OperationID]),
     try
         %% TODO remove this fistful specific step, when separating the wapi service.
-        ok = ff_context:save(create_ff_context(WoodyContext, Opts)),
+        ok = wapi_context:save(create_wapi_context(WoodyContext)),
 
         Context      = create_handler_context(SwagContext, WoodyContext),
-        Handler      = get_handler(Tag, genlib_app:env(?APP, transport)),
+        Handler      = get_handler(Tag),
         case wapi_auth:authorize_operation(OperationID, Req, Context) of
             ok ->
                 ok = logger:debug("Operation ~p authorized", [OperationID]),
@@ -87,7 +87,7 @@ process_request(Tag, OperationID, Req, SwagContext, Opts, WoodyContext) ->
         error:{woody_error, {Source, Class, Details}} ->
             process_woody_error(Source, Class, Details)
     after
-        ff_context:cleanup()
+        wapi_context:cleanup()
     end.
 
 -spec throw_result(request_result()) ->
@@ -95,34 +95,21 @@ process_request(Tag, OperationID, Req, SwagContext, Opts, WoodyContext) ->
 throw_result(Res) ->
     erlang:throw({?request_result, Res}).
 
-get_handler(wallet, thrift)  -> wapi_wallet_thrift_handler;
-get_handler(wallet, _)  -> wapi_wallet_handler;
-get_handler(payres, _)  -> wapi_payres_handler.
+get_handler(wallet)  -> wapi_wallet_handler;
+get_handler(payres)  -> wapi_payres_handler.
 
 -spec create_woody_context(tag(), req_data(), wapi_auth:context(), opts()) ->
     woody_context:ctx().
-create_woody_context(Tag, #{'X-Request-ID' := RequestID}, AuthContext, Opts) ->
+create_woody_context(Tag, #{'X-Request-ID' := RequestID}, _AuthContext, _Opts) ->
     RpcID = #{trace_id := TraceID} = woody_context:new_rpc_id(genlib:to_binary(RequestID)),
     ok = scoper:add_meta(#{request_id => RequestID, trace_id => TraceID}),
     _ = logger:debug("Created TraceID for the request"),
-    woody_user_identity:put(
-        collect_user_identity(AuthContext, Opts),
-        woody_context:new(RpcID, undefined, wapi_woody_client:get_service_deadline(Tag))
-    ).
+    woody_context:new(RpcID, undefined, wapi_woody_client:get_service_deadline(Tag)).
 
 attach_deadline(undefined, Context) ->
     Context;
 attach_deadline(Deadline, Context) ->
     woody_context:set_deadline(Deadline, Context).
-
-collect_user_identity(AuthContext, _Opts) ->
-    genlib_map:compact(#{
-        id       => uac_authorizer_jwt:get_subject_id(AuthContext),
-        %% TODO pass realm via Opts
-        realm    => genlib_app:env(?APP, realm),
-        email    => uac_authorizer_jwt:get_claim(<<"email">>, AuthContext, undefined),
-        username => uac_authorizer_jwt:get_claim(<<"name">> , AuthContext, undefined)
-    }).
 
 -spec create_handler_context(swagger_context(), woody_context:ctx()) ->
     context().
@@ -142,11 +129,10 @@ process_woody_error(_Source, resource_unavailable, _Details) ->
 process_woody_error(_Source, result_unknown, _Details) ->
     wapi_handler_utils:reply_error(504).
 
--spec create_ff_context(woody_context:ctx(), opts()) ->
-    ff_context:context().
-create_ff_context(WoodyContext, Opts) ->
+-spec create_wapi_context(woody_context:ctx()) ->
+    wapi_context:context().
+create_wapi_context(WoodyContext) ->
     ContextOptions = #{
-        woody_context => WoodyContext,
-        party_client => maps:get(party_client, Opts)
+        woody_context => WoodyContext
     },
-    ff_context:create(ContextOptions).
+    wapi_context:create(ContextOptions).

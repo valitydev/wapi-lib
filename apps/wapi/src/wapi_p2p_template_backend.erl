@@ -238,6 +238,61 @@ create_transfer(ID, MarshaledParams, MarshaledContext, HandlerContext) ->
             {error, {invalid_resource, Type}}
     end.
 
+%% Convert swag maps to thrift records
+
+marshal_template_params(Params = #{
+    <<"id">> := ID,
+    <<"identityID">> := IdentityID,
+    <<"details">> := Details
+}) ->
+    ExternalID = maps:get(<<"externalID">>, Params, undefined),
+    #p2p_template_P2PTemplateParams{
+        id = marshal(id, ID),
+        identity_id  = marshal(id, IdentityID),
+        template_details = marshal_template_details(Details),
+        external_id = maybe_marshal(id, ExternalID)
+    }.
+
+marshal_template_details(Details = #{
+    <<"body">> := Body
+}) ->
+    Metadata = maps:get(<<"metadata">>, Details, undefined),
+    #p2p_template_P2PTemplateDetails{
+        body = marshal_template_body(Body),
+        metadata = marshal_template_metadata(Metadata)
+    }.
+
+marshal_template_body(#{
+    <<"value">> := Cash
+}) ->
+    Currency = maps:get(<<"currency">>, Cash),
+    Amount = maps:get(<<"amount">>, Cash, undefined),
+    #p2p_template_P2PTemplateBody{
+        value = #p2p_template_Cash{
+            currency = marshal(currency_ref, Currency),
+            amount = maybe_marshal(amount, Amount)
+        }
+    }.
+
+marshal_template_metadata(undefined) ->
+    undefined;
+marshal_template_metadata(#{
+    <<"defaultMetadata">> := Metadata
+}) ->
+    #p2p_template_P2PTemplateMetadata{
+        value = marshal(context, Metadata)
+    }.
+
+marshal(T, V) ->
+    wapi_codec:marshal(T, V).
+
+%%
+
+maybe_marshal(_Type, undefined) ->
+    undefined;
+maybe_marshal(Type, Value) ->
+    marshal(Type, Value).
+
 %% Convert thrift records to swag maps
 
 unmarshal_template(#p2p_template_P2PTemplateState{
@@ -392,7 +447,7 @@ unmarshal_blocking(blocked) ->
 %% Utility
 
 unmarshal(T, V) ->
-    ff_codec:unmarshal(T, V).
+    wapi_codec:unmarshal(T, V).
 
 maybe_unmarshal(_, undefined) ->
     undefined;

@@ -375,7 +375,7 @@ marshal(event_range, {Cursor, Limit}) ->
     };
 
 marshal(context, Ctx) ->
-    ff_codec:marshal(context, Ctx);
+    wapi_codec:marshal(context, Ctx);
 
 marshal(proof_type, <<"RUSDomesticPassport">>) ->
     rus_domestic_passport;
@@ -383,7 +383,7 @@ marshal(proof_type, <<"RUSRetireeInsuranceCertificate">>) ->
     rus_retiree_insurance_cert;
 
 marshal(T, V) ->
-    ff_codec:marshal(T, V).
+    wapi_codec:marshal(T, V).
 
 %%
 
@@ -484,7 +484,7 @@ unmarshal(blocking, blocked) ->
     true;
 
 unmarshal(T, V) ->
-    ff_codec:unmarshal(T, V).
+    wapi_codec:unmarshal(T, V).
 
 maybe_unmarshal(_, undefined) ->
     undefined;
