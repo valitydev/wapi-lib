@@ -39,7 +39,7 @@
 -export([quote_transfer/2]).
 -export([get_transfer/2]).
 
--import(ff_pipeline, [do/1, unwrap/1]).
+-import(wapi_pipeline, [do/1, unwrap/1]).
 
 -include_lib("fistful_proto/include/ff_proto_p2p_transfer_thrift.hrl").
 
@@ -282,7 +282,7 @@ marshal_currency(Currency) ->
     #'CurrencyRef'{symbolic_code = Currency}.
 
 marshal(T, V) ->
-    ff_codec:marshal(T, V).
+    wapi_codec:marshal(T, V).
 
 %% Unmarshal
 
@@ -376,7 +376,7 @@ unmarshal_transfer_status({failed, #p2p_status_Failed{failure = Failure}}) ->
     }.
 
 unmarshal(T, V) ->
-    ff_codec:unmarshal(T, V).
+    wapi_codec:unmarshal(T, V).
 
 maybe_unmarshal(_T, undefined) ->
     undefined;

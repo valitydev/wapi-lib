@@ -25,7 +25,7 @@
     token_payload().
 create_token_payload(Quote, PartyID) ->
     Type = {struct, struct, {ff_proto_p2p_transfer_thrift, 'Quote'}},
-    Bin = ff_proto_utils:serialize(Type, Quote),
+    Bin = wapi_thrift_utils:serialize(Type, Quote),
     EncodedQuote = base64:encode(Bin),
     genlib_map:compact(#{
         <<"version">> => 2,
@@ -43,7 +43,7 @@ decode_token_payload(#{<<"version">> := 2} = Payload) ->
     } = Payload,
     Type = {struct, struct, {ff_proto_p2p_transfer_thrift, 'Quote'}},
     Bin = base64:decode(EncodedQuote),
-    Quote = ff_proto_utils:deserialize(Type, Bin),
+    Quote = wapi_thrift_utils:deserialize(Type, Bin),
     {ok, Quote};
 decode_token_payload(#{<<"version">> := 1}) ->
     {error, token_expired}.

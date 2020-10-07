@@ -74,34 +74,23 @@ groups() ->
 %%
 -spec init_per_suite(config()) ->
     config().
-init_per_suite(Config) ->
-    %% TODO remove this after cut off wapi
-    ok = application:set_env(wapi, transport, thrift),
-    ct_helper:makeup_cfg([
-        ct_helper:test_case_name(init),
-        ct_payment_system:setup(#{
-            optional_apps => [
-                bender_client,
-                wapi_woody_client,
-                wapi
-            ]
-        })
-    ], Config).
+init_per_suite(C) ->
+    wapi_ct_helper:init_suite(?MODULE, C).
 
--spec end_per_suite(config()) ->
-    _.
+-spec end_per_suite(config()) -> _.
+
 end_per_suite(C) ->
-    %% TODO remove this after cut off wapi
-    ok = ct_payment_system:shutdown(C).
+    _ = wapi_ct_helper:stop_mocked_service_sup(?config(suite_test_sup, C)),
+    _ = [application:stop(App) || App <- ?config(apps, C)],
+    ok.
 
 -spec init_per_group(group_name(), config()) ->
     config().
 init_per_group(Group, Config) when Group =:= base ->
-    ok = ff_context:save(ff_context:create(#{
-        party_client => party_client:create_client(),
+    ok = wapi_context:save(wapi_context:create(#{
         woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
     })),
-    Party = create_party(Config),
+    Party = genlib:bsuuid(),
     BasePermissions = [
         {[party], read},
         {[party], write}
@@ -125,14 +114,14 @@ end_per_group(_Group, _C) ->
 -spec init_per_testcase(test_case_name(), config()) ->
     config().
 init_per_testcase(Name, C) ->
-    C1 = ct_helper:makeup_cfg([ct_helper:test_case_name(Name), ct_helper:woody_ctx()], C),
-    ok = ct_helper:set_context(C1),
+    C1 = wapi_ct_helper:makeup_cfg([wapi_ct_helper:test_case_name(Name), wapi_ct_helper:woody_ctx()], C),
+    ok = wapi_context:save(C1),
     [{test_sup, wapi_ct_helper:start_mocked_service_sup(?MODULE)} | C1].
 
 -spec end_per_testcase(test_case_name(), config()) ->
     config().
 end_per_testcase(_Name, C) ->
-    ok = ct_helper:unset_context(),
+    ok = wapi_context:cleanup(),
     wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
     ok.
 
@@ -142,8 +131,8 @@ end_per_testcase(_Name, C) ->
     _.
 create(C) ->
     mock_services(C),
-    SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    SenderToken   = ?TEST_PAYMENT_TOKEN,
+    ReceiverToken = ?TEST_PAYMENT_TOKEN,
     {ok, _} = call_api(
         fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
         #{
@@ -168,7 +157,7 @@ create(C) ->
                 }
             }
         },
-        ct_helper:cfg(context, C)
+        ?config(context, C)
     ).
 
 -spec create_quote(config()) ->
@@ -181,8 +170,8 @@ create_quote(C) ->
                               ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
         {p2p_transfer, fun('GetQuote', _) -> {ok, ?P2P_TRANSFER_QUOTE(IdentityID)} end}
     ], C),
-    SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    SenderToken   = ?TEST_PAYMENT_TOKEN,
+    ReceiverToken = ?TEST_PAYMENT_TOKEN,
     {ok, #{<<"token">> := Token}} = call_api(
         fun swag_client_wallet_p2_p_api:quote_p2_p_transfer/3,
         #{
@@ -202,7 +191,7 @@ create_quote(C) ->
                 }
             }
         },
-        ct_helper:cfg(context, C)
+        ?config(context, C)
     ),
     {ok, {_, _, Payload}} = uac_authorizer_jwt:verify(Token, #{}),
     {ok, #p2p_transfer_Quote{identity_id = IdentityID}} = wapi_p2p_quote:decode_token_payload(Payload).
@@ -219,8 +208,8 @@ create_with_quote_token(C) ->
         {p2p_transfer, fun('GetQuote', _) -> {ok, ?P2P_TRANSFER_QUOTE(IdentityID)};
                           ('Create', _) -> {ok, ?P2P_TRANSFER(PartyID)} end}
     ], C),
-    SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    SenderToken   = ?TEST_PAYMENT_TOKEN,
+    ReceiverToken = ?TEST_PAYMENT_TOKEN,
     {ok, #{<<"token">> := QuoteToken}} = call_api(
         fun swag_client_wallet_p2_p_api:quote_p2_p_transfer/3,
         #{
@@ -240,7 +229,7 @@ create_with_quote_token(C) ->
                 }
             }
         },
-        ct_helper:cfg(context, C)
+        ?config(context, C)
     ),
     {ok, _} = call_api(
         fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
@@ -267,15 +256,15 @@ create_with_quote_token(C) ->
                 }
             }
         },
-        ct_helper:cfg(context, C)
+        ?config(context, C)
     ).
 
 -spec create_with_bad_quote_token(config()) ->
     _.
 create_with_bad_quote_token(C) ->
     mock_services(C),
-    SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    SenderToken   = ?TEST_PAYMENT_TOKEN,
+    ReceiverToken = ?TEST_PAYMENT_TOKEN,
     {error, {422, #{
         <<"message">> := <<"Token can't be verified">>
     }}} = call_api(
@@ -303,7 +292,7 @@ create_with_bad_quote_token(C) ->
                 }
             }
         },
-        ct_helper:cfg(context, C)
+        ?config(context, C)
     ).
 
 -spec get(config()) ->
@@ -320,7 +309,7 @@ get(C) ->
                 <<"p2pTransferID">> => ?STRING
             }
         },
-    ct_helper:cfg(context, C)
+    ?config(context, C)
 ).
 
 -spec fail_unauthorized(config()) ->
@@ -328,8 +317,8 @@ get(C) ->
 fail_unauthorized(C) ->
     WrongPartyID = <<"kek">>,
     mock_services(C, WrongPartyID),
-    SenderToken   = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    ReceiverToken = store_bank_card(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    SenderToken   = ?TEST_PAYMENT_TOKEN,
+    ReceiverToken = ?TEST_PAYMENT_TOKEN,
     {error, {422, #{
         <<"message">> := <<"No such identity">>
     }}} = call_api(
@@ -356,7 +345,7 @@ fail_unauthorized(C) ->
                 }
             }
         },
-        ct_helper:cfg(context, C)
+        ?config(context, C)
     ).
 
 %%
@@ -367,11 +356,6 @@ call_api(F, Params, Context) ->
     {Url, PreparedParams, Opts} = wapi_client_lib:make_request(Context, Params),
     Response = F(Url, PreparedParams, Opts),
     wapi_client_lib:handle_response(Response).
-
-create_party(_C) ->
-    ID = genlib:bsuuid(),
-    _ = ff_party:create(ID),
-    ID.
 
 mock_services(C) ->
     mock_services(C, ?config(party, C)).
@@ -384,19 +368,6 @@ mock_services(C, ContextPartyID) ->
                               ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(ContextPartyID)} end},
         {p2p_transfer, fun('Create', _) -> {ok, ?P2P_TRANSFER(PartyID)} end}
     ], C).
-
-store_bank_card(C, Pan, ExpDate, CardHolder) ->
-    {ok, Res} = call_api(
-        fun swag_client_payres_payment_resources_api:store_bank_card/3,
-        #{body => genlib_map:compact(#{
-            <<"type">>       => <<"BankCard">>,
-            <<"cardNumber">> => Pan,
-            <<"expDate">>    => ExpDate,
-            <<"cardHolder">> => CardHolder
-        })},
-        ct_helper:cfg(context_pcidss, C)
-    ),
-    maps:get(<<"token">>, Res).
 
 get_context(Endpoint, Token) ->
     wapi_client_lib:get_context(Endpoint, Token, 10000, ipv4).

@@ -238,222 +238,6 @@ create_transfer(ID, MarshaledParams, MarshaledContext, HandlerContext) ->
             {error, {invalid_resource, Type}}
     end.
 
-%% Convert swag maps to thrift records
-
-marshal_template_params(Params = #{
-    <<"id">> := ID,
-    <<"identityID">> := IdentityID,
-    <<"details">> := Details
-}) ->
-    ExternalID = maps:get(<<"externalID">>, Params, undefined),
-    #p2p_template_P2PTemplateParams{
-        id = marshal(id, ID),
-        identity_id  = marshal(id, IdentityID),
-        template_details = marshal_template_details(Details),
-        external_id = maybe_marshal(id, ExternalID)
-    }.
-
-marshal_template_details(Details = #{
-    <<"body">> := Body
-}) ->
-    Metadata = maps:get(<<"metadata">>, Details, undefined),
-    #p2p_template_P2PTemplateDetails{
-        body = marshal_template_body(Body),
-        metadata = marshal_template_metadata(Metadata)
-    }.
-
-marshal_template_body(#{
-    <<"value">> := Cash
-}) ->
-    Currency = maps:get(<<"currency">>, Cash),
-    Amount = maps:get(<<"amount">>, Cash, undefined),
-    #p2p_template_P2PTemplateBody{
-        value = #p2p_template_Cash{
-            currency = marshal(currency_ref, Currency),
-            amount = maybe_marshal(amount, Amount)
-        }
-    }.
-
-marshal_template_metadata(undefined) ->
-    undefined;
-marshal_template_metadata(#{
-    <<"defaultMetadata">> := Metadata
-}) ->
-    #p2p_template_P2PTemplateMetadata{
-        value = marshal(context, Metadata)
-    }.
-
-marshal(T, V) ->
-    wapi_codec:marshal(T, V).
-
-%%
-
-maybe_marshal(_Type, undefined) ->
-    undefined;
-maybe_marshal(Type, Value) ->
-    marshal(Type, Value).
-
-%% Convert thrift records to swag maps
-
-unmarshal_template(#p2p_template_P2PTemplateState{
-    id = ID,
-    identity_id = IdentityID,
-    created_at = CreatedAt,
-    template_details = Details,
-    blocking = Blocking,
-    external_id = ExternalID,
-    context = _Context
-}) ->
-    genlib_map:compact(#{
-        <<"id">>            => unmarshal(id, ID),
-        <<"identityID">>    => unmarshal(id, IdentityID),
-        <<"createdAt">>     => unmarshal(string, CreatedAt),
-        <<"isBlocked">>     => unmarshal_blocking(Blocking),
-        <<"details">>       => unmarshal_template_details(Details),
-        <<"externalID">>    => maybe_unmarshal(id, ExternalID)
-    }).
-
-unmarshal_template_details(#p2p_template_P2PTemplateDetails{
-    body = Body,
-    metadata = Metadata
-}) ->
-    genlib_map:compact(#{
-        <<"body">>      => unmarshal_template_body(Body),
-        <<"metadata">>  => unmarshal_template_metadata(Metadata)
-    }).
-
-unmarshal_template_body(#p2p_template_P2PTemplateBody{
-    value = #p2p_template_Cash{
-        currency = Currency,
-        amount = Amount
-    }
-}) ->
-    #{
-        <<"value">> => genlib_map:compact(#{
-            <<"currency">> => unmarshal(currency_ref, Currency),
-            <<"amount">> => maybe_unmarshal(amount, Amount)
-        })
-    }.
-
-unmarshal_body(#'Cash'{
-    amount   = Amount,
-    currency = Currency
-}) ->
-    #{
-        <<"amount">> => unmarshal(amount, Amount),
-        <<"currency">> => unmarshal(currency_ref, Currency)
-    }.
-
-unmarshal_template_metadata(undefined) ->
-    undefined;
-unmarshal_template_metadata(#p2p_template_P2PTemplateMetadata{
-    value = Metadata
-}) ->
-    genlib_map:compact(#{
-        <<"defaultMetadata">> => maybe_unmarshal(context, Metadata)
-    }).
-
-unmarshal_quote(#p2p_transfer_Quote{
-    expires_on = ExpiresOn,
-    fees = Fees
-}) ->
-    genlib_map:compact(#{
-        <<"customerFee">> => unmarshal_fees(Fees),
-        <<"expiresOn">> => unmarshal(string, ExpiresOn)
-    }).
-
-unmarshal_fees(#'Fees'{fees = #{surplus := Cash}}) ->
-    unmarshal_body(Cash);
-unmarshal_fees(#'Fees'{fees = #{operation_amount := Cash}}) ->
-    unmarshal_body(Cash).
-
-unmarshal_transfer(#p2p_transfer_P2PTransferState{
-    id = TransferID,
-    owner = IdentityID,
-    sender = SenderResource,
-    receiver = ReceiverResource,
-    body = Body,
-    status = Status,
-    created_at = CreatedAt,
-    external_id = ExternalID,
-    metadata = Metadata
-}) ->
-    Sender = unmarshal_sender(SenderResource),
-    ContactInfo = maps:get(<<"contactInfo">>, Sender),
-    genlib_map:compact(#{
-        <<"id">> => TransferID,
-        <<"identityID">> => IdentityID,
-        <<"createdAt">> => CreatedAt,
-        <<"body">> => unmarshal_body(Body),
-        <<"sender">> => maps:remove(<<"contactInfo">>, Sender),
-        <<"receiver">> => unmarshal_receiver(ReceiverResource),
-        <<"status">> => unmarshal_transfer_status(Status),
-        <<"contactInfo">> => ContactInfo,
-        <<"externalID">> => maybe_unmarshal(id, ExternalID),
-        <<"metadata">> => maybe_unmarshal(context, Metadata)
-    }).
-
-unmarshal_transfer_status({pending, _}) ->
-    #{<<"status">> => <<"Pending">>};
-unmarshal_transfer_status({succeeded, _}) ->
-    #{<<"status">> => <<"Succeeded">>};
-unmarshal_transfer_status({failed, #p2p_status_Failed{failure = Failure}}) ->
-    #{
-        <<"status">> => <<"Failed">>,
-        <<"failure">> => unmarshal(failure, Failure)
-    }.
-
-unmarshal_sender({resource, #p2p_transfer_RawResource{
-    contact_info = ContactInfo,
-    resource = {bank_card, #'ResourceBankCard'{
-        bank_card = BankCard
-    }}
-}}) ->
-    genlib_map:compact(#{
-        <<"type">>          => <<"BankCardSenderResource">>,
-        <<"contactInfo">>   => unmarshal_contact_info(ContactInfo),
-        <<"token">>         => BankCard#'BankCard'.token,
-        <<"paymentSystem">> => genlib:to_binary(BankCard#'BankCard'.payment_system),
-        <<"bin">>           => BankCard#'BankCard'.bin,
-        <<"lastDigits">>    => wapi_utils:get_last_pan_digits(BankCard#'BankCard'.masked_pan)
-    }).
-
-unmarshal_receiver({resource, #p2p_transfer_RawResource{
-    resource = {bank_card, #'ResourceBankCard'{
-        bank_card = BankCard
-    }}
-}}) ->
-    genlib_map:compact(#{
-        <<"type">>          => <<"BankCardReceiverResource">>,
-        <<"token">>         => BankCard#'BankCard'.token,
-        <<"bin">>           => BankCard#'BankCard'.bin,
-        <<"paymentSystem">> => genlib:to_binary(BankCard#'BankCard'.payment_system),
-        <<"lastDigits">>    => wapi_utils:get_last_pan_digits(BankCard#'BankCard'.masked_pan)
-    }).
-
-unmarshal_contact_info(ContactInfo) ->
-    genlib_map:compact(#{
-        <<"phoneNumber">> => ContactInfo#'ContactInfo'.phone_number,
-        <<"email">> => ContactInfo#'ContactInfo'.email
-    }).
-
-unmarshal_blocking(undefined) ->
-    undefined;
-unmarshal_blocking(unblocked) ->
-    false;
-unmarshal_blocking(blocked) ->
-    true.
-
-%% Utility
-
-unmarshal(T, V) ->
-    wapi_codec:unmarshal(T, V).
-
-maybe_unmarshal(_, undefined) ->
-    undefined;
-maybe_unmarshal(T, V) ->
-    unmarshal(T, V).
-
 %% Create quoteToken from Quote
 
 create_quote_token(Quote, PartyID) ->
@@ -699,10 +483,170 @@ marshal_context(Context) ->
     maybe_marshal(context, Context).
 
 marshal(T, V) ->
-    ff_codec:marshal(T, V).
+    wapi_codec:marshal(T, V).
 
 maybe_marshal(_, undefined) ->
     undefined;
 maybe_marshal(T, V) ->
     marshal(T, V).
 
+%% Convert thrift records to swag maps
+
+unmarshal_template(#p2p_template_P2PTemplateState{
+    id = ID,
+    identity_id = IdentityID,
+    created_at = CreatedAt,
+    template_details = Details,
+    blocking = Blocking,
+    external_id = ExternalID,
+    context = _Context
+}) ->
+    genlib_map:compact(#{
+        <<"id">>            => unmarshal(id, ID),
+        <<"identityID">>    => unmarshal(id, IdentityID),
+        <<"createdAt">>     => unmarshal(string, CreatedAt),
+        <<"isBlocked">>     => unmarshal_blocking(Blocking),
+        <<"details">>       => unmarshal_template_details(Details),
+        <<"externalID">>    => maybe_unmarshal(id, ExternalID)
+    }).
+
+unmarshal_template_details(#p2p_template_P2PTemplateDetails{
+    body = Body,
+    metadata = Metadata
+}) ->
+    genlib_map:compact(#{
+        <<"body">>      => unmarshal_template_body(Body),
+        <<"metadata">>  => unmarshal_template_metadata(Metadata)
+    }).
+
+unmarshal_template_body(#p2p_template_P2PTemplateBody{
+    value = #p2p_template_Cash{
+        currency = Currency,
+        amount = Amount
+    }
+}) ->
+    #{
+        <<"value">> => genlib_map:compact(#{
+            <<"currency">> => unmarshal(currency_ref, Currency),
+            <<"amount">> => maybe_unmarshal(amount, Amount)
+        })
+    }.
+
+unmarshal_body(#'Cash'{
+    amount   = Amount,
+    currency = Currency
+}) ->
+    #{
+        <<"amount">> => unmarshal(amount, Amount),
+        <<"currency">> => unmarshal(currency_ref, Currency)
+    }.
+
+unmarshal_template_metadata(undefined) ->
+    undefined;
+unmarshal_template_metadata(#p2p_template_P2PTemplateMetadata{
+    value = Metadata
+}) ->
+    genlib_map:compact(#{
+        <<"defaultMetadata">> => maybe_unmarshal(context, Metadata)
+    }).
+
+unmarshal_quote(#p2p_transfer_Quote{
+    expires_on = ExpiresOn,
+    fees = Fees
+}) ->
+    genlib_map:compact(#{
+        <<"customerFee">> => unmarshal_fees(Fees),
+        <<"expiresOn">> => unmarshal(string, ExpiresOn)
+    }).
+
+unmarshal_fees(#'Fees'{fees = #{surplus := Cash}}) ->
+    unmarshal_body(Cash);
+unmarshal_fees(#'Fees'{fees = #{operation_amount := Cash}}) ->
+    unmarshal_body(Cash).
+
+unmarshal_transfer(#p2p_transfer_P2PTransferState{
+    id = TransferID,
+    owner = IdentityID,
+    sender = SenderResource,
+    receiver = ReceiverResource,
+    body = Body,
+    status = Status,
+    created_at = CreatedAt,
+    external_id = ExternalID,
+    metadata = Metadata
+}) ->
+    Sender = unmarshal_sender(SenderResource),
+    ContactInfo = maps:get(<<"contactInfo">>, Sender),
+    genlib_map:compact(#{
+        <<"id">> => TransferID,
+        <<"identityID">> => IdentityID,
+        <<"createdAt">> => CreatedAt,
+        <<"body">> => unmarshal_body(Body),
+        <<"sender">> => maps:remove(<<"contactInfo">>, Sender),
+        <<"receiver">> => unmarshal_receiver(ReceiverResource),
+        <<"status">> => unmarshal_transfer_status(Status),
+        <<"contactInfo">> => ContactInfo,
+        <<"externalID">> => maybe_unmarshal(id, ExternalID),
+        <<"metadata">> => maybe_unmarshal(context, Metadata)
+    }).
+
+unmarshal_transfer_status({pending, _}) ->
+    #{<<"status">> => <<"Pending">>};
+unmarshal_transfer_status({succeeded, _}) ->
+    #{<<"status">> => <<"Succeeded">>};
+unmarshal_transfer_status({failed, #p2p_status_Failed{failure = Failure}}) ->
+    #{
+        <<"status">> => <<"Failed">>,
+        <<"failure">> => unmarshal(failure, Failure)
+    }.
+
+unmarshal_sender({resource, #p2p_transfer_RawResource{
+    contact_info = ContactInfo,
+    resource = {bank_card, #'ResourceBankCard'{
+        bank_card = BankCard
+    }}
+}}) ->
+    genlib_map:compact(#{
+        <<"type">>          => <<"BankCardSenderResource">>,
+        <<"contactInfo">>   => unmarshal_contact_info(ContactInfo),
+        <<"token">>         => BankCard#'BankCard'.token,
+        <<"paymentSystem">> => genlib:to_binary(BankCard#'BankCard'.payment_system),
+        <<"bin">>           => BankCard#'BankCard'.bin,
+        <<"lastDigits">>    => wapi_utils:get_last_pan_digits(BankCard#'BankCard'.masked_pan)
+    }).
+
+unmarshal_receiver({resource, #p2p_transfer_RawResource{
+    resource = {bank_card, #'ResourceBankCard'{
+        bank_card = BankCard
+    }}
+}}) ->
+    genlib_map:compact(#{
+        <<"type">>          => <<"BankCardReceiverResource">>,
+        <<"token">>         => BankCard#'BankCard'.token,
+        <<"bin">>           => BankCard#'BankCard'.bin,
+        <<"paymentSystem">> => genlib:to_binary(BankCard#'BankCard'.payment_system),
+        <<"lastDigits">>    => wapi_utils:get_last_pan_digits(BankCard#'BankCard'.masked_pan)
+    }).
+
+unmarshal_contact_info(ContactInfo) ->
+    genlib_map:compact(#{
+        <<"phoneNumber">> => ContactInfo#'ContactInfo'.phone_number,
+        <<"email">> => ContactInfo#'ContactInfo'.email
+    }).
+
+unmarshal_blocking(undefined) ->
+    undefined;
+unmarshal_blocking(unblocked) ->
+    false;
+unmarshal_blocking(blocked) ->
+    true.
+
+%% Utility
+
+unmarshal(T, V) ->
+    wapi_codec:unmarshal(T, V).
+
+maybe_unmarshal(_, undefined) ->
+    undefined;
+maybe_unmarshal(T, V) ->
+    unmarshal(T, V).

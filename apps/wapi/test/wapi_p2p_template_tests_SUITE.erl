@@ -91,6 +91,7 @@ init_per_group(Group, Config) when Group =:= base ->
     })),
     Party = genlib:bsuuid(),
     {ok, Token} = wapi_ct_helper:issue_token(Party, [{[party], write}], unlimited, ?DOMAIN),
+    ContextPcidss = wapi_client_lib:get_context("wapi-pcidss:8080", Token, 10000, ipv4),
     Config1 = [{party, Party} | Config],
     [
         {context, wapi_ct_helper:get_context(Token)},
@@ -279,8 +280,8 @@ quote_transfer_ok_test(C) ->
             ('GetQuote', _)     -> {ok, ?P2P_TEMPLATE_QUOTE}
         end}
     ], C),
-    SenderToken   = create_card_token(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    ReceiverToken = create_card_token(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    SenderToken   = ?TEST_PAYMENT_TOKEN,
+    ReceiverToken = ?TEST_PAYMENT_TOKEN,
     {ok, #{<<"token">> := _QuoteToken}} = call_api(
         fun swag_client_wallet_p2_p_templates_api:quote_p2_p_transfer_with_template/3,
         #{
@@ -302,7 +303,7 @@ quote_transfer_ok_test(C) ->
                 }
             }
         },
-        ct_helper:cfg(context, C)
+        ?config(context, C)
     ).
 
 
@@ -320,8 +321,8 @@ create_p2p_transfer_with_template_ok_test(C) ->
             ('CreateTransfer', _) -> {ok, ?P2P_TEMPLATE_TRANSFER(PartyID)}
         end}
     ], C),
-    SenderToken   = create_card_token(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
-    ReceiverToken = create_card_token(C, <<"4150399999000900">>, <<"12/2025">>, <<"Buka Bjaka">>),
+    SenderToken   = ?TEST_PAYMENT_TOKEN,
+    ReceiverToken = ?TEST_PAYMENT_TOKEN,
     ValidUntil = woody_deadline:to_binary(woody_deadline:from_timeout(100000)),
     TemplateToken = create_template_token(PartyID, ValidUntil),
     Ticket = create_transfer_ticket(TemplateToken),
@@ -386,16 +387,3 @@ create_transfer_ticket(TemplateToken) ->
         wapi_ct_helper:get_context(TemplateToken)
     ),
     Ticket.
-
-create_card_token(C, Pan, ExpDate, CardHolder) ->
-    {ok, Res} = call_api(
-        fun swag_client_payres_payment_resources_api:store_bank_card/3,
-        #{body => genlib_map:compact(#{
-            <<"type">>       => <<"BankCard">>,
-            <<"cardNumber">> => Pan,
-            <<"expDate">>    => ExpDate,
-            <<"cardHolder">> => CardHolder
-        })},
-        ct_helper:cfg(context_pcidss, C)
-    ),
-    maps:get(<<"token">>, Res).
