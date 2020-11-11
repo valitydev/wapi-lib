@@ -43,6 +43,48 @@ handle_request(OperationID, Req, SwagContext, Opts) ->
 -spec process_request(operation_id(), req_data(), handler_context(), handler_opts()) ->
     request_result().
 
+%% Providers
+process_request('ListProviders', #{'residence' := Residence}, Context, _Opts) ->
+    Providers = wapi_provider_backend:get_providers(maybe_to_list(Residence), Context),
+    wapi_handler_utils:reply_ok(200, Providers);
+process_request('GetProvider', #{'providerID' := Id}, Context, _Opts) ->
+    case wapi_provider_backend:get_provider(Id, Context) of
+        {ok, Provider}    -> wapi_handler_utils:reply_ok(200, Provider);
+        {error, notfound} -> wapi_handler_utils:reply_ok(404)
+    end;
+process_request('ListProviderIdentityClasses', #{'providerID' := Id}, Context, _Opts) ->
+    case wapi_provider_backend:get_provider_identity_classes(Id, Context) of
+        {ok, Classes}     -> wapi_handler_utils:reply_ok(200, Classes);
+        {error, notfound} -> wapi_handler_utils:reply_ok(404)
+    end;
+process_request('GetProviderIdentityClass', #{
+    'providerID'      := ProviderId,
+    'identityClassID' := ClassId
+}, Context, _Opts) ->
+    case wapi_provider_backend:get_provider_identity_class(ProviderId, ClassId, Context) of
+        {ok, Class}       -> wapi_handler_utils:reply_ok(200, Class);
+        {error, notfound} -> wapi_handler_utils:reply_ok(404)
+    end;
+process_request('ListProviderIdentityLevels', #{
+    'providerID'      := _ProviderId,
+    'identityClassID' := _ClassId
+}, _Context, _Opts) ->
+    %% case wapi_provider_backend:get_provider_identity_class_levels(ProviderId, ClassId, Context) of
+    %%     {ok, Levels}      -> wapi_handler_utils:reply_ok(200, Levels);
+    %%     {error, notfound} -> wapi_handler_utils:reply_ok(404)
+    %% end;
+    not_implemented();
+process_request('GetProviderIdentityLevel', #{
+    'providerID'      := _ProviderId,
+    'identityClassID' := _ClassId,
+    'identityLevelID' := _LevelId
+}, _Context, _Opts) ->
+    %% case wapi_provider_backend:get_provider_identity_class_level(ProviderId, ClassId, LevelId, Context) of
+    %%     {ok, Level}       -> wapi_handler_utils:reply_ok(200, Level);
+    %%     {error, notfound} -> wapi_handler_utils:reply_ok(404)
+    %% end;
+    not_implemented();
+
 %% Identities
 process_request('ListIdentities', Params, Context, _Opts) ->
     case wapi_stat_backend:list_identities(Params, Context) of
@@ -68,6 +110,10 @@ process_request('CreateIdentity', #{'Identity' := Params}, Context, Opts) ->
     case wapi_identity_backend:create_identity(Params, Context) of
         {ok, Identity = #{<<"id">> := IdentityId}} ->
             wapi_handler_utils:reply_ok(201, Identity, get_location('GetIdentity', [IdentityId], Opts));
+        {error, {inaccessible, _}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Party inaccessible">>));
+        {error, {party, notfound}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Party does not exist">>));
         {error, {provider, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such provider">>));
         {error, {identity_class, notfound}} ->
@@ -187,6 +233,30 @@ process_request('GetWalletAccount', #{'walletID' := WalletId}, Context, _Opts) -
         {error, {wallet, unauthorized}} -> wapi_handler_utils:reply_ok(404)
     end;
 
+process_request('IssueWalletGrant', #{
+    'walletID'           := WalletId,
+    'WalletGrantRequest' := #{<<"validUntil">> := Expiration, <<"asset">> := Asset}
+}, Context, _Opts) ->
+    case wapi_wallet_backend:get(WalletId, Context) of
+        {ok, _} ->
+            case wapi_backend_utils:issue_grant_token({wallets, WalletId, Asset}, Expiration, Context) of
+                {ok, Token} ->
+                    wapi_handler_utils:reply_ok(201, #{
+                        <<"token">>      => Token,
+                        <<"validUntil">> => Expiration,
+                        <<"asset">>      => Asset
+                    });
+                {error, expired} ->
+                    wapi_handler_utils:reply_ok(422,
+                        wapi_handler_utils:get_error_msg(<<"Invalid expiration: already expired">>)
+                    )
+            end;
+        {error, {wallet, notfound}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {wallet, unauthorized}} ->
+            wapi_handler_utils:reply_ok(404)
+    end;
+
 %% Destinations
 
 process_request('ListDestinations', Params, Context, _Opts) ->
@@ -286,6 +356,10 @@ process_request('CreateQuote', Params, Context, _Opts) ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid cash amount">>)
             );
+        {error, {invalid_amount, _}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid cash amount">>)
+            );
         {error, {inconsistent_currency, _}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid currency">>)
@@ -314,6 +388,8 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
             wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
         {error, {wallet, notfound}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such wallet">>));
+        {error, {wallet, {inaccessible, _}}} ->
+            wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Wallet inaccessible">>));
         {error, {wallet, unauthorized}} ->
             wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Wallet unauthorized">>));
         {error, {quote_invalid_party, _}} ->
@@ -337,6 +413,10 @@ process_request('CreateWithdrawal', #{'WithdrawalParameters' := Params}, Context
                 wapi_handler_utils:get_error_msg(<<"Forbidden currency">>)
             );
         {error, {forbidden_amount, _}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Invalid cash amount">>)
+            );
+        {error, {invalid_amount, _}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Invalid cash amount">>)
             );
@@ -442,9 +522,15 @@ process_request('CreateW2WTransfer', #{'W2WTransferParameters' := Params}, Conte
         {error, {wallet_from, unauthorized}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such wallet sender">>));
+        {error, {wallet_from, inaccessible}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Wallet inaccessible">>));
         {error, {wallet_to, notfound}} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"No such wallet receiver">>));
+        {error, {wallet_to, inaccessible}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Wallet inaccessible">>));
         {error, not_allowed_currency} ->
             wapi_handler_utils:reply_ok(422,
                 wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
@@ -489,7 +575,10 @@ process_request('QuoteP2PTransfer', #{'QuoteParameters':= Params}, Context, _Opt
                 wapi_handler_utils:get_error_msg(<<"Currency not allowed">>));
         {error, {p2p_transfer, cash_range_exceeded}} ->
             wapi_handler_utils:reply_ok(422,
-                wapi_handler_utils:get_error_msg(<<"Transfer amount is out of allowed range">>))
+                wapi_handler_utils:get_error_msg(<<"Transfer amount is out of allowed range">>));
+        {error, {p2p_transfer, operation_not_permitted}} ->
+            wapi_handler_utils:reply_ok(422,
+                wapi_handler_utils:get_error_msg(<<"Operation not permitted">>))
     end;
 
 process_request('CreateP2PTransfer', #{'P2PTransferParameters' := Params}, Context, _Opts) ->
@@ -533,6 +622,28 @@ process_request('GetP2PTransfer', #{p2pTransferID := ID}, Context, _Opts) ->
             wapi_handler_utils:reply_ok(404);
         {error, {p2p_transfer, notfound}} ->
             wapi_handler_utils:reply_ok(404)
+    end;
+
+process_request('GetP2PTransferEvents', #{p2pTransferID := ID, continuationToken := CT}, Context, _Opts) ->
+    case wapi_p2p_transfer_backend:get_transfer_events(ID, CT, Context) of
+        {ok, P2PTransferEvents} ->
+            wapi_handler_utils:reply_ok(200, P2PTransferEvents);
+        {error, {p2p_transfer, unauthorized}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {p2p_transfer, notfound}} ->
+            wapi_handler_utils:reply_ok(404);
+        {error, {token, {not_verified, _}}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidToken">>,
+                <<"name">>        => <<"continuationToken">>,
+                <<"description">> => <<"Token can't be verified">>
+            });
+        {error, {token, {unsupported_version, _}}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">>   => <<"InvalidToken">>,
+                <<"name">>        => <<"continuationToken">>,
+                <<"description">> => <<"Token unsupported version">>
+            })
     end;
 
 %% P2P Templates
@@ -830,3 +941,12 @@ get_default_url_lifetime() ->
     Now      = erlang:system_time(second),
     Lifetime = application:get_env(wapi, file_storage_url_lifetime, ?DEFAULT_URL_LIFETIME),
     genlib_rfc3339:format(Now + Lifetime, second).
+
+-spec not_implemented() -> no_return().
+not_implemented() ->
+    wapi_handler_utils:throw_not_implemented().
+
+maybe_to_list(undefined) ->
+    [];
+maybe_to_list(T) ->
+    [T].

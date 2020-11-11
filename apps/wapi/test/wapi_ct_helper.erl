@@ -139,7 +139,8 @@ start_app({wapi = AppName, Config}) ->
             validation_opts => #{
                 custom_validator => wapi_swagger_validator
             }
-        }}
+        }},
+        {events_fetch_limit, 32}
     ]);
 
 start_app(AppName) ->

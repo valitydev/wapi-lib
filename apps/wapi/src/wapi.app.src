@@ -27,7 +27,9 @@
         cowboy_access_log,
         base64url,
         snowflake,
-        uac
+        uac,
+        prometheus,
+        prometheus_cowboy
     ]},
     {env, []}
 ]}.

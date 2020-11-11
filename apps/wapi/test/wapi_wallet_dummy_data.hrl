@@ -4,6 +4,8 @@
 -define(BANKID_RU, <<"PUTIN">>).
 -define(BANKID_US, <<"TRAMP">>).
 -define(WALLET_TOOL, <<"TOOL">>).
+-define(RESIDENCE_RUS, <<"RUS">>).
+-define(RESIDENCE_DEU, <<"DEU">>).
 -define(JSON, <<"{}">>).
 -define(INTEGER, 10000).
 -define(INTEGER_BINARY, <<"10000">>).
@@ -44,6 +46,18 @@
     currency = #'CurrencyRef'{
         symbolic_code = ?RUB
     }
+}).
+
+-define(IDENTITY_CLASS, #'provider_IdentityClass'{
+    id = ?STRING,
+    name = ?STRING
+}).
+
+-define(PROVIDER, #provider_Provider{
+    id = ?STRING,
+    name = ?STRING,
+    residences = [?RESIDENCE_RUS, ?RESIDENCE_DEU],
+    identity_classes = #{?STRING => ?IDENTITY_CLASS}
 }).
 
 -define(GET_INTERNAL_ID_RESULT, {
@@ -516,6 +530,34 @@
     adjustments = []
 }).
 
+-define(P2P_TRANSFER_SESSIONS(PartyID), ?P2P_TRANSFER(PartyID)#p2p_transfer_P2PTransferState{
+    sessions = [#p2p_transfer_SessionState{id = ?STRING}]
+}).
+
+-define(P2P_TRANSFER_EVENT(EventID), #p2p_transfer_Event{
+    event = EventID,
+    occured_at = ?TIMESTAMP,
+    change = {status_changed, #p2p_transfer_StatusChange{
+        status = {succeeded, #p2p_status_Succeeded{}}
+    }}
+}).
+
+-define(P2P_SESSION_EVENT(EventID), #p2p_session_Event{
+    event = EventID,
+    occured_at = ?TIMESTAMP,
+    change = {ui, #p2p_session_UserInteractionChange{
+        id = ?STRING,
+        payload = {created, #p2p_session_UserInteractionCreatedChange{
+            ui = #p2p_session_UserInteraction{
+                id = ?STRING,
+                user_interaction = {redirect, {get_request, #ui_BrowserGetRequest{
+                    uri = ?STRING
+                }}}
+            }
+        }}
+    }}
+}).
+
 -define(FEES, #'Fees'{fees = #{operation_amount => ?CASH}}).
 
 -define(P2P_TRANSFER_QUOTE(IdentityID), #p2p_transfer_Quote{
@@ -529,3 +571,4 @@
     receiver = ?RESOURCE_BANK_CARD,
     fees = ?FEES
 }).
+

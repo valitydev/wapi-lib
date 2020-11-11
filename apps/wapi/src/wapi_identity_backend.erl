@@ -40,6 +40,7 @@ get_identity(IdentityID, HandlerContext) ->
     end.
 
 -spec create_identity(params(), handler_context()) -> result(map(),
+    {party, notfound}            |
     {provider, notfound}         |
     {identity_class, notfound}   |
     {external_id_conflict, id()} |
@@ -64,6 +65,8 @@ create_identity(ID, Params, HandlerContext) ->
     case service_call(Request, HandlerContext) of
         {ok, Identity} ->
             {ok, unmarshal(identity, Identity)};
+        {exception, #fistful_PartyNotFound{}} ->
+            {error, {party, notfound}};
         {exception, #fistful_ProviderNotFound{}} ->
             {error, {provider, notfound}};
         {exception, #fistful_IdentityClassNotFound{}} ->

@@ -82,6 +82,8 @@ get_service_modname(fistful_report) ->
     {ff_reporter_reports_thrift, 'Reporting'};
 get_service_modname(file_storage) ->
     {fs_file_storage_thrift, 'FileStorage'};
+get_service_modname(fistful_provider) ->
+    {ff_proto_provider_thrift, 'Management'};
 get_service_modname(fistful_identity) ->
     {ff_proto_identity_thrift, 'Management'};
 get_service_modname(fistful_wallet) ->
@@ -94,9 +96,11 @@ get_service_modname(fistful_p2p_template) ->
     {ff_proto_p2p_template_thrift, 'Management'};
 get_service_modname(webhook_manager) ->
     {ff_proto_webhooker_thrift, 'WebhookManager'};
-get_service_modname(p2p_transfer) ->
+get_service_modname(fistful_p2p_transfer) ->
     {ff_proto_p2p_transfer_thrift, 'Management'};
-get_service_modname(w2w_transfer) ->
+get_service_modname(fistful_p2p_session) ->
+    {ff_proto_p2p_session_thrift, 'Management'};
+get_service_modname(fistful_w2w_transfer) ->
     {ff_proto_w2w_transfer_thrift, 'Management'}.
 
 -spec get_service_deadline(service_name()) -> undefined | woody_deadline:deadline().

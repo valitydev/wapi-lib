@@ -18,7 +18,7 @@ when
     CreateError ::
         {external_id_conflict, external_id()} |
         {wallet_from, unauthorized} |
-        {wallet_from | wallet_to, notfound} |
+        {wallet_from | wallet_to, notfound | inaccessible} |
         bad_w2w_transfer_amount |
         not_allowed_currency |
         inconsistent_currency.
@@ -39,12 +39,14 @@ create_transfer(Params = #{<<"sender">> := SenderID}, HandlerContext) ->
 
 create_transfer(ID, Params, Context, HandlerContext) ->
     TransferParams = marshal(transfer_params, Params#{<<"id">> => ID}),
-    Request = {w2w_transfer, 'Create', [TransferParams, marshal(context, Context)]},
+    Request = {fistful_w2w_transfer, 'Create', [TransferParams, marshal(context, Context)]},
     case service_call(Request, HandlerContext) of
         {ok, Transfer} ->
             {ok, unmarshal(transfer, Transfer)};
         {exception, #fistful_WalletNotFound{id = ID}} ->
             {error, wallet_not_found_error(unmarshal(id, ID), Params)};
+        {exception, #fistful_WalletInaccessible{id = ID}} ->
+            {error, wallet_inaccessible_error(unmarshal(id, ID), Params)};
         {exception, #fistful_ForbiddenOperationCurrency{}} ->
             {error, not_allowed_currency};
         {exception, #w2w_transfer_InconsistentW2WTransferCurrency{}} ->
@@ -62,7 +64,7 @@ when
 
 get_transfer(ID, HandlerContext) ->
     EventRange = #'EventRange'{},
-    Request = {w2w_transfer, 'Get', [ID, EventRange]},
+    Request = {fistful_w2w_transfer, 'Get', [ID, EventRange]},
     case service_call(Request, HandlerContext) of
         {ok, TransferThrift} ->
             case wapi_access_backend:check_resource(w2w_transfer, TransferThrift, HandlerContext) of
@@ -86,6 +88,11 @@ wallet_not_found_error(WalletID, #{<<"sender">> := WalletID}) ->
     {wallet_from, notfound};
 wallet_not_found_error(WalletID, #{<<"receiver">> := WalletID}) ->
     {wallet_to, notfound}.
+
+wallet_inaccessible_error(WalletID, #{<<"sender">> := WalletID}) ->
+    {wallet_from, inaccessible};
+wallet_inaccessible_error(WalletID, #{<<"receiver">> := WalletID}) ->
+    {wallet_to, inaccessible}.
 
 %% Marshaling
 
