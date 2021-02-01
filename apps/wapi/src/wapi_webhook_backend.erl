@@ -5,23 +5,20 @@
 -export([get_webhook/3]).
 -export([delete_webhook/3]).
 
--type id()          :: binary() | undefined.
--type ctx()         :: wapi_handler:context().
+-type id() :: binary() | undefined.
+-type ctx() :: wapi_handler:context().
 -type req_data() :: wapi_handler:req_data().
 -type handler_context() :: wapi_handler:context().
 -type response_data() :: wapi_handler:response_data().
 
-
 -include_lib("fistful_proto/include/ff_proto_webhooker_thrift.hrl").
 
--spec create_webhook(req_data(), handler_context()) ->
-    {ok, response_data()} | {error, CreateError}
-when CreateError ::
-    {identity, notfound} |
-    {identity, unauthorized} |
-    {wallet, notfound} |
-    {wallet, unauthorized}.
-
+-spec create_webhook(req_data(), handler_context()) -> {ok, response_data()} | {error, CreateError} when
+    CreateError ::
+        {identity, notfound}
+        | {identity, unauthorized}
+        | {wallet, notfound}
+        | {wallet, unauthorized}.
 create_webhook(#{'Webhook' := Params}, HandlerContext) ->
     WebhookParams = marshal_webhook_params(Params),
     IdentityID = WebhookParams#webhooker_WebhookParams.identity_id,
@@ -30,7 +27,7 @@ create_webhook(#{'Webhook' := Params}, HandlerContext) ->
         ok ->
             case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
                 ok ->
-                    Call = {webhook_manager, 'Create', [WebhookParams]},
+                    Call = {webhook_manager, 'Create', {WebhookParams}},
                     Result = wapi_handler_utils:service_call(Call, HandlerContext),
                     process_create_webhook_result(Result);
                 {error, Error} ->
@@ -40,30 +37,26 @@ create_webhook(#{'Webhook' := Params}, HandlerContext) ->
             {error, {wallet, Error}}
     end.
 
--spec get_webhooks(id(), ctx()) ->
-    {ok, response_data()} | {error, GetError}
-when GetError ::
-    {identity, notfound} |
-    {identity, unauthorized}.
-
+-spec get_webhooks(id(), ctx()) -> {ok, response_data()} | {error, GetError} when
+    GetError ::
+        {identity, notfound}
+        | {identity, unauthorized}.
 get_webhooks(IdentityID, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
-            Call = {webhook_manager, 'GetList', [IdentityID]},
+            Call = {webhook_manager, 'GetList', {IdentityID}},
             Result = wapi_handler_utils:service_call(Call, HandlerContext),
             process_get_webhooks_result(Result);
         {error, Error} ->
             {error, {identity, Error}}
     end.
 
--spec get_webhook(id(), id(), ctx()) ->
-    {ok, response_data()} | {error, GetError}
-when GetError ::
-    notfound |
-    {webhook, notfound} |
-    {identity, notfound} |
-    {identity, unauthorized}.
-
+-spec get_webhook(id(), id(), ctx()) -> {ok, response_data()} | {error, GetError} when
+    GetError ::
+        notfound
+        | {webhook, notfound}
+        | {identity, notfound}
+        | {identity, unauthorized}.
 get_webhook(WebhookID, IdentityID, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
@@ -71,7 +64,7 @@ get_webhook(WebhookID, IdentityID, HandlerContext) ->
                 {error, notfound} ->
                     {error, {webhook, notfound}};
                 EncodedID ->
-                    Call = {webhook_manager, 'Get', [EncodedID]},
+                    Call = {webhook_manager, 'Get', {EncodedID}},
                     Result = wapi_handler_utils:service_call(Call, HandlerContext),
                     process_get_webhook_result(Result)
             end;
@@ -79,13 +72,11 @@ get_webhook(WebhookID, IdentityID, HandlerContext) ->
             {error, {identity, Error}}
     end.
 
--spec delete_webhook(id(), id(), ctx()) ->
-    ok | {error, DeleteError}
-when DeleteError ::
-    notfound |
-    {identity, notfound} |
-    {identity, unauthorized}.
-
+-spec delete_webhook(id(), id(), ctx()) -> ok | {error, DeleteError} when
+    DeleteError ::
+        notfound
+        | {identity, notfound}
+        | {identity, unauthorized}.
 delete_webhook(WebhookID, IdentityID, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
@@ -93,7 +84,7 @@ delete_webhook(WebhookID, IdentityID, HandlerContext) ->
                 {error, notfound} ->
                     {error, {webhook, notfound}};
                 EncodedID ->
-                    Call = {webhook_manager, 'Delete', [EncodedID]},
+                    Call = {webhook_manager, 'Delete', {EncodedID}},
                     Result = wapi_handler_utils:service_call(Call, HandlerContext),
                     process_delete_webhook_result(Result)
             end;
@@ -129,8 +120,6 @@ check_wallet(undefined, _) ->
     ok;
 check_wallet(WalletID, HandlerContext) ->
     wapi_access_backend:check_resource_by_id(wallet, WalletID, HandlerContext).
-
-
 
 %% marshaling
 
@@ -168,7 +157,6 @@ marshal_webhook_event_type(<<"DestinationUnauthorized">>) ->
 marshal_webhook_event_type(<<"DestinationAuthorized">>) ->
     {destination, {authorized, #webhooker_DestinationAuthorized{}}}.
 
-
 unmarshal_webhooks(Webhooks) when is_list(Webhooks) ->
     lists:map(fun(Webhook) -> unmarshal_webhook(Webhook) end, Webhooks).
 
@@ -181,7 +169,7 @@ unmarshal_webhook(#webhooker_Webhook{
     pub_key = PubKey,
     enabled = Enabled
 }) ->
-   genlib_map:compact(#{
+    genlib_map:compact(#{
         <<"id">> => integer_to_binary(ID),
         <<"identityID">> => IdentityID,
         <<"active">> => wapi_codec:unmarshal(bool, Enabled),
@@ -192,27 +180,30 @@ unmarshal_webhook(#webhooker_Webhook{
 
 unmarshal_webhook_scope(#webhooker_EventFilter{types = EventTypes}, WalletID) ->
     List = unmarshal_webhook_event_types(EventTypes),
-    lists:foldl(fun({Topic, Type}, Acc) ->
-        case maps:get(<<"topic">>, Acc, undefined) of
-            undefined ->
-                genlib_map:compact(Acc#{
-                    <<"topic">> => unmarshal_webhook_topic(Topic),
-                    <<"walletID">> => WalletID,
-                    <<"eventTypes">> => [Type]
-                });
-            _ ->
-                #{<<"eventTypes">> := Types} = Acc,
-                Acc#{
-                    <<"eventTypes">> := [Type | Types]
-                }
-        end
-    end, #{}, List).
+    lists:foldl(
+        fun({Topic, Type}, Acc) ->
+            case maps:get(<<"topic">>, Acc, undefined) of
+                undefined ->
+                    genlib_map:compact(Acc#{
+                        <<"topic">> => unmarshal_webhook_topic(Topic),
+                        <<"walletID">> => WalletID,
+                        <<"eventTypes">> => [Type]
+                    });
+                _ ->
+                    #{<<"eventTypes">> := Types} = Acc,
+                    Acc#{
+                        <<"eventTypes">> := [Type | Types]
+                    }
+            end
+        end,
+        #{},
+        List
+    ).
 
 unmarshal_webhook_topic(withdrawal) ->
     <<"WithdrawalsTopic">>;
 unmarshal_webhook_topic(destination) ->
     <<"DestinationsTopic">>.
-
 
 unmarshal_webhook_event_types(EventTypes) when is_list(EventTypes) ->
     ordsets:to_list(lists:map(fun unmarshal_webhook_event_type/1, EventTypes)).

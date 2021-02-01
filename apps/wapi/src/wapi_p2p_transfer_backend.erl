@@ -7,46 +7,42 @@
 -type id() :: binary().
 -type external_id() :: id().
 
--type error_create()
-    :: {external_id_conflict, id(), external_id()}
-     | {identity,     unauthorized}
-     | {identity,     notfound}
-     | {p2p_transfer, forbidden_currency}
-     | {p2p_transfer, cash_range_exceeded}
-     | {p2p_transfer, operation_not_permitted}
-     | {token,        {not_verified, identity_mismatch}}
-     | {token,        {not_verified, _}}
-     | {sender,       invalid_resource}
-     | {receiver,     invalid_resource}
-     .
+-type error_create() ::
+    {external_id_conflict, id(), external_id()}
+    | {identity, unauthorized}
+    | {identity, notfound}
+    | {p2p_transfer, forbidden_currency}
+    | {p2p_transfer, cash_range_exceeded}
+    | {p2p_transfer, operation_not_permitted}
+    | {token, {not_verified, identity_mismatch}}
+    | {token, {not_verified, _}}
+    | {sender | receiver, invalid_resource}
+    | {sender | receiver, {invalid_resource_token, binary()}}.
 
--type error_create_quote()
-    :: {identity,     unauthorized}
-     | {identity,     notfound}
-     | {p2p_transfer, forbidden_currency}
-     | {p2p_transfer, cash_range_exceeded}
-     | {p2p_transfer, operation_not_permitted}
-     | {sender,       invalid_resource}
-     | {receiver,     invalid_resource}
-     .
+-type error_create_quote() ::
+    {identity, unauthorized}
+    | {identity, notfound}
+    | {p2p_transfer, forbidden_currency}
+    | {p2p_transfer, cash_range_exceeded}
+    | {p2p_transfer, operation_not_permitted}
+    | {sender | receiver, invalid_resource}
+    | {sender | receiver, {invalid_resource_token, binary()}}.
 
--type error_get()
-    :: {p2p_transfer, unauthorized}
-     | {p2p_transfer, notfound}
-     .
+-type error_get() ::
+    {p2p_transfer, unauthorized}
+    | {p2p_transfer, notfound}.
 
--type error_get_events()
-    :: error_get()
-     | {token, {unsupported_version, _}}
-     | {token, {not_verified, _}}
-     .
+-type error_get_events() ::
+    error_get()
+    | {token, {unsupported_version, _}}
+    | {token, {not_verified, _}}.
 
 -export([create_transfer/2]).
 -export([get_transfer/2]).
 -export([quote_transfer/2]).
 -export([get_transfer_events/3]).
 
--import(wapi_pipeline, [do/1, unwrap/1]).
+-import(wapi_pipeline, [do/1, unwrap/1, unwrap/2]).
 
 -include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_p2p_transfer_thrift.hrl").
@@ -61,27 +57,66 @@
 -type event_range() :: #'EventRange'{}.
 -type event_id() :: ff_proto_base_thrift:'EventID'() | undefined.
 
--spec create_transfer(req_data(), handler_context()) ->
-    {ok, response_data()} | {error, error_create()}.
+-spec create_transfer(req_data(), handler_context()) -> {ok, response_data()} | {error, error_create()}.
 create_transfer(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
-    case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
-        ok ->
-            case wapi_backend_utils:gen_id(p2p_transfer, Params, HandlerContext) of
-                {ok, ID} ->
-                    do_create_transfer(ID, Params, HandlerContext);
-                {error, {external_id_conflict, ID}} ->
-                    {error, {external_id_conflict, ID, maps:get(<<"externalID">>, Params, undefined)}}
-            end;
-        {error, unauthorized} ->
-            {error, {identity, unauthorized}};
-        {error, notfound} ->
-            {error, {identity, notfound}}
+    do(fun() ->
+        unwrap(identity, wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext)),
+        Sender = maps:get(<<"sender">>, Params),
+        Receiver = maps:get(<<"receiver">>, Params),
+        SenderResource = unwrap(sender, decode_token(Sender)),
+        ReceiverResource = unwrap(receiver, decode_token(Receiver)),
+        ID = unwrap(generate_id(Params, SenderResource, ReceiverResource, HandlerContext)),
+        Quote = unwrap(decode_quote(maps:get(<<"quoteToken">>, Params, undefined), IdentityID)),
+        % mixing the attributes needed for marshaling
+        MarshaledParams = marshal_transfer_params(
+            Params#{
+                <<"id">> => ID,
+                <<"sender">> => Sender#{<<"resourceThrift">> => SenderResource},
+                <<"receiver">> => Receiver#{<<"resourceThrift">> => ReceiverResource},
+                <<"quoteThrift">> => Quote
+            }
+        ),
+        MarshaledContext = marshal(context, wapi_backend_utils:make_ctx(Params, HandlerContext)),
+        Request = {fistful_p2p_transfer, 'Create', {MarshaledParams, MarshaledContext}},
+        unwrap(create_request(Request, HandlerContext))
+    end).
+
+generate_id(Params, SenderResource, ReceiverResource, HandlerContext) ->
+    Sender = maps:get(<<"sender">>, Params),
+    Receiver = maps:get(<<"receiver">>, Params),
+    % replacing token with an tokenizedResource is need for naive idempotent algo.
+    NewParams = Params#{
+        <<"sender">> => Sender#{
+            <<"token">> => undefined,
+            <<"tokenizedResource">> => wapi_backend_utils:tokenize_resource(SenderResource)
+        },
+        <<"receiver">> => Receiver#{
+            <<"token">> => undefined,
+            <<"tokenizedResource">> => wapi_backend_utils:tokenize_resource(ReceiverResource)
+        }
+    },
+    case wapi_backend_utils:gen_id(p2p_transfer, NewParams, HandlerContext) of
+        {ok, ID} ->
+            {ok, ID};
+        {error, {external_id_conflict, ID}} ->
+            ExternalID = maps:get(<<"externalID">>, Params, undefined),
+            % Delete after deploy
+            logger:warning("external_id_conflict: ~p. try old hashing", [{ID, ExternalID}]),
+            generate_id_legacy(Params, HandlerContext)
     end.
 
--spec get_transfer(req_data(), handler_context()) ->
-    {ok, response_data()} | {error, error_get()}.
+generate_id_legacy(Params, HandlerContext) ->
+    case wapi_backend_utils:gen_id(p2p_transfer, Params, HandlerContext) of
+        {ok, ID} ->
+            {ok, ID};
+        {error, {external_id_conflict, ID}} ->
+            ExternalID = maps:get(<<"externalID">>, Params, undefined),
+            {error, {external_id_conflict, ID, ExternalID}}
+    end.
+
+-spec get_transfer(req_data(), handler_context()) -> {ok, response_data()} | {error, error_get()}.
 get_transfer(ID, HandlerContext) ->
-    Request = {fistful_p2p_transfer, 'Get', [ID, #'EventRange'{}]},
+    Request = {fistful_p2p_transfer, 'Get', {ID, #'EventRange'{}}},
     case service_call(Request, HandlerContext) of
         {ok, TransferThrift} ->
             case wapi_access_backend:check_resource(p2p_transfer, TransferThrift, HandlerContext) of
@@ -94,22 +129,25 @@ get_transfer(ID, HandlerContext) ->
             {error, {p2p_transfer, notfound}}
     end.
 
--spec quote_transfer(req_data(), handler_context()) ->
-    {ok, response_data()} | {error, error_create_quote()}.
-
+-spec quote_transfer(req_data(), handler_context()) -> {ok, response_data()} | {error, error_create_quote()}.
 quote_transfer(Params = #{<<"identityID">> := IdentityID}, HandlerContext) ->
-    case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
-        ok ->
-            do_quote_transfer(Params, HandlerContext);
-        {error, unauthorized} ->
-            {error, {identity, unauthorized}};
-        {error, notfound} ->
-            {error, {identity, notfound}}
-    end.
+    do(fun() ->
+        unwrap(identity, wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext)),
+        Sender = maps:get(<<"sender">>, Params),
+        Receiver = maps:get(<<"receiver">>, Params),
+        SenderResource = unwrap(sender, decode_token(Sender)),
+        ReceiverResource = unwrap(receiver, decode_token(Receiver)),
+        % mixing the attributes needed for marshaling
+        QuoteParams = marshal_quote_params(Params#{
+            <<"sender">> => Sender#{<<"resourceThrift">> => SenderResource},
+            <<"receiver">> => Receiver#{<<"resourceThrift">> => ReceiverResource}
+        }),
+        Request = {fistful_p2p_transfer, 'GetQuote', {QuoteParams}},
+        unwrap(quote_transfer_request(Request, HandlerContext))
+    end).
 
 -spec get_transfer_events(id(), binary() | undefined, handler_context()) ->
     {ok, response_data()} | {error, error_get_events()}.
-
 get_transfer_events(ID, Token, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(p2p_transfer, ID, HandlerContext) of
         ok ->
@@ -122,18 +160,15 @@ get_transfer_events(ID, Token, HandlerContext) ->
 
 %% Internal
 
-do_quote_transfer(Params, HandlerContext) ->
-    Request = {fistful_p2p_transfer, 'GetQuote', [marshal_quote_params(Params)]},
+quote_transfer_request(Request, HandlerContext) ->
     case service_call(Request, HandlerContext) of
         {ok, Quote} ->
             PartyID = wapi_handler_utils:get_owner(HandlerContext),
             Token = create_quote_token(Quote, PartyID),
             UnmarshaledQuote = unmarshal_quote(Quote),
             {ok, UnmarshaledQuote#{<<"token">> => Token}};
-        {exception, #p2p_transfer_NoResourceInfo{type = sender}} ->
-            {error, {sender, invalid_resource}};
-        {exception, #p2p_transfer_NoResourceInfo{type = receiver}} ->
-            {error, {receiver, invalid_resource}};
+        {exception, #p2p_transfer_NoResourceInfo{type = Type}} ->
+            {error, {Type, invalid_resource}};
         {exception, #fistful_ForbiddenOperationCurrency{}} ->
             {error, {p2p_transfer, forbidden_currency}};
         {exception, #fistful_ForbiddenOperationAmount{}} ->
@@ -152,22 +187,12 @@ create_quote_token(Quote, PartyID) ->
 issue_quote_token(PartyID, Payload) ->
     uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), PartyID, Payload, wapi_auth:get_signee()).
 
-do_create_transfer(ID, Params, HandlerContext) ->
-    do(fun() ->
-        Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
-        TransferParams = unwrap(build_transfer_params(Params#{<<"id">> => ID})),
-        Request = {fistful_p2p_transfer, 'Create', [TransferParams, marshal(context, Context)]},
-        unwrap(process_p2p_transfer_call(Request, HandlerContext))
-    end).
-
-process_p2p_transfer_call(Request, HandlerContext) ->
+create_request(Request, HandlerContext) ->
     case service_call(Request, HandlerContext) of
         {ok, Transfer} ->
             {ok, unmarshal_transfer(Transfer)};
-        {exception, #p2p_transfer_NoResourceInfo{type = sender}} ->
-            {error, {sender, invalid_resource}};
-        {exception, #p2p_transfer_NoResourceInfo{type = receiver}} ->
-            {error, {receiver, invalid_resource}};
+        {exception, #p2p_transfer_NoResourceInfo{type = Type}} ->
+            {error, {Type, invalid_resource}};
         {exception, #fistful_ForbiddenOperationCurrency{}} ->
             {error, {p2p_transfer, forbidden_currency}};
         {exception, #fistful_ForbiddenOperationAmount{}} ->
@@ -178,18 +203,16 @@ process_p2p_transfer_call(Request, HandlerContext) ->
             {error, {identity, notfound}}
     end.
 
-build_transfer_params(Params = #{<<"quoteToken">> := QuoteToken, <<"identityID">> := IdentityID}) ->
+decode_quote(undefined, _IdentityID) ->
+    {ok, undefined};
+decode_quote(Token, IdentityID) ->
     do(fun() ->
-        VerifiedToken = unwrap(verify_p2p_quote_token(QuoteToken)),
+        VerifiedToken = unwrap(verify_quote_token(Token)),
         Quote = unwrap(wapi_p2p_quote:decode_token_payload(VerifiedToken)),
-        ok = unwrap(authorize_p2p_quote_token(Quote, IdentityID)),
-        TransferParams = marshal_transfer_params(Params),
-        TransferParams#p2p_transfer_P2PTransferParams{quote = Quote}
-    end);
-build_transfer_params(Params) ->
-    do(fun() -> marshal_transfer_params(Params) end).
+        unwrap(authorize_quote(Quote, IdentityID))
+    end).
 
-verify_p2p_quote_token(Token) ->
+verify_quote_token(Token) ->
     case uac_authorizer_jwt:verify(Token, #{}) of
         {ok, {_, _, VerifiedToken}} ->
             {ok, VerifiedToken};
@@ -197,10 +220,23 @@ verify_p2p_quote_token(Token) ->
             {error, {token, {not_verified, Error}}}
     end.
 
-authorize_p2p_quote_token(#p2p_transfer_Quote{identity_id = IdentityID}, IdentityID) ->
-    ok;
-authorize_p2p_quote_token(_Quote, _IdentityID) ->
+authorize_quote(#p2p_transfer_Quote{identity_id = IdentityID} = Quote, IdentityID) ->
+    {ok, Quote};
+authorize_quote(_Quote, _IdentityID) ->
     {error, {token, {not_verified, identity_mismatch}}}.
+
+%% resources
+
+decode_token(#{<<"token">> := Token, <<"type">> := Type}) ->
+    case wapi_backend_utils:decode_resource(Token) of
+        {ok, Resource} ->
+            {ok, Resource};
+        {error, Error} ->
+            logger:warning("~p token decryption failed: ~p", [Type, Error]),
+            {error, {invalid_resource_token, Type}}
+    end.
+
+%
 
 service_call(Params, HandlerContext) ->
     wapi_handler_utils:service_call(Params, HandlerContext).
@@ -208,16 +244,12 @@ service_call(Params, HandlerContext) ->
 %% @doc
 %% The function returns the list of events for the specified Transfer.
 %%
-%% First get Transfer for extract the Session ID.
-%%
-%% Then, the Continuation Token is verified.  Latest EventIDs of Transfer and
-%% Session are stored in the token for possibility partial load of events.
-%%
-%% The events are retrieved no lesser ID than those stored in the token, and count
-%% is limited by wapi.events_fetch_limit option or ?DEFAULT_EVENTS_LIMIT
-%%
-%% The received events are then mixed and ordered by the time of occurrence.
-%% The resulting set is returned to the client.
+%% - get Transfer for extract the Session ID.
+%% - verify Continuation Token
+%% - take latest EventIDs of Transfer and Session from Continuation Token
+%% - event count is limited by wapi.events_fetch_limit option or ?DEFAULT_EVENTS_LIMIT
+%% - received events are then mixed and ordered by the time of occurrence
+%% - resulting set is returned to the client.
 %%
 %% @todo Now there is always only zero or one session. But there may be more than one
 %% session in the future, so the code of polling sessions and mixing results
@@ -225,7 +257,6 @@ service_call(Params, HandlerContext) ->
 
 -spec do_get_events(id(), binary() | undefined, handler_context()) ->
     {ok, response_data()} | {error, error_get_events()}.
-
 do_get_events(ID, Token, HandlerContext) ->
     do(fun() ->
         PartyID = wapi_handler_utils:get_owner(HandlerContext),
@@ -235,21 +266,25 @@ do_get_events(ID, Token, HandlerContext) ->
         PrevTransferCursor = continuation_token_cursor(p2p_transfer, DecodedToken),
         PrevSessionCursor = continuation_token_cursor(p2p_session, DecodedToken),
 
-        {TransferEvents, TransferCursor} = unwrap(events_collect(
-            fistful_p2p_transfer,
-            ID,
-            events_range(PrevTransferCursor),
-            HandlerContext,
-            []
-        )),
+        {TransferEvents, TransferCursor} = unwrap(
+            events_collect(
+                fistful_p2p_transfer,
+                ID,
+                events_range(PrevTransferCursor),
+                HandlerContext,
+                []
+            )
+        ),
 
-        {SessionEvents, SessionCursor}  = unwrap(events_collect(
-            fistful_p2p_session,
-            SessionID,
-            events_range(PrevSessionCursor),
-            HandlerContext,
-            []
-        )),
+        {SessionEvents, SessionCursor} = unwrap(
+            events_collect(
+                fistful_p2p_session,
+                SessionID,
+                events_range(PrevSessionCursor),
+                HandlerContext,
+                []
+            )
+        ),
 
         NewTransferCursor = events_max(PrevTransferCursor, TransferCursor),
         NewSessionCursor = events_max(PrevSessionCursor, SessionCursor),
@@ -261,11 +296,9 @@ do_get_events(ID, Token, HandlerContext) ->
 
 %% get p2p_transfer from backend and return last sesssion ID
 
--spec request_session_id(id(), handler_context()) ->
-    {ok, undefined | id ()} | {error, {p2p_transfer, notfound}}.
-
+-spec request_session_id(id(), handler_context()) -> {ok, undefined | id()} | {error, {p2p_transfer, notfound}}.
 request_session_id(ID, HandlerContext) ->
-    Request = {fistful_p2p_transfer, 'Get', [ID, #'EventRange'{}]},
+    Request = {fistful_p2p_transfer, 'Get', {ID, #'EventRange'{}}},
     case service_call(Request, HandlerContext) of
         {ok, #p2p_transfer_P2PTransferState{sessions = []}} ->
             {ok, undefined};
@@ -280,7 +313,7 @@ request_session_id(ID, HandlerContext) ->
 
 continuation_token_pack(TransferCursor, SessionCursor, PartyID) ->
     Token = genlib_map:compact(#{
-        <<"version">>               => 1,
+        <<"version">> => 1,
         ?CONTINUATION_TRANSFER => TransferCursor,
         ?CONTINUATION_SESSION => SessionCursor
     }),
@@ -296,7 +329,7 @@ continuation_token_unpack(Token, PartyID) ->
             {ok, VerifiedToken};
         {ok, {_, PartyID, #{<<"version">> := Version}}} ->
             {error, {token, {unsupported_version, Version}}};
-        {ok, {_, WrongPatryID, _}} when WrongPatryID /= PartyID  ->
+        {ok, {_, WrongPatryID, _}} when WrongPatryID /= PartyID ->
             {error, {token, {not_verified, wrong_party_id}}};
         {error, Error} ->
             {error, {token, {not_verified, Error}}}
@@ -312,58 +345,57 @@ continuation_token_cursor(p2p_session, DecodedToken) ->
 %% collect events from EventService backend
 
 -spec events_collect(event_service(), id() | undefined, event_range(), handler_context(), Acc0) ->
-    {ok, {Acc1, event_id()}} | {error, {p2p_transfer, notfound}} when
-        Acc0 :: [] | [event()],
-        Acc1 :: [] | [event()].
-
+    {ok, {Acc1, event_id()}} | {error, {p2p_transfer, notfound}}
+when
+    Acc0 :: [] | [event()],
+    Acc1 :: [] | [event()].
 events_collect(fistful_p2p_session, undefined, #'EventRange'{'after' = Cursor}, _HandlerContext, Acc) ->
     % no session ID is not an error
     {ok, {Acc, Cursor}};
-events_collect(_EventService, _EntityID, #'EventRange'{'after' = Cursor, 'limit' = Limit}, _HandlerContext, Acc)
-    when Limit =< 0 ->
-        % Limit < 0 < undefined
-        {ok, {Acc, Cursor}};
+events_collect(_EventService, _EntityID, #'EventRange'{'after' = Cursor, 'limit' = Limit}, _HandlerContext, Acc) when
+    Limit =< 0
+->
+    % Limit < 0 < undefined
+    {ok, {Acc, Cursor}};
 events_collect(EventService, EntityID, EventRange, HandlerContext, Acc) ->
     #'EventRange'{'after' = Cursor, limit = Limit} = EventRange,
-    Request = {EventService, 'GetEvents', [EntityID, EventRange]},
+    Request = {EventService, 'GetEvents', {EntityID, EventRange}},
     case events_request(Request, HandlerContext) of
-        {ok, {_Received, [], undefined}} ->
+        {ok, []} ->
             % the service has not returned any events, the previous cursor must be kept
             {ok, {Acc, Cursor}};
-        {ok, {Received, Events, NewCursor}} when Received < Limit ->
+        {ok, Events} when length(Events) < Limit ->
             % service returned less events than requested
             % or Limit is 'undefined' and service returned all events
-            {ok, {Acc ++ Events, NewCursor}};
-        {ok, {_Received, Events, NewCursor}} ->
+            NewCursor = events_cursor(lists:last(Events)),
+            Accepted = lists:filter(fun events_filter/1, Events),
+            {ok, {Acc ++ Accepted, NewCursor}};
+        {ok, Events} ->
             % Limit is reached but some events can be filtered out
-            NewEventRange = events_range(NewCursor, Limit - length(Events)),
-            events_collect(EventService, EntityID, NewEventRange, HandlerContext, Acc ++ Events);
+            NewCursor = events_cursor(lists:last(Events)),
+            Accepted = lists:filter(fun events_filter/1, Events),
+            NewEventRange = events_range(NewCursor, Limit - length(Accepted)),
+            events_collect(EventService, EntityID, NewEventRange, HandlerContext, Acc ++ Accepted);
         {error, _} = Error ->
             Error
     end.
 
--spec events_request(Request, handler_context()) ->
-    {ok, {integer(), [] | [event()], event_id()}} | {error, {p2p_transfer, notfound}} when
-        Request :: {event_service(), 'GetEvents', [id() | event_range()]}.
-
+-spec events_request(Request, handler_context()) -> {ok, [event()]} | {error, {p2p_transfer, notfound}} when
+    Request :: {event_service(), 'GetEvents', {id(), event_range()}}.
 events_request(Request, HandlerContext) ->
     case service_call(Request, HandlerContext) of
-        {ok, []} ->
-            {ok, {0, [], undefined}};
-        {ok, EventsThrift} ->
-            Cursor = events_cursor(lists:last(EventsThrift)),
-            Events = lists:filter(fun events_filter/1, EventsThrift),
-            {ok, {length(EventsThrift), Events, Cursor}};
+        {ok, Events} ->
+            {ok, Events};
         {exception, #fistful_P2PNotFound{}} ->
             {error, {p2p_transfer, notfound}};
         {exception, #fistful_P2PSessionNotFound{}} ->
             % P2PSessionNotFound not found - not error
-            {ok, {0, [], undefined}}
+            {ok, []}
     end.
 
 events_filter(#p2p_transfer_Event{change = {status_changed, _}}) ->
     true;
-events_filter(#p2p_session_Event{change = {ui,  #p2p_session_UserInteractionChange{payload = Payload}}}) ->
+events_filter(#p2p_session_Event{change = {ui, #p2p_session_UserInteractionChange{payload = Payload}}}) ->
     case Payload of
         {status_changed, #p2p_session_UserInteractionStatusChange{
             status = {pending, _}
@@ -391,8 +423,9 @@ events_timestamp(#p2p_transfer_Event{occured_at = OccuredAt}) ->
 events_timestamp(#p2p_session_Event{occured_at = OccuredAt}) ->
     OccuredAt.
 
-events_range(CursorID)  ->
+events_range(CursorID) ->
     events_range(CursorID, genlib_app:env(wapi, events_fetch_limit, ?DEFAULT_EVENTS_LIMIT)).
+
 events_range(CursorID, Limit) ->
     #'EventRange'{'after' = CursorID, 'limit' = Limit}.
 
@@ -417,82 +450,54 @@ marshal_quote_params(#{
     }.
 
 marshal_quote_participant(#{
-    <<"token">> := Token
+    <<"resourceThrift">> := Resource
 }) ->
-    case wapi_crypto:decrypt_bankcard_token(Token) of
-        unrecognized ->
-            BankCard = wapi_utils:base64url_to_map(Token),
-            {bank_card, #'ResourceBankCard'{
-                bank_card = #'BankCard'{
-                    token      = maps:get(<<"token">>, BankCard),
-                    bin        = maps:get(<<"bin">>, BankCard),
-                    masked_pan = maps:get(<<"lastDigits">>, BankCard)
-                }
-            }};
-        {ok, BankCard} ->
-            {bank_card, #'ResourceBankCard'{bank_card = BankCard}}
-    end.
+    {bank_card, BankCard} = Resource,
+    {bank_card, #'ResourceBankCard'{bank_card = BankCard}}.
 
-marshal_transfer_params(#{
-    <<"id">> := ID,
-    <<"identityID">> := IdentityID,
-    <<"sender">> := Sender,
-    <<"receiver">> := Receiver,
-    <<"body">> := Body,
-    <<"contactInfo">> := ContactInfo
-}) ->
+marshal_transfer_params(
+    #{
+        <<"id">> := ID,
+        <<"identityID">> := IdentityID,
+        <<"sender">> := Sender,
+        <<"receiver">> := Receiver,
+        <<"body">> := Body,
+        <<"contactInfo">> := ContactInfo,
+        <<"quoteThrift">> := Quote
+    } = Params
+) ->
+    Metadata = maps:get(<<"metadata">>, Params, undefined),
     #p2p_transfer_P2PTransferParams{
         id = ID,
         identity_id = IdentityID,
         sender = marshal_sender(Sender#{<<"contactInfo">> => ContactInfo}),
         receiver = marshal_receiver(Receiver),
-        body = marshal_body(Body)
+        body = marshal_body(Body),
+        quote = Quote,
+        metadata = marshal_context(Metadata)
     }.
 
 marshal_sender(#{
-    <<"token">> := Token,
     <<"authData">> := AuthData,
-    <<"contactInfo">> := ContactInfo
+    <<"contactInfo">> := ContactInfo,
+    <<"resourceThrift">> := Resource
 }) ->
-    ResourceBankCard = case wapi_crypto:decrypt_bankcard_token(Token) of
-        unrecognized ->
-            BankCard = wapi_utils:base64url_to_map(Token),
-            #'ResourceBankCard'{
-                bank_card = #'BankCard'{
-                    token      = maps:get(<<"token">>, BankCard),
-                    bin        = maps:get(<<"bin">>, BankCard),
-                    masked_pan = maps:get(<<"lastDigits">>, BankCard)
-                }
-            };
-        {ok, BankCard} ->
-            #'ResourceBankCard'{bank_card = BankCard}
-    end,
-    ResourceBankCardAuth = ResourceBankCard#'ResourceBankCard'{
+    {bank_card, BankCard} = Resource,
+    ResourceBankCard = #'ResourceBankCard'{
+        bank_card = BankCard,
         auth_data = {session_data, #'SessionAuthData'{id = AuthData}}
     },
     {resource, #p2p_transfer_RawResource{
-        resource = {bank_card, ResourceBankCardAuth},
+        resource = {bank_card, ResourceBankCard},
         contact_info = marshal_contact_info(ContactInfo)
     }}.
 
 marshal_receiver(#{
-    <<"token">> := Token
+    <<"resourceThrift">> := Resource
 }) ->
-    Resource = case wapi_crypto:decrypt_bankcard_token(Token) of
-        unrecognized ->
-            BankCard = wapi_utils:base64url_to_map(Token),
-            {bank_card, #'ResourceBankCard'{
-                bank_card = #'BankCard'{
-                    token      = maps:get(<<"token">>, BankCard),
-                    bin        = maps:get(<<"bin">>, BankCard),
-                    masked_pan = maps:get(<<"lastDigits">>, BankCard)
-                }
-            }};
-        {ok, BankCard} ->
-            {bank_card, #'ResourceBankCard'{bank_card = BankCard}}
-    end,
+    {bank_card, BankCard} = Resource,
     {resource, #p2p_transfer_RawResource{
-        resource = Resource,
+        resource = {bank_card, #'ResourceBankCard'{bank_card = BankCard}},
         contact_info = #'ContactInfo'{}
     }}.
 
@@ -514,8 +519,16 @@ marshal_body(#{
 marshal_currency(Currency) ->
     #'CurrencyRef'{symbolic_code = Currency}.
 
+marshal_context(Context) ->
+    maybe_marshal(context, Context).
+
 marshal(T, V) ->
     wapi_codec:marshal(T, V).
+
+maybe_marshal(_, undefined) ->
+    undefined;
+maybe_marshal(T, V) ->
+    marshal(T, V).
 
 %% Unmarshal
 
@@ -539,7 +552,8 @@ unmarshal_transfer(#p2p_transfer_P2PTransferState{
     body = Body,
     created_at = CreatedAt,
     status = Status,
-    external_id = ExternalID
+    external_id = ExternalID,
+    metadata = Metadata
 }) ->
     Sender = unmarshal_sender(SenderResource),
     ContactInfo = maps:get(<<"contactInfo">>, Sender),
@@ -552,11 +566,12 @@ unmarshal_transfer(#p2p_transfer_P2PTransferState{
         <<"sender">> => maps:remove(<<"contactInfo">>, Sender),
         <<"receiver">> => unmarshal_receiver(ReceiverResource),
         <<"status">> => unmarshal_transfer_status(Status),
-        <<"externalID">> => maybe_unmarshal(id, ExternalID)
+        <<"externalID">> => maybe_unmarshal(id, ExternalID),
+        <<"metadata">> => maybe_unmarshal(context, Metadata)
     }).
 
 unmarshal_body(#'Cash'{
-    amount   = Amount,
+    amount = Amount,
     currency = Currency
 }) ->
     #{
@@ -564,32 +579,38 @@ unmarshal_body(#'Cash'{
         <<"currency">> => unmarshal(currency_ref, Currency)
     }.
 
-unmarshal_sender({resource, #p2p_transfer_RawResource{
-    contact_info = ContactInfo,
-    resource = {bank_card, #'ResourceBankCard'{
-        bank_card = BankCard
+unmarshal_sender(
+    {resource, #p2p_transfer_RawResource{
+        contact_info = ContactInfo,
+        resource =
+            {bank_card, #'ResourceBankCard'{
+                bank_card = BankCard
+            }}
     }}
-}}) ->
+) ->
     genlib_map:compact(#{
-        <<"type">>          => <<"BankCardSenderResource">>,
-        <<"contactInfo">>   => unmarshal_contact_info(ContactInfo),
-        <<"token">>         => BankCard#'BankCard'.token,
+        <<"type">> => <<"BankCardSenderResource">>,
+        <<"contactInfo">> => unmarshal_contact_info(ContactInfo),
+        <<"token">> => BankCard#'BankCard'.token,
         <<"paymentSystem">> => genlib:to_binary(BankCard#'BankCard'.payment_system),
-        <<"bin">>           => BankCard#'BankCard'.bin,
-        <<"lastDigits">>    => wapi_utils:get_last_pan_digits(BankCard#'BankCard'.masked_pan)
+        <<"bin">> => BankCard#'BankCard'.bin,
+        <<"lastDigits">> => wapi_utils:get_last_pan_digits(BankCard#'BankCard'.masked_pan)
     }).
 
-unmarshal_receiver({resource, #p2p_transfer_RawResource{
-    resource = {bank_card, #'ResourceBankCard'{
-        bank_card = BankCard
+unmarshal_receiver(
+    {resource, #p2p_transfer_RawResource{
+        resource =
+            {bank_card, #'ResourceBankCard'{
+                bank_card = BankCard
+            }}
     }}
-}}) ->
+) ->
     genlib_map:compact(#{
-        <<"type">>          => <<"BankCardReceiverResource">>,
-        <<"token">>         => BankCard#'BankCard'.token,
-        <<"bin">>           => BankCard#'BankCard'.bin,
+        <<"type">> => <<"BankCardReceiverResource">>,
+        <<"token">> => BankCard#'BankCard'.token,
+        <<"bin">> => BankCard#'BankCard'.bin,
         <<"paymentSystem">> => genlib:to_binary(BankCard#'BankCard'.payment_system),
-        <<"lastDigits">>    => wapi_utils:get_last_pan_digits(BankCard#'BankCard'.masked_pan)
+        <<"lastDigits">> => wapi_utils:get_last_pan_digits(BankCard#'BankCard'.masked_pan)
     }).
 
 unmarshal_contact_info(ContactInfo) ->
@@ -631,32 +652,41 @@ unmarshal_event(#p2p_session_Event{
         <<"change">> => unmarshal_event_change(Change)
     }.
 
-unmarshal_event_change({status_changed, #p2p_transfer_StatusChange{
-    status = Status
-}}) ->
-    ChangeType = #{ <<"changeType">> => <<"P2PTransferStatusChanged">>},
+unmarshal_event_change(
+    {status_changed, #p2p_transfer_StatusChange{
+        status = Status
+    }}
+) ->
+    ChangeType = #{<<"changeType">> => <<"P2PTransferStatusChanged">>},
     TransferChange = unmarshal_transfer_status(Status),
     maps:merge(ChangeType, TransferChange);
-unmarshal_event_change({ui, #p2p_session_UserInteractionChange{
-    id = ID,
-    payload = Payload
-}}) ->
+unmarshal_event_change(
+    {ui, #p2p_session_UserInteractionChange{
+        id = ID,
+        payload = Payload
+    }}
+) ->
     #{
         <<"changeType">> => <<"P2PTransferInteractionChanged">>,
         <<"userInteractionID">> => unmarshal(id, ID),
         <<"userInteractionChange">> => unmarshal_user_interaction_change(Payload)
     }.
 
-unmarshal_user_interaction_change({created, #p2p_session_UserInteractionCreatedChange{
-    ui = #p2p_session_UserInteraction{user_interaction = UserInteraction}
-}}) ->
+unmarshal_user_interaction_change(
+    {created, #p2p_session_UserInteractionCreatedChange{
+        ui = #p2p_session_UserInteraction{user_interaction = UserInteraction}
+    }}
+) ->
     #{
         <<"changeType">> => <<"UserInteractionCreated">>,
         <<"userInteraction">> => unmarshal_user_interaction(UserInteraction)
     };
-unmarshal_user_interaction_change({status_changed, #p2p_session_UserInteractionStatusChange{
-    status = {finished, _} % other statuses are skipped
-}}) ->
+unmarshal_user_interaction_change(
+    {status_changed, #p2p_session_UserInteractionStatusChange{
+        % other statuses are skipped
+        status = {finished, _}
+    }}
+) ->
     #{
         <<"changeType">> => <<"UserInteractionFinished">>
     }.
@@ -667,17 +697,21 @@ unmarshal_user_interaction({redirect, Redirect}) ->
         <<"request">> => unmarshal_request(Redirect)
     }.
 
-unmarshal_request({get_request, #ui_BrowserGetRequest{
-    uri = URI
-}}) ->
+unmarshal_request(
+    {get_request, #ui_BrowserGetRequest{
+        uri = URI
+    }}
+) ->
     #{
         <<"requestType">> => <<"BrowserGetRequest">>,
         <<"uriTemplate">> => unmarshal(string, URI)
     };
-unmarshal_request({post_request, #ui_BrowserPostRequest{
-    uri = URI,
-    form = Form
-}}) ->
+unmarshal_request(
+    {post_request, #ui_BrowserPostRequest{
+        uri = URI,
+        form = Form
+    }}
+) ->
     #{
         <<"requestType">> => <<"BrowserPostRequest">>,
         <<"uriTemplate">> => unmarshal(string, URI),
@@ -686,14 +720,15 @@ unmarshal_request({post_request, #ui_BrowserPostRequest{
 
 unmarshal_form(Form) ->
     maps:fold(
-        fun (Key, Template, AccIn) ->
+        fun(Key, Template, AccIn) ->
             FormField = #{
                 <<"key">> => unmarshal(string, Key),
                 <<"template">> => unmarshal(string, Template)
             },
             [FormField | AccIn]
         end,
-        [], Form
+        [],
+        Form
     ).
 
 unmarshal(T, V) ->
@@ -708,168 +743,175 @@ maybe_unmarshal(T, V) ->
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
+
 -spec test() -> _.
 
--spec unmarshal_events_test_() ->
-    _.
-unmarshal_events_test_() ->
+-spec unmarshal_events_test_() -> _.
 
-    Form = fun() -> {fun unmarshal_form/1,
-        #{ <<"arg1">> => <<"value1">>, <<"arg2">> => <<"value2">> },
-        [
-            #{ <<"key">> => <<"arg2">>, <<"template">> => <<"value2">>},
-            #{ <<"key">> => <<"arg1">>, <<"template">> => <<"value1">>}
-        ]
-    } end,
+unmarshal_events_test_() ->
+    Form = fun() ->
+        {fun unmarshal_form/1, #{<<"arg1">> => <<"value1">>, <<"arg2">> => <<"value2">>}, [
+            #{<<"key">> => <<"arg2">>, <<"template">> => <<"value2">>},
+            #{<<"key">> => <<"arg1">>, <<"template">> => <<"value1">>}
+        ]}
+    end,
 
     Request = fun
-        ({_, Woody, Swag}) -> {fun unmarshal_request/1,
-            {post_request, #ui_BrowserPostRequest{
-                uri = <<"uri://post">>,
-                form = Woody
-            }},
-            #{
-                <<"requestType">> => <<"BrowserPostRequest">>,
-                <<"uriTemplate">> => <<"uri://post">>,
-                <<"form">> => Swag
-            }
-        };
-        (get_request) -> {fun unmarshal_request/1,
-            {get_request, #ui_BrowserGetRequest{
-                uri = <<"uri://get">>
-            }},
-            #{
-                <<"requestType">> => <<"BrowserGetRequest">>,
-                <<"uriTemplate">> => <<"uri://get">>
-            }
-        }
-     end,
+        ({_, Woody, Swag}) ->
+            {fun unmarshal_request/1,
+                {post_request, #ui_BrowserPostRequest{
+                    uri = <<"uri://post">>,
+                    form = Woody
+                }},
+                #{
+                    <<"requestType">> => <<"BrowserPostRequest">>,
+                    <<"uriTemplate">> => <<"uri://post">>,
+                    <<"form">> => Swag
+                }};
+        (get_request) ->
+            {fun unmarshal_request/1,
+                {get_request, #ui_BrowserGetRequest{
+                    uri = <<"uri://get">>
+                }},
+                #{
+                    <<"requestType">> => <<"BrowserGetRequest">>,
+                    <<"uriTemplate">> => <<"uri://get">>
+                }}
+    end,
 
-    UIRedirect =  fun({_, Woody, Swag}) -> {fun unmarshal_user_interaction/1,
-        {redirect, Woody},
-        #{
+    UIRedirect = fun({_, Woody, Swag}) ->
+        {fun unmarshal_user_interaction/1, {redirect, Woody}, #{
             <<"interactionType">> => <<"Redirect">>,
             <<"request">> => Swag
-        }
-    } end,
+        }}
+    end,
 
-    UIChangePayload =  fun
-        ({_, Woody, Swag}) -> {fun unmarshal_user_interaction_change/1,
-            {created, #p2p_session_UserInteractionCreatedChange{
+    UIChangePayload = fun
+        ({_, Woody, Swag}) ->
+            {fun unmarshal_user_interaction_change/1,
+                {created, #p2p_session_UserInteractionCreatedChange{
                     ui = #p2p_session_UserInteraction{
                         id = <<"id://p2p_session/ui">>,
                         user_interaction = Woody
                     }
-            }},
-            #{
-                <<"changeType">> => <<"UserInteractionCreated">>,
-                <<"userInteraction">> => Swag
-            }
-        };
-        (ui_finished) -> {fun unmarshal_user_interaction_change/1,
-            {status_changed, #p2p_session_UserInteractionStatusChange{
-                status = {finished, #p2p_session_UserInteractionStatusFinished{}}
-            }},
-            #{
-                <<"changeType">> => <<"UserInteractionFinished">>
-            }
-        }
+                }},
+                #{
+                    <<"changeType">> => <<"UserInteractionCreated">>,
+                    <<"userInteraction">> => Swag
+                }};
+        (ui_finished) ->
+            {fun unmarshal_user_interaction_change/1,
+                {status_changed, #p2p_session_UserInteractionStatusChange{
+                    status = {finished, #p2p_session_UserInteractionStatusFinished{}}
+                }},
+                #{
+                    <<"changeType">> => <<"UserInteractionFinished">>
+                }}
     end,
 
     EventChange = fun
-        ({_, Woody, Swag}) -> {fun unmarshal_event_change/1,
-            {ui, #p2p_session_UserInteractionChange{
-                id = <<"id://p2p_session/change">>, payload = Woody
-            }},
-            #{
-                <<"changeType">> => <<"P2PTransferInteractionChanged">>,
-                <<"userInteractionID">> => <<"id://p2p_session/change">>,
-                <<"userInteractionChange">> => Swag
-            }
-        };
-        (TransferStatus) -> {fun unmarshal_event_change/1,
-            {status_changed, #p2p_transfer_StatusChange{
-                status = case TransferStatus of
-                    pending -> {pending, #p2p_status_Pending{}};
-                    succeeded -> {succeeded, #p2p_status_Succeeded{}}
-                end
-            }},
-            #{
-                <<"changeType">> => <<"P2PTransferStatusChanged">>,
-                <<"status">> => case TransferStatus of
-                    pending -> <<"Pending">>;
-                    succeeded -> <<"Succeeded">>
-                end
-            }
-        }
+        ({_, Woody, Swag}) ->
+            {fun unmarshal_event_change/1,
+                {ui, #p2p_session_UserInteractionChange{
+                    id = <<"id://p2p_session/change">>,
+                    payload = Woody
+                }},
+                #{
+                    <<"changeType">> => <<"P2PTransferInteractionChanged">>,
+                    <<"userInteractionID">> => <<"id://p2p_session/change">>,
+                    <<"userInteractionChange">> => Swag
+                }};
+        (TransferStatus) ->
+            {fun unmarshal_event_change/1,
+                {status_changed, #p2p_transfer_StatusChange{
+                    status =
+                        case TransferStatus of
+                            pending -> {pending, #p2p_status_Pending{}};
+                            succeeded -> {succeeded, #p2p_status_Succeeded{}}
+                        end
+                }},
+                #{
+                    <<"changeType">> => <<"P2PTransferStatusChanged">>,
+                    <<"status">> =>
+                        case TransferStatus of
+                            pending -> <<"Pending">>;
+                            succeeded -> <<"Succeeded">>
+                        end
+                }}
     end,
 
-    Event =  fun
-        ({_, {ui, _} = Woody, Swag}) -> {fun unmarshal_event/1,
-            #p2p_session_Event{
-                event = 1,
-                occured_at = <<"2020-05-25T12:34:56.123456Z">>,
-                change = Woody
-            },
-            #{
-                <<"createdAt">> => <<"2020-05-25T12:34:56.123456Z">>,
-                <<"change">> => Swag
-            }
-        };
-        ({_, {status_changed, _} = Woody, Swag}) -> {fun unmarshal_event/1,
-            #p2p_transfer_Event{
-                event = 1,
-                occured_at = <<"2020-05-25T12:34:56.123456Z">>,
-                change = Woody
-            },
-            #{
-                <<"createdAt">> => <<"2020-05-25T12:34:56.123456Z">>,
-                <<"change">> => Swag
-            }
-        }
+    Event = fun
+        ({_, {ui, _} = Woody, Swag}) ->
+            {fun unmarshal_event/1,
+                #p2p_session_Event{
+                    event = 1,
+                    occured_at = <<"2020-05-25T12:34:56.123456Z">>,
+                    change = Woody
+                },
+                #{
+                    <<"createdAt">> => <<"2020-05-25T12:34:56.123456Z">>,
+                    <<"change">> => Swag
+                }};
+        ({_, {status_changed, _} = Woody, Swag}) ->
+            {fun unmarshal_event/1,
+                #p2p_transfer_Event{
+                    event = 1,
+                    occured_at = <<"2020-05-25T12:34:56.123456Z">>,
+                    change = Woody
+                },
+                #{
+                    <<"createdAt">> => <<"2020-05-25T12:34:56.123456Z">>,
+                    <<"change">> => Swag
+                }}
     end,
 
-    Events = fun(List) -> {fun unmarshal_events/1,
-        {
-            <<"token">>,
-            [Woody || {_, Woody, _} <- List]
-        },
-        #{
-            <<"continuationToken">> => <<"token">>,
-            <<"result">> => [Swag || {_, _, Swag} <- List]
-        }
-    } end,
+    Events = fun(List) ->
+        {fun unmarshal_events/1,
+            {
+                <<"token">>,
+                [Woody || {_, Woody, _} <- List]
+            },
+            #{
+                <<"continuationToken">> => <<"token">>,
+                <<"result">> => [Swag || {_, _, Swag} <- List]
+            }}
+    end,
 
-    EvList = [E ||
-        Type <- [Form(), get_request],
-        Change <- [UIChangePayload(UIRedirect(Request(Type))), pending, succeeded],
-        E <- [Event(EventChange(Change))]
+    EvList = [
+        E
+        || Type <- [Form(), get_request],
+           Change <- [UIChangePayload(UIRedirect(Request(Type))), pending, succeeded],
+           E <- [Event(EventChange(Change))]
     ],
 
     [
-        ?_assertEqual(ExpectedSwag, Unmarshal(Woody)) ||
-        {Unmarshal, Woody, ExpectedSwag} <- [Events(EvList) | EvList]
+        ?_assertEqual(ExpectedSwag, Unmarshal(Woody))
+        || {Unmarshal, Woody, ExpectedSwag} <- [Events(EvList) | EvList]
     ].
 
--spec events_collect_test_() ->
-    _.
+-spec events_collect_test_() -> _.
 events_collect_test_() ->
     {setup,
         fun() ->
             % Construct acceptable event
-            Event = fun(EventID) -> #p2p_transfer_Event{
-                event = EventID,
-                occured_at = <<"2020-05-25T12:34:56.123456Z">>,
-                change = {status_changed, #p2p_transfer_StatusChange{
-                    status = {succeeded, #p2p_status_Succeeded{}}
-                }}
-            } end,
+            Event = fun(EventID) ->
+                #p2p_transfer_Event{
+                    event = EventID,
+                    occured_at = <<"2020-05-25T12:34:56.123456Z">>,
+                    change =
+                        {status_changed, #p2p_transfer_StatusChange{
+                            status = {succeeded, #p2p_status_Succeeded{}}
+                        }}
+                }
+            end,
             % Construct rejectable event
-            Reject = fun(EventID) -> #p2p_transfer_Event{
-                event = EventID,
-                occured_at = <<"2020-05-25T12:34:56.123456Z">>,
-                change = {route, #p2p_transfer_RouteChange{}}
-            } end,
+            Reject = fun(EventID) ->
+                #p2p_transfer_Event{
+                    event = EventID,
+                    occured_at = <<"2020-05-25T12:34:56.123456Z">>,
+                    change = {route, #p2p_transfer_RouteChange{}}
+                }
+            end,
             meck:new([wapi_handler_utils], [passthrough]),
             %
             % mock  Request: {Service, 'GetEvents', [EntityID, EventRange]},
@@ -880,18 +922,19 @@ events_collect_test_() ->
                     {ok, []};
                 ({produce_triple, 'GetEvents', _Params}, _Context) ->
                     {ok, [Event(N) || N <- lists:seq(1, 3)]};
-                ({produce_even, 'GetEvents', [_, EventRange]}, _Context) ->
+                ({produce_even, 'GetEvents', {_, EventRange}}, _Context) ->
                     #'EventRange'{'after' = After, limit = Limit} = EventRange,
                     {ok, [Event(N) || N <- lists:seq(After + 1, After + Limit), N rem 2 =:= 0]};
-                ({produce_reject, 'GetEvents', [_, EventRange]}, _Context) ->
+                ({produce_reject, 'GetEvents', {_, EventRange}}, _Context) ->
                     #'EventRange'{'after' = After, limit = Limit} = EventRange,
                     {ok, [
                         case N rem 2 of
                             0 -> Reject(N);
                             _ -> Event(N)
-                        end || N <- lists:seq(After + 1, After + Limit)
+                        end
+                        || N <- lists:seq(After + 1, After + Limit)
                     ]};
-                ({produce_range, 'GetEvents', [_, EventRange]}, _Context) ->
+                ({produce_range, 'GetEvents', {_, EventRange}}, _Context) ->
                     #'EventRange'{'after' = After, limit = Limit} = EventRange,
                     {ok, [Event(N) || N <- lists:seq(After + 1, After + Limit)]};
                 ({transfer_not_found, 'GetEvents', _Params}, _Context) ->
@@ -914,51 +957,94 @@ events_collect_test_() ->
         fun({Collect, Event}) ->
             [
                 % SessionID undefined is not an error
-                Collect(fistful_p2p_session, undefined, events_range(1),  [Event(0)],
+                Collect(
+                    fistful_p2p_session,
+                    undefined,
+                    events_range(1),
+                    [Event(0)],
                     {ok, {[Event(0)], 1}}
                 ),
                 % Limit < 0 < undefined
-                Collect(any, <<>>, events_range(1, 0),  [],
+                Collect(
+                    any,
+                    <<>>,
+                    events_range(1, 0),
+                    [],
                     {ok, {[], 1}}
                 ),
                 % Limit < 0 < undefined
-                Collect(any, <<>>, events_range(1, 0),  [Event(0)],
+                Collect(
+                    any,
+                    <<>>,
+                    events_range(1, 0),
+                    [Event(0)],
                     {ok, {[Event(0)], 1}}
                 ),
                 % the service has not returned any events
-                Collect(produce_empty, <<>>, events_range(undefined),  [],
+                Collect(
+                    produce_empty,
+                    <<>>,
+                    events_range(undefined),
+                    [],
                     {ok, {[], undefined}}
                 ),
                 % the service has not returned any events
-                Collect(produce_empty, <<>>, events_range(0, 1),  [],
+                Collect(
+                    produce_empty,
+                    <<>>,
+                    events_range(0, 1),
+                    [],
                     {ok, {[], 0}}
                 ),
                 % Limit is 'undefined' and service returned all events
-                Collect(produce_triple, <<>>, events_range(undefined),  [Event(0)],
+                Collect(
+                    produce_triple,
+                    <<>>,
+                    events_range(undefined),
+                    [Event(0)],
                     {ok, {[Event(0), Event(1), Event(2), Event(3)], 3}}
                 ),
                 % or service returned less events than requested
-                Collect(produce_even, <<>>, events_range(0, 4),  [],
+                Collect(
+                    produce_even,
+                    <<>>,
+                    events_range(0, 4),
+                    [],
                     {ok, {[Event(2), Event(4)], 4}}
                 ),
                 % Limit is reached but some events can be filtered out
-                Collect(produce_reject, <<>>, events_range(0, 4),  [],
+                Collect(
+                    produce_reject,
+                    <<>>,
+                    events_range(0, 4),
+                    [],
                     {ok, {[Event(1), Event(3), Event(5), Event(7)], 7}}
                 ),
-                % Accumulate
-                Collect(produce_range, <<>>, events_range(1, 2),  [Event(0)],
+                % accumulate
+                Collect(
+                    produce_range,
+                    <<>>,
+                    events_range(1, 2),
+                    [Event(0)],
                     {ok, {[Event(0), Event(2), Event(3)], 3}}
                 ),
                 % transfer not found
-                Collect(transfer_not_found, <<>>, events_range(1),  [],
+                Collect(
+                    transfer_not_found,
+                    <<>>,
+                    events_range(1),
+                    [],
                     {error, {p2p_transfer, notfound}}
                 ),
                 % P2PSessionNotFound not found - not error
-                Collect(session_not_found, <<>>, events_range(1),  [],
+                Collect(
+                    session_not_found,
+                    <<>>,
+                    events_range(1),
+                    [],
                     {ok, {[], 1}}
                 )
             ]
-        end
-    }.
+        end}.
 
 -endif.

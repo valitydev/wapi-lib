@@ -56,81 +56,75 @@
 -define(badresp(Code), {error, {invalid_response_code, Code}}).
 -define(emptyresp(Code), {error, {Code, #{}}}).
 
--type test_case_name()  :: atom().
--type config()          :: [{atom(), any()}].
--type group_name()      :: atom().
+-type test_case_name() :: atom().
+-type config() :: [{atom(), any()}].
+-type group_name() :: atom().
 
 -behaviour(supervisor).
 
--spec init([]) ->
-    {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
+-spec init([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init([]) ->
     {ok, {#{strategy => one_for_all, intensity => 1, period => 1}, []}}.
 
--spec all() ->
-    [test_case_name()].
+-spec all() -> [test_case_name()].
 all() ->
     [
         {group, base}
     ].
 
--spec groups() ->
-    [{group_name(), list(), [test_case_name()]}].
+-spec groups() -> [{group_name(), list(), [test_case_name()]}].
 groups() ->
     [
-        {base, [],
-            [
-                create_ok,
-                create_fail_wallet_notfound,
-                create_fail_destination_notfound,
-                create_fail_destination_unauthorized,
-                create_fail_forbidden_operation_currency,
-                create_fail_forbidden_operation_amount,
-                create_fail_invalid_operation_amount,
-                create_fail_inconsistent_withdrawal_currency,
-                create_fail_no_destination_resource_info,
-                create_fail_identity_providers_mismatch,
-                create_fail_wallet_inaccessible,
-                get_ok,
-                get_fail_withdrawal_notfound,
-                get_by_external_id_ok,
-                create_quote_ok,
-                get_quote_fail_wallet_notfound,
-                get_quote_fail_destination_notfound,
-                get_quote_fail_destination_unauthorized,
-                get_quote_fail_forbidden_operation_currency,
-                get_quote_fail_forbidden_operation_amount,
-                get_quote_fail_invalid_operation_amount,
-                get_quote_fail_inconsistent_withdrawal_currency,
-                get_quote_fail_identity_provider_mismatch,
-                get_event_ok,
-                get_events_ok,
-                get_events_fail_withdrawal_notfound
-            ]
-        }
+        {base, [], [
+            create_ok,
+            create_fail_wallet_notfound,
+            create_fail_destination_notfound,
+            create_fail_destination_unauthorized,
+            create_fail_forbidden_operation_currency,
+            create_fail_forbidden_operation_amount,
+            create_fail_invalid_operation_amount,
+            create_fail_inconsistent_withdrawal_currency,
+            create_fail_no_destination_resource_info,
+            create_fail_identity_providers_mismatch,
+            create_fail_wallet_inaccessible,
+            get_ok,
+            get_fail_withdrawal_notfound,
+            get_by_external_id_ok,
+            create_quote_ok,
+            get_quote_fail_wallet_notfound,
+            get_quote_fail_destination_notfound,
+            get_quote_fail_destination_unauthorized,
+            get_quote_fail_forbidden_operation_currency,
+            get_quote_fail_forbidden_operation_amount,
+            get_quote_fail_invalid_operation_amount,
+            get_quote_fail_inconsistent_withdrawal_currency,
+            get_quote_fail_identity_provider_mismatch,
+            get_event_ok,
+            get_events_ok,
+            get_events_fail_withdrawal_notfound
+        ]}
     ].
 
 %%
 %% starting/stopping
 %%
 -spec init_per_suite(config()) -> config().
-
 init_per_suite(C) ->
     wapi_ct_helper:init_suite(?MODULE, C).
 
 -spec end_per_suite(config()) -> _.
-
 end_per_suite(C) ->
     _ = wapi_ct_helper:stop_mocked_service_sup(?config(suite_test_sup, C)),
     _ = [application:stop(App) || App <- ?config(apps, C)],
     ok.
 
--spec init_per_group(group_name(), config()) ->
-    config().
+-spec init_per_group(group_name(), config()) -> config().
 init_per_group(Group, Config) when Group =:= base ->
-    ok = wapi_context:save(wapi_context:create(#{
-        woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
-    })),
+    ok = wapi_context:save(
+        wapi_context:create(#{
+            woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
+        })
+    ),
     Party = genlib:bsuuid(),
     {ok, Token} = wapi_ct_helper:issue_token(Party, [{[party], write}], unlimited, ?DOMAIN),
     Config1 = [{party, Party} | Config],
@@ -138,20 +132,17 @@ init_per_group(Group, Config) when Group =:= base ->
 init_per_group(_, Config) ->
     Config.
 
--spec end_per_group(group_name(), config()) ->
-    _.
+-spec end_per_group(group_name(), config()) -> _.
 end_per_group(_Group, _C) ->
     ok.
 
--spec init_per_testcase(test_case_name(), config()) ->
-    config().
+-spec init_per_testcase(test_case_name(), config()) -> config().
 init_per_testcase(Name, C) ->
     C1 = wapi_ct_helper:makeup_cfg([wapi_ct_helper:test_case_name(Name), wapi_ct_helper:woody_ctx()], C),
     ok = wapi_context:save(C1),
     [{test_sup, wapi_ct_helper:start_mocked_service_sup(?MODULE)} | C1].
 
--spec end_per_testcase(test_case_name(), config()) ->
-    config().
+-spec end_per_testcase(test_case_name(), config()) -> config().
 end_per_testcase(_Name, C) ->
     ok = wapi_context:cleanup(),
     wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
@@ -159,15 +150,13 @@ end_per_testcase(_Name, C) ->
 
 %%% Tests
 
--spec create_ok(config()) ->
-    _.
+-spec create_ok(config()) -> _.
 create_ok(C) ->
     PartyID = ?config(party, C),
     create_withdrawal_start_mocks(C, fun() -> {ok, ?WITHDRAWAL(PartyID)} end),
     {ok, _} = create_withdrawal_call_api(C).
 
--spec create_fail_wallet_notfound(config()) ->
-    _.
+-spec create_fail_wallet_notfound(config()) -> _.
 create_fail_wallet_notfound(C) ->
     create_withdrawal_start_mocks(C, fun() -> throw(#fistful_WalletNotFound{}) end),
     ?assertEqual(
@@ -175,8 +164,7 @@ create_fail_wallet_notfound(C) ->
         create_withdrawal_call_api(C)
     ).
 
--spec create_fail_destination_notfound(config()) ->
-    _.
+-spec create_fail_destination_notfound(config()) -> _.
 create_fail_destination_notfound(C) ->
     create_withdrawal_start_mocks(C, fun() -> throw(#fistful_DestinationNotFound{}) end),
     ?assertEqual(
@@ -184,8 +172,7 @@ create_fail_destination_notfound(C) ->
         create_withdrawal_call_api(C)
     ).
 
--spec create_fail_destination_unauthorized(config()) ->
-    _.
+-spec create_fail_destination_unauthorized(config()) -> _.
 create_fail_destination_unauthorized(C) ->
     create_withdrawal_start_mocks(C, fun() -> throw(#fistful_DestinationUnauthorized{}) end),
     ?assertEqual(
@@ -193,8 +180,7 @@ create_fail_destination_unauthorized(C) ->
         create_withdrawal_call_api(C)
     ).
 
--spec create_fail_forbidden_operation_currency(config()) ->
-    _.
+-spec create_fail_forbidden_operation_currency(config()) -> _.
 create_fail_forbidden_operation_currency(C) ->
     ForbiddenOperationCurrencyException = #fistful_ForbiddenOperationCurrency{
         currency = #'CurrencyRef'{symbolic_code = ?USD},
@@ -208,8 +194,7 @@ create_fail_forbidden_operation_currency(C) ->
         create_withdrawal_call_api(C)
     ).
 
--spec create_fail_forbidden_operation_amount(config()) ->
-    _.
+-spec create_fail_forbidden_operation_amount(config()) -> _.
 create_fail_forbidden_operation_amount(C) ->
     ForbiddenOperationAmountException = #fistful_ForbiddenOperationAmount{
         amount = ?CASH,
@@ -224,8 +209,7 @@ create_fail_forbidden_operation_amount(C) ->
         create_withdrawal_call_api(C)
     ).
 
--spec create_fail_invalid_operation_amount(config()) ->
-    _.
+-spec create_fail_invalid_operation_amount(config()) -> _.
 create_fail_invalid_operation_amount(C) ->
     InvalidOperationAmountException = #fistful_InvalidOperationAmount{
         amount = ?CASH
@@ -236,8 +220,7 @@ create_fail_invalid_operation_amount(C) ->
         create_withdrawal_call_api(C)
     ).
 
--spec create_fail_inconsistent_withdrawal_currency(config()) ->
-    _.
+-spec create_fail_inconsistent_withdrawal_currency(config()) -> _.
 create_fail_inconsistent_withdrawal_currency(C) ->
     InconsistentWithdrawalCurrencyException = #wthd_InconsistentWithdrawalCurrency{
         withdrawal_currency = #'CurrencyRef'{
@@ -256,8 +239,7 @@ create_fail_inconsistent_withdrawal_currency(C) ->
         create_withdrawal_call_api(C)
     ).
 
--spec create_fail_no_destination_resource_info(config()) ->
-    _.
+-spec create_fail_no_destination_resource_info(config()) -> _.
 create_fail_no_destination_resource_info(C) ->
     create_withdrawal_start_mocks(C, fun() -> throw(#wthd_NoDestinationResourceInfo{}) end),
     ?assertEqual(
@@ -265,8 +247,7 @@ create_fail_no_destination_resource_info(C) ->
         create_withdrawal_call_api(C)
     ).
 
--spec create_fail_identity_providers_mismatch(config()) ->
-    _.
+-spec create_fail_identity_providers_mismatch(config()) -> _.
 create_fail_identity_providers_mismatch(C) ->
     IdentityProviderMismatchException = #wthd_IdentityProvidersMismatch{
         wallet_provider = ?INTEGER,
@@ -278,8 +259,7 @@ create_fail_identity_providers_mismatch(C) ->
         create_withdrawal_call_api(C)
     ).
 
--spec create_fail_wallet_inaccessible(config()) ->
-    _.
+-spec create_fail_wallet_inaccessible(config()) -> _.
 create_fail_wallet_inaccessible(C) ->
     WalletInaccessibleException = #fistful_WalletInaccessible{
         id = ?STRING
@@ -290,13 +270,15 @@ create_fail_wallet_inaccessible(C) ->
         create_withdrawal_call_api(C)
     ).
 
--spec get_ok(config()) ->
-    _.
+-spec get_ok(config()) -> _.
 get_ok(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services([
-        {fistful_withdrawal, fun('Get', _) -> {ok, ?WITHDRAWAL(PartyID)} end}
-    ], C),
+    wapi_ct_helper:mock_services(
+        [
+            {fistful_withdrawal, fun('Get', _) -> {ok, ?WITHDRAWAL(PartyID)} end}
+        ],
+        C
+    ),
     {ok, _} = call_api(
         fun swag_client_wallet_withdrawals_api:get_withdrawal/3,
         #{
@@ -304,15 +286,17 @@ get_ok(C) ->
                 <<"withdrawalID">> => ?STRING
             }
         },
-    wapi_ct_helper:cfg(context, C)
-).
+        wapi_ct_helper:cfg(context, C)
+    ).
 
--spec get_fail_withdrawal_notfound(config()) ->
-    _.
+-spec get_fail_withdrawal_notfound(config()) -> _.
 get_fail_withdrawal_notfound(C) ->
-    wapi_ct_helper:mock_services([
-        {fistful_withdrawal, fun('Get', _) -> throw(#fistful_WithdrawalNotFound{}) end}
-    ], C),
+    wapi_ct_helper:mock_services(
+        [
+            {fistful_withdrawal, fun('Get', _) -> throw(#fistful_WithdrawalNotFound{}) end}
+        ],
+        C
+    ),
     ?assertEqual(
         {error, {404, #{}}},
         call_api(
@@ -322,18 +306,20 @@ get_fail_withdrawal_notfound(C) ->
                     <<"withdrawalID">> => ?STRING
                 }
             },
-        wapi_ct_helper:cfg(context, C)
+            wapi_ct_helper:cfg(context, C)
         )
     ).
 
--spec get_by_external_id_ok(config()) ->
-    _.
+-spec get_by_external_id_ok(config()) -> _.
 get_by_external_id_ok(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services([
-        {bender_thrift, fun('GetInternalID', _) -> {ok, ?GET_INTERNAL_ID_RESULT} end},
-        {fistful_withdrawal, fun('Get', _) -> {ok, ?WITHDRAWAL(PartyID)} end}
-    ], C),
+    wapi_ct_helper:mock_services(
+        [
+            {bender_thrift, fun('GetInternalID', _) -> {ok, ?GET_INTERNAL_ID_RESULT} end},
+            {fistful_withdrawal, fun('Get', _) -> {ok, ?WITHDRAWAL(PartyID)} end}
+        ],
+        C
+    ),
     {ok, _} = call_api(
         fun swag_client_wallet_withdrawals_api:get_withdrawal_by_external_id/3,
         #{
@@ -341,17 +327,15 @@ get_by_external_id_ok(C) ->
                 <<"externalID">> => ?STRING
             }
         },
-    wapi_ct_helper:cfg(context, C)
-).
+        wapi_ct_helper:cfg(context, C)
+    ).
 
--spec create_quote_ok(config()) ->
-    _.
+-spec create_quote_ok(config()) -> _.
 create_quote_ok(C) ->
     get_quote_start_mocks(C, fun() -> {ok, ?WITHDRAWAL_QUOTE} end),
     {ok, _} = create_qoute_call_api(C).
 
--spec get_quote_fail_wallet_notfound(config()) ->
-    _.
+-spec get_quote_fail_wallet_notfound(config()) -> _.
 get_quote_fail_wallet_notfound(C) ->
     get_quote_start_mocks(C, fun() -> throw(#fistful_WalletNotFound{}) end),
     ?assertEqual(
@@ -359,8 +343,7 @@ get_quote_fail_wallet_notfound(C) ->
         create_qoute_call_api(C)
     ).
 
--spec get_quote_fail_destination_notfound(config()) ->
-    _.
+-spec get_quote_fail_destination_notfound(config()) -> _.
 get_quote_fail_destination_notfound(C) ->
     get_quote_start_mocks(C, fun() -> throw(#fistful_DestinationNotFound{}) end),
     ?assertEqual(
@@ -368,8 +351,7 @@ get_quote_fail_destination_notfound(C) ->
         create_qoute_call_api(C)
     ).
 
--spec get_quote_fail_destination_unauthorized(config()) ->
-    _.
+-spec get_quote_fail_destination_unauthorized(config()) -> _.
 get_quote_fail_destination_unauthorized(C) ->
     get_quote_start_mocks(C, fun() -> throw(#fistful_DestinationUnauthorized{}) end),
     ?assertEqual(
@@ -377,8 +359,7 @@ get_quote_fail_destination_unauthorized(C) ->
         create_qoute_call_api(C)
     ).
 
--spec get_quote_fail_forbidden_operation_currency(config()) ->
-    _.
+-spec get_quote_fail_forbidden_operation_currency(config()) -> _.
 get_quote_fail_forbidden_operation_currency(C) ->
     ForbiddenOperationCurrencyException = #fistful_ForbiddenOperationCurrency{
         currency = #'CurrencyRef'{symbolic_code = ?USD},
@@ -392,8 +373,7 @@ get_quote_fail_forbidden_operation_currency(C) ->
         create_qoute_call_api(C)
     ).
 
--spec get_quote_fail_forbidden_operation_amount(config()) ->
-    _.
+-spec get_quote_fail_forbidden_operation_amount(config()) -> _.
 get_quote_fail_forbidden_operation_amount(C) ->
     ForbiddenOperationAmountException = #fistful_ForbiddenOperationAmount{
         amount = ?CASH,
@@ -408,8 +388,7 @@ get_quote_fail_forbidden_operation_amount(C) ->
         create_qoute_call_api(C)
     ).
 
--spec get_quote_fail_invalid_operation_amount(config()) ->
-    _.
+-spec get_quote_fail_invalid_operation_amount(config()) -> _.
 get_quote_fail_invalid_operation_amount(C) ->
     InvalidOperationAmountException = #fistful_InvalidOperationAmount{
         amount = ?CASH
@@ -420,8 +399,7 @@ get_quote_fail_invalid_operation_amount(C) ->
         create_qoute_call_api(C)
     ).
 
--spec get_quote_fail_inconsistent_withdrawal_currency(config()) ->
-    _.
+-spec get_quote_fail_inconsistent_withdrawal_currency(config()) -> _.
 get_quote_fail_inconsistent_withdrawal_currency(C) ->
     InconsistentWithdrawalCurrencyException = #wthd_InconsistentWithdrawalCurrency{
         withdrawal_currency = #'CurrencyRef'{
@@ -440,8 +418,7 @@ get_quote_fail_inconsistent_withdrawal_currency(C) ->
         create_qoute_call_api(C)
     ).
 
--spec get_quote_fail_identity_provider_mismatch(config()) ->
-    _.
+-spec get_quote_fail_identity_provider_mismatch(config()) -> _.
 get_quote_fail_identity_provider_mismatch(C) ->
     IdentityProviderMismatchException = #wthd_IdentityProvidersMismatch{
         wallet_provider = ?INTEGER,
@@ -453,8 +430,7 @@ get_quote_fail_identity_provider_mismatch(C) ->
         create_qoute_call_api(C)
     ).
 
--spec get_event_ok(config()) ->
-    _.
+-spec get_event_ok(config()) -> _.
 get_event_ok(C) ->
     get_events_start_mocks(C, fun() -> {ok, []} end),
     {ok, _} = call_api(
@@ -465,11 +441,10 @@ get_event_ok(C) ->
                 <<"eventID">> => ?INTEGER
             }
         },
-    wapi_ct_helper:cfg(context, C)
-).
+        wapi_ct_helper:cfg(context, C)
+    ).
 
--spec get_events_ok(config()) ->
-    _.
+-spec get_events_ok(config()) -> _.
 get_events_ok(C) ->
     get_events_start_mocks(C, fun() -> {ok, []} end),
     {ok, _} = call_api(
@@ -485,8 +460,7 @@ get_events_ok(C) ->
         wapi_ct_helper:cfg(context, C)
     ).
 
--spec get_events_fail_withdrawal_notfound(config()) ->
-    _.
+-spec get_events_fail_withdrawal_notfound(config()) -> _.
 get_events_fail_withdrawal_notfound(C) ->
     get_events_start_mocks(C, fun() -> throw(#fistful_WithdrawalNotFound{}) end),
     ?assertEqual(
@@ -507,8 +481,7 @@ get_events_fail_withdrawal_notfound(C) ->
 
 %%
 
--spec call_api(function(), map(), wapi_client_lib:context()) ->
-    {ok, term()} | {error, term()}.
+-spec call_api(function(), map(), wapi_client_lib:context()) -> {ok, term()} | {error, term()}.
 call_api(F, Params, Context) ->
     {Url, PreparedParams, Opts} = wapi_client_lib:make_request(Context, Params),
     Response = F(Url, PreparedParams, Opts),
@@ -525,7 +498,8 @@ create_withdrawal_call_api(C) ->
                     <<"amount">> => ?INTEGER,
                     <<"currency">> => ?RUB
                 }
-        })},
+            })
+        },
         wapi_ct_helper:cfg(context, C)
     ).
 
@@ -542,35 +516,43 @@ create_qoute_call_api(C) ->
                     <<"amount">> => ?INTEGER,
                     <<"currency">> => ?RUB
                 }
-        })},
+            })
+        },
         wapi_ct_helper:cfg(context, C)
     ).
 
 create_withdrawal_start_mocks(C, CreateWithdrawalResultFun) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services([
-        {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
-        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
-        {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
-        {fistful_withdrawal, fun('Create', _) -> CreateWithdrawalResultFun() end}
-    ], C).
+    wapi_ct_helper:mock_services(
+        [
+            {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
+            {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+            {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+            {fistful_withdrawal, fun('Create', _) -> CreateWithdrawalResultFun() end}
+        ],
+        C
+    ).
 
 get_events_start_mocks(C, GetEventRangeResultFun) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services([
-        {fistful_withdrawal,
-            fun
+    wapi_ct_helper:mock_services(
+        [
+            {fistful_withdrawal, fun
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-                ('GetEvents', [_, #'EventRange'{limit = 0}]) -> GetEventRangeResultFun();
+                ('GetEvents', {_, #'EventRange'{limit = 0}}) -> GetEventRangeResultFun();
                 ('GetEvents', _) -> {ok, [?WITHDRAWAL_EVENT(?WITHDRAWAL_STATUS_CHANGE)]}
-            end
-        }
-    ], C).
+            end}
+        ],
+        C
+    ).
 
 get_quote_start_mocks(C, GetQuoteResultFun) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services([
-        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
-        {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
-        {fistful_withdrawal, fun('GetQuote', _) -> GetQuoteResultFun() end}
-    ], C).
+    wapi_ct_helper:mock_services(
+        [
+            {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+            {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+            {fistful_withdrawal, fun('GetQuote', _) -> GetQuoteResultFun() end}
+        ],
+        C
+    ).

@@ -27,10 +27,9 @@
 %% Pipeline
 
 -spec get_identity(id(), handler_context()) ->
-    {ok, response_data()}             |
-    {error, {identity, notfound}}     |
-    {error, {identity, unauthorized}} .
-
+    {ok, response_data()}
+    | {error, {identity, notfound}}
+    | {error, {identity, unauthorized}}.
 get_identity(IdentityID, HandlerContext) ->
     case get_thrift_identity(IdentityID, HandlerContext) of
         {ok, IdentityThrift} ->
@@ -39,14 +38,15 @@ get_identity(IdentityID, HandlerContext) ->
             Error
     end.
 
--spec create_identity(params(), handler_context()) -> result(map(),
-    {party, notfound}            |
-    {provider, notfound}         |
-    {identity_class, notfound}   |
-    {external_id_conflict, id()} |
-    inaccessible                 |
-    _Unexpected
-).
+-spec create_identity(params(), handler_context()) ->
+    result(
+        map(),
+        {provider, notfound}
+        | {identity_class, notfound}
+        | {external_id_conflict, id()}
+        | inaccessible
+        | _Unexpected
+    ).
 create_identity(Params, HandlerContext) ->
     case create_id(identity, Params, HandlerContext) of
         {ok, ID} ->
@@ -60,7 +60,7 @@ create_identity(ID, Params, HandlerContext) ->
         Params#{<<"id">> => ID},
         wapi_handler_utils:get_owner(HandlerContext)
     }),
-    Request = {fistful_identity, 'Create', [IdentityParams, marshal(context, create_context(Params, HandlerContext))]},
+    Request = {fistful_identity, 'Create', {IdentityParams, marshal(context, create_context(Params, HandlerContext))}},
 
     case service_call(Request, HandlerContext) of
         {ok, Identity} ->
@@ -81,17 +81,19 @@ create_identity(ID, Params, HandlerContext) ->
 get_identities(_Params, _Context) ->
     wapi_handler_utils:throw_not_implemented().
 
--spec create_identity_challenge(id(), params(), handler_context()) -> result(map(),
-    {identity, notfound}               |
-    {identity, unauthorized}           |
-    {challenge, pending}               |
-    {challenge, {class, notfound}}     |
-    {challenge, {proof, notfound}}     |
-    {challenge, {proof, insufficient}} |
-    {challenge, level}                 |
-    {challenge, conflict}              |
-    {external_id_conflict, id()}
-).
+-spec create_identity_challenge(id(), params(), handler_context()) ->
+    result(
+        map(),
+        {identity, notfound}
+        | {identity, unauthorized}
+        | {challenge, pending}
+        | {challenge, {class, notfound}}
+        | {challenge, {proof, notfound}}
+        | {challenge, {proof, insufficient}}
+        | {challenge, level}
+        | {challenge, conflict}
+        | {external_id_conflict, id()}
+    ).
 create_identity_challenge(IdentityID, Params, HandlerContext) ->
     case create_id(identity_challenge, Params, HandlerContext) of
         {ok, ID} ->
@@ -104,7 +106,7 @@ create_identity_challenge(ChallengeID, IdentityID, Params, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
             ChallengeParams = marshal(challenge_params, {ChallengeID, Params}),
-            Request = {fistful_identity, 'StartChallenge', [IdentityID, ChallengeParams]},
+            Request = {fistful_identity, 'StartChallenge', {IdentityID, ChallengeParams}},
             case service_call(Request, HandlerContext) of
                 {ok, Challenge} ->
                     {ok, unmarshal(challenge, {Challenge, HandlerContext})};
@@ -129,15 +131,17 @@ create_identity_challenge(ChallengeID, IdentityID, Params, HandlerContext) ->
             {error, {identity, unauthorized}}
     end.
 
--spec get_identity_challenge(id(), id(), handler_context()) -> result(map(),
-    {identity, notfound}     |
-    {identity, unauthorized} |
-    {challenge, notfound}
-).
+-spec get_identity_challenge(id(), id(), handler_context()) ->
+    result(
+        map(),
+        {identity, notfound}
+        | {identity, unauthorized}
+        | {challenge, notfound}
+    ).
 get_identity_challenge(IdentityID, ChallengeID, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
-            Request = {fistful_identity, 'GetChallenges', [IdentityID]},
+            Request = {fistful_identity, 'GetChallenges', {IdentityID}},
             case service_call(Request, HandlerContext) of
                 {ok, Challenges} ->
                     get_challenge_by_id(ChallengeID, Challenges, HandlerContext);
@@ -150,15 +154,17 @@ get_identity_challenge(IdentityID, ChallengeID, HandlerContext) ->
             {error, {identity, unauthorized}}
     end.
 
--spec get_identity_challenges(id(), status(), handler_context()) -> result(map(),
-    {identity, notfound}     |
-    {identity, unauthorized} |
-    {challenge, notfound}
-).
+-spec get_identity_challenges(id(), status(), handler_context()) ->
+    result(
+        map(),
+        {identity, notfound}
+        | {identity, unauthorized}
+        | {challenge, notfound}
+    ).
 get_identity_challenges(IdentityID, Status, HandlerContext) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
-            Request = {fistful_identity, 'GetChallenges', [IdentityID]},
+            Request = {fistful_identity, 'GetChallenges', {IdentityID}},
             case service_call(Request, HandlerContext) of
                 {ok, Challenges} ->
                     Filtered = filter_challenges_by_status(Status, Challenges, HandlerContext, []),
@@ -172,20 +178,25 @@ get_identity_challenges(IdentityID, Status, HandlerContext) ->
             {error, {identity, unauthorized}}
     end.
 
--spec get_identity_challenge_events(params(), handler_context()) -> result(map(),
-    {identity, notfound}     |
-    {identity, unauthorized}
-).
-get_identity_challenge_events(Params = #{
-    'identityID'  := IdentityID,
-    'challengeID' := ChallengeID,
-    'limit'  := Limit
-}, HandlerContext) ->
+-spec get_identity_challenge_events(params(), handler_context()) ->
+    result(
+        map(),
+        {identity, notfound}
+        | {identity, unauthorized}
+    ).
+get_identity_challenge_events(
+    Params = #{
+        'identityID' := IdentityID,
+        'challengeID' := ChallengeID,
+        'limit' := Limit
+    },
+    HandlerContext
+) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
             Cursor = maps:get('eventCursor', Params, undefined),
             EventRange = marshal(event_range, {Cursor, Limit}),
-            Request = {fistful_identity, 'GetEvents', [IdentityID, EventRange]},
+            Request = {fistful_identity, 'GetEvents', {IdentityID, EventRange}},
             case service_call(Request, HandlerContext) of
                 {ok, Events} ->
                     Filtered = filter_events_by_challenge_id(ChallengeID, Events, []),
@@ -199,14 +210,19 @@ get_identity_challenge_events(Params = #{
             {error, {identity, unauthorized}}
     end.
 
--spec get_identity_challenge_event(params(), handler_context()) -> result(map(),
-    {identity, notfound}     |
-    {identity, unauthorized} |
-    {event, notfound}
-).
-get_identity_challenge_event(Params = #{
-    'identityID'  := IdentityID
-}, HandlerContext) ->
+-spec get_identity_challenge_event(params(), handler_context()) ->
+    result(
+        map(),
+        {identity, notfound}
+        | {identity, unauthorized}
+        | {event, notfound}
+    ).
+get_identity_challenge_event(
+    Params = #{
+        'identityID' := IdentityID
+    },
+    HandlerContext
+) ->
     case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
         ok ->
             get_identity_challenge_event_(Params, HandlerContext);
@@ -214,13 +230,16 @@ get_identity_challenge_event(Params = #{
             {error, {identity, unauthorized}}
     end.
 
-get_identity_challenge_event_(#{
-    'identityID'  := IdentityID,
-    'challengeID' := ChallengeID,
-    'eventID'     := EventId
-}, HandlerContext) ->
+get_identity_challenge_event_(
+    #{
+        'identityID' := IdentityID,
+        'challengeID' := ChallengeID,
+        'eventID' := EventId
+    },
+    HandlerContext
+) ->
     EventRange = marshal(event_range, {EventId - 1, 1}),
-    Request = {fistful_identity, 'GetEvents', [IdentityID, EventRange]},
+    Request = {fistful_identity, 'GetEvents', {IdentityID, EventRange}},
     case service_call(Request, HandlerContext) of
         {ok, []} ->
             {error, {event, notfound}};
@@ -238,12 +257,11 @@ get_identity_challenge_event_(#{
     end.
 
 -spec get_thrift_identity(id(), handler_context()) ->
-    {ok, identity_state()}             |
-    {error, {identity, notfound}}     |
-    {error, {identity, unauthorized}} .
-
+    {ok, identity_state()}
+    | {error, {identity, notfound}}
+    | {error, {identity, unauthorized}}.
 get_thrift_identity(IdentityID, HandlerContext) ->
-    Request = {fistful_identity, 'Get', [IdentityID, #'EventRange'{}]},
+    Request = {fistful_identity, 'Get', {IdentityID, #'EventRange'{}}},
     case service_call(Request, HandlerContext) of
         {ok, IdentityThrift} ->
             case wapi_access_backend:check_resource(identity, IdentityThrift, HandlerContext) of
@@ -263,16 +281,18 @@ get_thrift_identity(IdentityID, HandlerContext) ->
 filter_events_by_challenge_id(_ID, [], Result) ->
     Result;
 filter_events_by_challenge_id(
-    ID, [
+    ID,
+    [
         #idnt_Event{
-            change = {identity_challenge, #idnt_ChallengeChange{
-                id = ID,
-                payload = {status_changed, _Status} = Payload
-            }},
+            change =
+                {identity_challenge, #idnt_ChallengeChange{
+                    id = ID,
+                    payload = {status_changed, _Status} = Payload
+                }},
             occured_at = OccuredAt,
             sequence = EventID
-        } |
-        Rest
+        }
+        | Rest
     ],
     Acc
 ) ->
@@ -329,13 +349,16 @@ service_call(Params, Ctx) ->
 
 marshal({list, Type}, List) ->
     lists:map(fun(V) -> marshal(Type, V) end, List);
-
-marshal(identity_params, {Params = #{
-    <<"id">>        := ID,
-    <<"name">>      := Name,
-    <<"provider">>  := Provider,
-    <<"class">>     := Class
-}, Owner}) ->
+marshal(
+    identity_params,
+    {Params = #{
+            <<"id">> := ID,
+            <<"name">> := Name,
+            <<"provider">> := Provider,
+            <<"class">> := Class
+        },
+        Owner}
+) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
     #idnt_IdentityParams{
         id = marshal(id, ID),
@@ -345,17 +368,18 @@ marshal(identity_params, {Params = #{
         cls = marshal(string, Class),
         external_id = marshal(id, ExternalID)
     };
-
-marshal(challenge_params, {ID, #{
-    <<"type">>     := Class,
-    <<"proofs">>    := Proofs
-}}) ->
+marshal(
+    challenge_params,
+    {ID, #{
+        <<"type">> := Class,
+        <<"proofs">> := Proofs
+    }}
+) ->
     #idnt_ChallengeParams{
         id = marshal(id, ID),
         cls = marshal(id, Class),
         proofs = marshal({list, proof}, Proofs)
     };
-
 marshal(proof, #{<<"token">> := WapiToken}) ->
     try
         #{<<"type">> := Type, <<"token">> := Token} = wapi_utils:base64url_to_map(WapiToken),
@@ -365,26 +389,24 @@ marshal(proof, #{<<"token">> := WapiToken}) ->
         }
     catch
         error:badarg ->
-            wapi_handler:throw_result(wapi_handler_utils:reply_error(
-                422,
-                wapi_handler_utils:get_error_msg(io_lib:format("Invalid proof token: ~p", [WapiToken]))
-            ))
+            wapi_handler:throw_result(
+                wapi_handler_utils:reply_error(
+                    422,
+                    wapi_handler_utils:get_error_msg(io_lib:format("Invalid proof token: ~p", [WapiToken]))
+                )
+            )
     end;
-
 marshal(event_range, {Cursor, Limit}) ->
     #'EventRange'{
         'after' = marshal(integer, Cursor),
         'limit' = marshal(integer, Limit)
     };
-
 marshal(context, Ctx) ->
     wapi_codec:marshal(context, Ctx);
-
 marshal(proof_type, <<"RUSDomesticPassport">>) ->
     rus_domestic_passport;
 marshal(proof_type, <<"RUSRetireeInsuranceCertificate">>) ->
     rus_retiree_insurance_cert;
-
 marshal(T, V) ->
     wapi_codec:marshal(T, V).
 
@@ -392,7 +414,6 @@ marshal(T, V) ->
 
 unmarshal({list, Type}, List) ->
     lists:map(fun(V) -> unmarshal(Type, V) end, List);
-
 unmarshal(identity, #idnt_IdentityState{
     id = IdentityID,
     name = Name,
@@ -407,85 +428,92 @@ unmarshal(identity, #idnt_IdentityState{
 }) ->
     Context = unmarshal(context, Ctx),
     genlib_map:compact(#{
-        <<"id">>                    => unmarshal(id, IdentityID),
-        <<"name">>                  => unmarshal(string, Name),
-        <<"createdAt">>             => maybe_unmarshal(string, CreatedAt),
-        <<"isBlocked">>             => maybe_unmarshal(blocking, Blocking),
-        <<"class">>                 => unmarshal(string, Class),
-        <<"provider">>              => unmarshal(id, Provider),
-        <<"level">>                 => maybe_unmarshal(id, Level),
-        <<"effectiveChallenge">>    => maybe_unmarshal(id, EffectiveChallenge),
-        <<"externalID">>            => maybe_unmarshal(id, ExternalID),
-        <<"metadata">>              => wapi_backend_utils:get_from_ctx(<<"metadata">>, Context)
+        <<"id">> => unmarshal(id, IdentityID),
+        <<"name">> => unmarshal(string, Name),
+        <<"createdAt">> => maybe_unmarshal(string, CreatedAt),
+        <<"isBlocked">> => maybe_unmarshal(blocking, Blocking),
+        <<"class">> => unmarshal(string, Class),
+        <<"provider">> => unmarshal(id, Provider),
+        <<"level">> => maybe_unmarshal(id, Level),
+        <<"effectiveChallenge">> => maybe_unmarshal(id, EffectiveChallenge),
+        <<"externalID">> => maybe_unmarshal(id, ExternalID),
+        <<"metadata">> => wapi_backend_utils:get_from_ctx(<<"metadata">>, Context)
     });
-
-unmarshal(challenge, {#idnt_ChallengeState{
-    id          = ID,
-    cls         = Class,
-    proofs      = Proofs,
-    status      = Status
-}, HandlerContext}) ->
-    genlib_map:compact(maps:merge(#{
-        <<"id">>    => unmarshal(id, ID),
-        <<"type">>  => unmarshal(id, Class),
-        <<"proofs">>  => enrich_proofs(Proofs, HandlerContext)
-    }, unmarshal(challenge_status, Status)));
-
+unmarshal(
+    challenge,
+    {#idnt_ChallengeState{
+            id = ID,
+            cls = Class,
+            proofs = Proofs,
+            status = Status
+        },
+        HandlerContext}
+) ->
+    genlib_map:compact(
+        maps:merge(
+            #{
+                <<"id">> => unmarshal(id, ID),
+                <<"type">> => unmarshal(id, Class),
+                <<"proofs">> => enrich_proofs(Proofs, HandlerContext)
+            },
+            unmarshal(challenge_status, Status)
+        )
+    );
 unmarshal(challenge_status, {pending, #idnt_ChallengePending{}}) ->
-    #{<<"status">>  => <<"Pending">>};
+    #{<<"status">> => <<"Pending">>};
 unmarshal(challenge_status, {cancelled, #idnt_ChallengeCancelled{}}) ->
-    #{<<"status">>  => <<"Cancelled">>};
-unmarshal(challenge_status, {completed, #idnt_ChallengeCompleted{
-    valid_until = Time,
-    resolution = approved
-}}) ->
+    #{<<"status">> => <<"Cancelled">>};
+unmarshal(
+    challenge_status,
+    {completed, #idnt_ChallengeCompleted{
+        valid_until = Time,
+        resolution = approved
+    }}
+) ->
     genlib_map:compact(#{
-        <<"status">>  => <<"Completed">>,
+        <<"status">> => <<"Completed">>,
         <<"validUntil">> => maybe_unmarshal(string, Time)
     });
-unmarshal(challenge_status, {completed, #idnt_ChallengeCompleted{
-    resolution = denied
-}}) ->
+unmarshal(
+    challenge_status,
+    {completed, #idnt_ChallengeCompleted{
+        resolution = denied
+    }}
+) ->
     %% TODO Add denied reason to proto
     unmarshal(challenge_status, {failed, #idnt_ChallengeFailed{}});
 unmarshal(challenge_status, {failed, #idnt_ChallengeFailed{}}) ->
     #{
-        <<"status">>  => <<"Failed">>,
-        <<"failureReason">>  => <<"Denied">>
+        <<"status">> => <<"Failed">>,
+        <<"failureReason">> => <<"Denied">>
     };
-
 unmarshal(proof, #idnt_ChallengeProof{
     type = Type,
     token = Token
 }) ->
     genlib_map:compact(#{
-        <<"type">>  => maybe_unmarshal(proof_type, Type),
-        <<"token">>  => maybe_unmarshal(string, Token)
+        <<"type">> => maybe_unmarshal(proof_type, Type),
+        <<"token">> => maybe_unmarshal(string, Token)
     });
-
 unmarshal(proof_type, rus_domestic_passport) ->
     <<"RUSDomesticPassport">>;
 unmarshal(proof_type, rus_retiree_insurance_cert) ->
     <<"RUSRetireeInsuranceCertificate">>;
-
 unmarshal(identity_challenge_event, {ID, Ts, V}) ->
     #{
-        <<"eventID">>   => unmarshal(integer, ID),
+        <<"eventID">> => unmarshal(integer, ID),
         <<"occuredAt">> => unmarshal(string, Ts),
-        <<"changes">>   => [unmarshal(identity_challenge_event_change, V)]
+        <<"changes">> => [unmarshal(identity_challenge_event_change, V)]
     };
-
 unmarshal(identity_challenge_event_change, {status_changed, S}) ->
     maps:merge(
         #{<<"type">> => <<"IdentityChallengeStatusChanged">>},
         unmarshal(challenge_status, S)
     );
-
 unmarshal(blocking, unblocked) ->
     false;
 unmarshal(blocking, blocked) ->
     true;
-
 unmarshal(T, V) ->
     wapi_codec:unmarshal(T, V).
 

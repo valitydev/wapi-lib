@@ -22,6 +22,8 @@
 -export([init/1]).
 
 -export([create_destination_ok_test/1]).
+-export([create_destination_fail_resource_token_invalid_test/1]).
+-export([create_destination_fail_resource_token_expire_test/1]).
 -export([create_destination_fail_identity_notfound_test/1]).
 -export([create_destination_fail_currency_notfound_test/1]).
 -export([create_destination_fail_party_inaccessible_test/1]).
@@ -42,30 +44,29 @@
 -define(badresp(Code), {error, {invalid_response_code, Code}}).
 -define(emptyresp(Code), {error, {Code, #{}}}).
 
--type test_case_name()  :: atom().
--type config()          :: [{atom(), any()}].
--type group_name()      :: atom().
+-type test_case_name() :: atom().
+-type config() :: [{atom(), any()}].
+-type group_name() :: atom().
 
 -behaviour(supervisor).
 
--spec init([]) ->
-    {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
+-spec init([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init([]) ->
     {ok, {#{strategy => one_for_all, intensity => 1, period => 1}, []}}.
 
--spec all() ->
-    [test_case_name()].
+-spec all() -> [test_case_name()].
 all() ->
     [
         {group, base}
     ].
 
--spec groups() ->
-    [{group_name(), list(), [test_case_name()]}].
+-spec groups() -> [{group_name(), list(), [test_case_name()]}].
 groups() ->
     [
         {base, [], [
             create_destination_ok_test,
+            create_destination_fail_resource_token_invalid_test,
+            create_destination_fail_resource_token_expire_test,
             create_destination_fail_identity_notfound_test,
             create_destination_fail_currency_notfound_test,
             create_destination_fail_party_inaccessible_test,
@@ -86,23 +87,22 @@ groups() ->
 %% starting/stopping
 %%
 -spec init_per_suite(config()) -> config().
-
 init_per_suite(C) ->
     wapi_ct_helper:init_suite(?MODULE, C).
 
 -spec end_per_suite(config()) -> _.
-
 end_per_suite(C) ->
     _ = wapi_ct_helper:stop_mocked_service_sup(?config(suite_test_sup, C)),
     _ = [application:stop(App) || App <- ?config(apps, C)],
     ok.
 
--spec init_per_group(group_name(), config()) ->
-    config().
+-spec init_per_group(group_name(), config()) -> config().
 init_per_group(Group, Config) when Group =:= base ->
-    ok = wapi_context:save(wapi_context:create(#{
-        woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
-    })),
+    ok = wapi_context:save(
+        wapi_context:create(#{
+            woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
+        })
+    ),
     Party = genlib:bsuuid(),
     {ok, Token} = wapi_ct_helper:issue_token(Party, [{[party], write}], unlimited, ?DOMAIN),
     Config1 = [{party, Party} | Config],
@@ -110,20 +110,17 @@ init_per_group(Group, Config) when Group =:= base ->
 init_per_group(_, Config) ->
     Config.
 
--spec end_per_group(group_name(), config()) ->
-    _.
+-spec end_per_group(group_name(), config()) -> _.
 end_per_group(_Group, _C) ->
     ok.
 
--spec init_per_testcase(test_case_name(), config()) ->
-    config().
+-spec init_per_testcase(test_case_name(), config()) -> config().
 init_per_testcase(Name, C) ->
     C1 = wapi_ct_helper:makeup_cfg([wapi_ct_helper:test_case_name(Name), wapi_ct_helper:woody_ctx()], C),
     ok = wapi_context:save(C1),
     [{test_sup, wapi_ct_helper:start_mocked_service_sup(?MODULE)} | C1].
 
--spec end_per_testcase(test_case_name(), config()) ->
-    config().
+-spec end_per_testcase(test_case_name(), config()) -> config().
 end_per_testcase(_Name, C) ->
     ok = wapi_context:cleanup(),
     wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
@@ -138,6 +135,33 @@ create_destination_ok_test(C) ->
     ?assertMatch(
         {ok, _},
         create_destination_call_api(C, Destination)
+    ).
+
+-spec create_destination_fail_resource_token_invalid_test(config()) -> _.
+create_destination_fail_resource_token_invalid_test(C) ->
+    Destination = make_destination(C, bank_card),
+    create_destination_start_mocks(C, fun() -> {ok, Destination} end),
+    ?assertMatch(
+        {error,
+            {400, #{
+                <<"errorType">> := <<"InvalidResourceToken">>,
+                <<"name">> := <<"BankCardDestinationResource">>
+            }}},
+        create_destination_call_api(C, Destination, <<"v1.InvalidResourceToken">>)
+    ).
+
+-spec create_destination_fail_resource_token_expire_test(config()) -> _.
+create_destination_fail_resource_token_expire_test(C) ->
+    InvalidResourceToken = wapi_crypto:create_resource_token(?RESOURCE, wapi_utils:deadline_from_timeout(0)),
+    Destination = make_destination(C, bank_card),
+    create_destination_start_mocks(C, fun() -> {ok, Destination} end),
+    ?assertMatch(
+        {error,
+            {400, #{
+                <<"errorType">> := <<"InvalidResourceToken">>,
+                <<"name">> := <<"BankCardDestinationResource">>
+            }}},
+        create_destination_call_api(C, Destination, InvalidResourceToken)
     ).
 
 -spec create_destination_fail_identity_notfound_test(config()) -> _.
@@ -222,12 +246,15 @@ ripple_resource_test(C) ->
     {ok, Resource, SwagResource} = do_destination_lifecycle(ripple, C),
     ?assertEqual(<<"CryptoWalletDestinationResource">>, maps:get(<<"type">>, SwagResource)),
     ?assertEqual(<<"Ripple">>, maps:get(<<"currency">>, SwagResource)),
-    {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = #'CryptoWallet'{
-        id = ID,
-        data = {ripple, #'CryptoDataRipple'{
-            tag = Tag
-        }}
-    }}} = Resource,
+    {crypto_wallet, #'ResourceCryptoWallet'{
+        crypto_wallet = #'CryptoWallet'{
+            id = ID,
+            data =
+                {ripple, #'CryptoDataRipple'{
+                    tag = Tag
+                }}
+        }
+    }} = Resource,
     ?assertEqual(ID, maps:get(<<"id">>, SwagResource)),
     ?assertEqual(Tag, maps:get(<<"tag">>, SwagResource)).
 
@@ -263,25 +290,24 @@ do_destination_lifecycle(ResourceType, C) ->
     Resource = generate_resource(ResourceType),
     Context = generate_context(PartyID),
     Destination = generate_destination(Identity#idnt_IdentityState.id, Resource, Context),
-    wapi_ct_helper:mock_services([
-        {bender_thrift,
-            fun
+    wapi_ct_helper:mock_services(
+        [
+            {bender_thrift, fun
                 ('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT};
                 ('GetInternalID', _) -> {ok, ?GET_INTERNAL_ID_RESULT}
-            end
-        },
-        {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
-        {fistful_destination,
-            fun
+            end},
+            {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+            {fistful_destination, fun
                 ('Create', _) -> {ok, Destination};
                 ('Get', _) -> {ok, Destination}
-            end
-        }
-    ], C),
+            end}
+        ],
+        C
+    ),
     {ok, CreateResult} = call_api(
         fun swag_client_wallet_withdrawals_api:create_destination/3,
         #{
-            body => build_destination_spec(Destination)
+            body => build_destination_spec(Destination, undefined)
         },
         wapi_ct_helper:cfg(context, C)
     ),
@@ -318,32 +344,38 @@ do_destination_lifecycle(ResourceType, C) ->
     ?assertEqual(#{<<"key">> => <<"val">>}, maps:get(<<"metadata">>, CreateResult)),
     {ok, Resource, maps:get(<<"resource">>, CreateResult)}.
 
--spec call_api(function(), map(), wapi_client_lib:context()) ->
-    {ok, term()} | {error, term()}.
+-spec call_api(function(), map(), wapi_client_lib:context()) -> {ok, term()} | {error, term()}.
 call_api(F, Params, Context) ->
     {Url, PreparedParams, Opts} = wapi_client_lib:make_request(Context, Params),
     Response = F(Url, PreparedParams, Opts),
     wapi_client_lib:handle_response(Response).
 
-build_destination_spec(D) ->
+build_destination_spec(D, undefined) ->
+    build_destination_spec(D, D#dst_DestinationState.resource);
+build_destination_spec(D, Resource) ->
     #{
         <<"name">> => D#dst_DestinationState.name,
         <<"identity">> => (D#dst_DestinationState.account)#account_Account.identity,
         <<"currency">> => ((D#dst_DestinationState.account)#account_Account.currency)#'CurrencyRef'.symbolic_code,
         <<"externalID">> => D#dst_DestinationState.external_id,
-        <<"resource">> => build_resource_spec(D#dst_DestinationState.resource)
+        <<"resource">> => build_resource_spec(Resource)
     }.
 
 build_resource_spec({bank_card, R}) ->
     #{
         <<"type">> => <<"BankCardDestinationResource">>,
-        <<"token">> => wapi_crypto:encrypt_bankcard_token(R#'ResourceBankCard'.bank_card)
+        <<"token">> => wapi_crypto:create_resource_token({bank_card, R#'ResourceBankCard'.bank_card}, undefined)
     };
 build_resource_spec({crypto_wallet, R}) ->
     Spec = build_crypto_cyrrency_spec((R#'ResourceCryptoWallet'.crypto_wallet)#'CryptoWallet'.data),
     Spec#{
         <<"type">> => <<"CryptoWalletDestinationResource">>,
         <<"id">> => (R#'ResourceCryptoWallet'.crypto_wallet)#'CryptoWallet'.id
+    };
+build_resource_spec(Token) ->
+    #{
+        <<"type">> => <<"BankCardDestinationResource">>,
+        <<"token">> => Token
     }.
 
 build_crypto_cyrrency_spec({bitcoin, #'CryptoDataBitcoin'{}}) ->
@@ -379,20 +411,21 @@ generate_identity(PartyID) ->
 
 generate_context(PartyID) ->
     #{
-        <<"com.rbkmoney.wapi">> => {obj, #{
-            {str, <<"owner">>} => {str, PartyID},
-            {str, <<"name">>} => {str, uniq()},
-            {str, <<"metadata">>} => {obj, #{{str, <<"key">>} => {str, <<"val">>}}}
-        }}
+        <<"com.rbkmoney.wapi">> =>
+            {obj, #{
+                {str, <<"owner">>} => {str, PartyID},
+                {str, <<"name">>} => {str, uniq()},
+                {str, <<"metadata">>} => {obj, #{{str, <<"key">>} => {str, <<"val">>}}}
+            }}
     }.
 
 generate_destination(IdentityID, Resource, Context) ->
     ID = uniq(),
     #dst_DestinationState{
-        id          = ID,
-        name        = uniq(),
-        status      = {authorized, #dst_Authorized{}},
-        account     = #account_Account{
+        id = ID,
+        name = uniq(),
+        status = {authorized, #dst_Authorized{}},
+        account = #account_Account{
             id = ID,
             identity = IdentityID,
             currency = #'CurrencyRef'{
@@ -400,35 +433,39 @@ generate_destination(IdentityID, Resource, Context) ->
             },
             accounter_account_id = 123
         },
-        resource    = Resource,
+        resource = Resource,
         external_id = uniq(),
-        created_at  = <<"2016-03-22T06:12:27Z">>,
-        blocking    = unblocked,
-        metadata    = #{<<"key">> => {str, <<"val">>}},
-        context     = Context
+        created_at = <<"2016-03-22T06:12:27Z">>,
+        blocking = unblocked,
+        metadata = #{<<"key">> => {str, <<"val">>}},
+        context = Context
     }.
 
 generate_resource(bank_card) ->
-    {bank_card, #'ResourceBankCard'{bank_card = #'BankCard'{
-        token = uniq(),
-        bin = <<"424242">>,
-        masked_pan = <<"4242">>,
-        bank_name = uniq(),
-        payment_system = visa,
-        issuer_country = rus,
-        card_type = debit,
-        exp_date = #'BankCardExpDate'{
-            month = 12,
-            year = 2200
+    {bank_card, #'ResourceBankCard'{
+        bank_card = #'BankCard'{
+            token = uniq(),
+            bin = <<"424242">>,
+            masked_pan = <<"4242">>,
+            bank_name = uniq(),
+            payment_system = visa,
+            issuer_country = rus,
+            card_type = debit,
+            exp_date = #'BankCardExpDate'{
+                month = 12,
+                year = 2200
+            }
         }
-    }}};
+    }};
 generate_resource(ResourceType) ->
     {Currency, Params} = generate_wallet_data(ResourceType),
-    {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = #'CryptoWallet'{
-        id = uniq(),
-        data = {Currency, Params},
-        currency = Currency
-    }}}.
+    {crypto_wallet, #'ResourceCryptoWallet'{
+        crypto_wallet = #'CryptoWallet'{
+            id = uniq(),
+            data = {Currency, Params},
+            currency = Currency
+        }
+    }}.
 
 generate_wallet_data(bitcoin) ->
     {bitcoin, #'CryptoDataBitcoin'{}};
@@ -447,7 +484,6 @@ generate_wallet_data(usdt) ->
 generate_wallet_data(zcash) ->
     {zcash, #'CryptoDataZcash'{}}.
 
-
 make_destination(C, ResourceType) ->
     PartyID = ?config(party, C),
     Identity = generate_identity(PartyID),
@@ -455,24 +491,33 @@ make_destination(C, ResourceType) ->
     Context = generate_context(PartyID),
     generate_destination(Identity#idnt_IdentityState.id, Resource, Context).
 
- create_destination_start_mocks(C, CreateDestinationResultFun) ->
+create_destination_start_mocks(C, CreateDestinationResultFun) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services([
-        {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
-        {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
-        {fistful_destination, fun('Create', _) -> CreateDestinationResultFun() end}
-    ], C).
+    wapi_ct_helper:mock_services(
+        [
+            {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
+            {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+            {fistful_destination, fun('Create', _) -> CreateDestinationResultFun() end}
+        ],
+        C
+    ).
 
- get_destination_start_mocks(C, GetDestinationResultFun) ->
-    wapi_ct_helper:mock_services([
-        {fistful_destination, fun('Get', _) -> GetDestinationResultFun() end}
-    ], C).
+get_destination_start_mocks(C, GetDestinationResultFun) ->
+    wapi_ct_helper:mock_services(
+        [
+            {fistful_destination, fun('Get', _) -> GetDestinationResultFun() end}
+        ],
+        C
+    ).
 
 create_destination_call_api(C, Destination) ->
+    create_destination_call_api(C, Destination, undefined).
+
+create_destination_call_api(C, Destination, Resource) ->
     call_api(
         fun swag_client_wallet_withdrawals_api:create_destination/3,
         #{
-            body => build_destination_spec(Destination)
+            body => build_destination_spec(Destination, Resource)
         },
         wapi_ct_helper:cfg(context, C)
     ).

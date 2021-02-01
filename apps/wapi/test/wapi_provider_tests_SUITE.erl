@@ -32,60 +32,54 @@
 -define(badresp(Code), {error, {invalid_response_code, Code}}).
 -define(emptyresp(Code), {error, {Code, #{}}}).
 
--type test_case_name()  :: atom().
--type config()          :: [{atom(), any()}].
--type group_name()      :: atom().
+-type test_case_name() :: atom().
+-type config() :: [{atom(), any()}].
+-type group_name() :: atom().
 
 -behaviour(supervisor).
 
--spec init([]) ->
-    {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
+-spec init([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init([]) ->
     {ok, {#{strategy => one_for_all, intensity => 1, period => 1}, []}}.
 
--spec all() ->
-    [test_case_name()].
+-spec all() -> [test_case_name()].
 all() ->
     [
         {group, base}
     ].
 
--spec groups() ->
-    [{group_name(), list(), [test_case_name()]}].
+-spec groups() -> [{group_name(), list(), [test_case_name()]}].
 groups() ->
     [
-        {base, [],
-            [
-                get_provider_ok,
-                get_provider_fail_notfound,
-                list_providers,
-                get_provider_identity_classes,
-                get_provider_identity_class
-            ]
-        }
+        {base, [], [
+            get_provider_ok,
+            get_provider_fail_notfound,
+            list_providers,
+            get_provider_identity_classes,
+            get_provider_identity_class
+        ]}
     ].
 
 %%
 %% starting/stopping
 %%
--spec init_per_suite(config()) ->
-    config().
+-spec init_per_suite(config()) -> config().
 init_per_suite(C) ->
     wapi_ct_helper:init_suite(?MODULE, C).
 
--spec end_per_suite(config()) ->
-    _.
+-spec end_per_suite(config()) -> _.
 end_per_suite(C) ->
     _ = wapi_ct_helper:stop_mocked_service_sup(?config(suite_test_sup, C)),
     _ = [application:stop(App) || App <- ?config(apps, C)],
     ok.
 
--spec init_per_group(group_name(), config()) ->
-    config().
+-spec init_per_group(group_name(), config()) -> config().
 init_per_group(Group, Config) when Group =:= base ->
-    ok = wapi_context:save(wapi_context:create(#{
-        woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
-    })),
+    ok = wapi_context:save(
+        wapi_context:create(#{
+            woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
+        })
+    ),
     Party = genlib:bsuuid(),
     {ok, Token} = wapi_ct_helper:issue_token(Party, [{[party], write}], unlimited, ?DOMAIN),
     Config1 = [{party, Party} | Config],
@@ -93,20 +87,17 @@ init_per_group(Group, Config) when Group =:= base ->
 init_per_group(_, Config) ->
     Config.
 
--spec end_per_group(group_name(), config()) ->
-    _.
+-spec end_per_group(group_name(), config()) -> _.
 end_per_group(_Group, _C) ->
     ok.
 
--spec init_per_testcase(test_case_name(), config()) ->
-    config().
+-spec init_per_testcase(test_case_name(), config()) -> config().
 init_per_testcase(Name, C) ->
     C1 = wapi_ct_helper:makeup_cfg([wapi_ct_helper:test_case_name(Name), wapi_ct_helper:woody_ctx()], C),
     ok = wapi_context:save(C1),
     [{test_sup, wapi_ct_helper:start_mocked_service_sup(?MODULE)} | C1].
 
--spec end_per_testcase(test_case_name(), config()) ->
-    config().
+-spec end_per_testcase(test_case_name(), config()) -> config().
 end_per_testcase(_Name, C) ->
     ok = wapi_context:cleanup(),
     wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
@@ -114,12 +105,14 @@ end_per_testcase(_Name, C) ->
 
 %%% Tests
 
--spec get_provider_ok(config()) ->
-    _.
+-spec get_provider_ok(config()) -> _.
 get_provider_ok(C) ->
-    wapi_ct_helper:mock_services([
-        {fistful_provider, fun('GetProvider', _) -> {ok, ?PROVIDER} end}
-    ], C),
+    wapi_ct_helper:mock_services(
+        [
+            {fistful_provider, fun('GetProvider', _) -> {ok, ?PROVIDER} end}
+        ],
+        C
+    ),
     {ok, _} = call_api(
         fun swag_client_wallet_providers_api:get_provider/3,
         #{
@@ -130,12 +123,14 @@ get_provider_ok(C) ->
         wapi_ct_helper:cfg(context, C)
     ).
 
--spec get_provider_fail_notfound(config()) ->
-    _.
+-spec get_provider_fail_notfound(config()) -> _.
 get_provider_fail_notfound(C) ->
-    wapi_ct_helper:mock_services([
-        {fistful_provider, fun('GetProvider', _) -> throw(#fistful_ProviderNotFound{}) end}
-    ], C),
+    wapi_ct_helper:mock_services(
+        [
+            {fistful_provider, fun('GetProvider', _) -> throw(#fistful_ProviderNotFound{}) end}
+        ],
+        C
+    ),
     {error, {404, #{}}} = call_api(
         fun swag_client_wallet_providers_api:get_provider/3,
         #{
@@ -146,12 +141,14 @@ get_provider_fail_notfound(C) ->
         wapi_ct_helper:cfg(context, C)
     ).
 
--spec list_providers(config()) ->
-    _.
+-spec list_providers(config()) -> _.
 list_providers(C) ->
-    wapi_ct_helper:mock_services([
-        {fistful_provider, fun('ListProviders', _) -> {ok, [?PROVIDER, ?PROVIDER]} end}
-    ], C),
+    wapi_ct_helper:mock_services(
+        [
+            {fistful_provider, fun('ListProviders', _) -> {ok, [?PROVIDER, ?PROVIDER]} end}
+        ],
+        C
+    ),
     {ok, _} = call_api(
         fun swag_client_wallet_providers_api:list_providers/3,
         #{
@@ -162,12 +159,14 @@ list_providers(C) ->
         wapi_ct_helper:cfg(context, C)
     ).
 
--spec get_provider_identity_classes(config()) ->
-    _.
+-spec get_provider_identity_classes(config()) -> _.
 get_provider_identity_classes(C) ->
-    wapi_ct_helper:mock_services([
-        {fistful_provider, fun('GetProvider', _) -> {ok, ?PROVIDER} end}
-    ], C),
+    wapi_ct_helper:mock_services(
+        [
+            {fistful_provider, fun('GetProvider', _) -> {ok, ?PROVIDER} end}
+        ],
+        C
+    ),
     {ok, _} = call_api(
         fun swag_client_wallet_providers_api:list_provider_identity_classes/3,
         #{
@@ -178,12 +177,14 @@ get_provider_identity_classes(C) ->
         wapi_ct_helper:cfg(context, C)
     ).
 
--spec get_provider_identity_class(config()) ->
-    _.
+-spec get_provider_identity_class(config()) -> _.
 get_provider_identity_class(C) ->
-    wapi_ct_helper:mock_services([
-        {fistful_provider, fun('GetProvider', _) -> {ok, ?PROVIDER} end}
-    ], C),
+    wapi_ct_helper:mock_services(
+        [
+            {fistful_provider, fun('GetProvider', _) -> {ok, ?PROVIDER} end}
+        ],
+        C
+    ),
     {ok, _} = call_api(
         fun swag_client_wallet_providers_api:get_provider_identity_class/3,
         #{
@@ -197,8 +198,7 @@ get_provider_identity_class(C) ->
 
 %%
 
--spec call_api(function(), map(), wapi_client_lib:context()) ->
-    {ok, term()} | {error, term()}.
+-spec call_api(function(), map(), wapi_client_lib:context()) -> {ok, term()} | {error, term()}.
 call_api(F, Params, Context) ->
     {Url, PreparedParams, Opts} = wapi_client_lib:make_request(Context, Params),
     Response = F(Url, PreparedParams, Opts),

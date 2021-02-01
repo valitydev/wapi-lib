@@ -35,60 +35,54 @@
 -define(badresp(Code), {error, {invalid_response_code, Code}}).
 -define(emptyresp(Code), {error, {Code, #{}}}).
 
--type test_case_name()  :: atom().
--type config()          :: [{atom(), any()}].
--type group_name()      :: atom().
+-type test_case_name() :: atom().
+-type config() :: [{atom(), any()}].
+-type group_name() :: atom().
 
 -behaviour(supervisor).
 
--spec init([]) ->
-    {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
+-spec init([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init([]) ->
     {ok, {#{strategy => one_for_all, intensity => 1, period => 1}, []}}.
 
--spec all() ->
-    [test_case_name()].
+-spec all() -> [test_case_name()].
 all() ->
     [
         {group, base}
     ].
 
--spec groups() ->
-    [{group_name(), list(), [test_case_name()]}].
+-spec groups() -> [{group_name(), list(), [test_case_name()]}].
 groups() ->
     [
-        {base, [],
-            [
-                create_report_ok_test,
-                get_report_ok_test,
-                get_reports_ok_test,
-                reports_with_wrong_identity_ok_test,
-                download_file_ok_test
-            ]
-        }
+        {base, [], [
+            create_report_ok_test,
+            get_report_ok_test,
+            get_reports_ok_test,
+            reports_with_wrong_identity_ok_test,
+            download_file_ok_test
+        ]}
     ].
 
 %%
 %% starting/stopping
 %%
 -spec init_per_suite(config()) -> config().
-
 init_per_suite(C) ->
     wapi_ct_helper:init_suite(?MODULE, C).
 
 -spec end_per_suite(config()) -> _.
-
 end_per_suite(C) ->
     _ = wapi_ct_helper:stop_mocked_service_sup(?config(suite_test_sup, C)),
     _ = [application:stop(App) || App <- ?config(apps, C)],
     ok.
 
--spec init_per_group(group_name(), config()) ->
-    config().
+-spec init_per_group(group_name(), config()) -> config().
 init_per_group(Group, Config) when Group =:= base ->
-    ok = wapi_context:save(wapi_context:create(#{
-        woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
-    })),
+    ok = wapi_context:save(
+        wapi_context:create(#{
+            woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
+        })
+    ),
     Party = genlib:bsuuid(),
     {ok, Token} = wapi_ct_helper:issue_token(Party, [{[party], write}], unlimited, ?DOMAIN),
     Config1 = [{party, Party} | Config],
@@ -96,37 +90,36 @@ init_per_group(Group, Config) when Group =:= base ->
 init_per_group(_, Config) ->
     Config.
 
--spec end_per_group(group_name(), config()) ->
-    _.
+-spec end_per_group(group_name(), config()) -> _.
 end_per_group(_Group, _C) ->
     ok.
 
--spec init_per_testcase(test_case_name(), config()) ->
-    config().
+-spec init_per_testcase(test_case_name(), config()) -> config().
 init_per_testcase(Name, C) ->
     C1 = wapi_ct_helper:makeup_cfg([wapi_ct_helper:test_case_name(Name), wapi_ct_helper:woody_ctx()], C),
     ok = wapi_context:save(C1),
     [{test_sup, wapi_ct_helper:start_mocked_service_sup(?MODULE)} | C1].
 
--spec end_per_testcase(test_case_name(), config()) ->
-    config().
+-spec end_per_testcase(test_case_name(), config()) -> config().
 end_per_testcase(_Name, C) ->
     ok = wapi_context:cleanup(),
     wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
     ok.
 
 %%% Tests
--spec create_report_ok_test(config()) ->
-    _.
+-spec create_report_ok_test(config()) -> _.
 create_report_ok_test(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services([
-        {fistful_report, fun
-            ('GenerateReport', _) -> {ok, ?REPORT_ID};
-            ('GetReport', _) -> {ok, ?REPORT}
-        end},
-        {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)} end}
-    ], C),
+    wapi_ct_helper:mock_services(
+        [
+            {fistful_report, fun
+                ('GenerateReport', _) -> {ok, ?REPORT_ID};
+                ('GetReport', _) -> {ok, ?REPORT}
+            end},
+            {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)} end}
+        ],
+        C
+    ),
     {ok, _} = call_api(
         fun swag_client_wallet_reports_api:create_report/3,
         #{
@@ -142,16 +135,16 @@ create_report_ok_test(C) ->
         wapi_ct_helper:cfg(context, C)
     ).
 
--spec get_report_ok_test(config()) ->
-    _.
+-spec get_report_ok_test(config()) -> _.
 get_report_ok_test(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services([
-        {fistful_report, fun
-            ('GetReport', _) -> {ok, ?REPORT}
-        end},
-        {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)} end}
-    ], C),
+    wapi_ct_helper:mock_services(
+        [
+            {fistful_report, fun('GetReport', _) -> {ok, ?REPORT} end},
+            {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)} end}
+        ],
+        C
+    ),
     {ok, _} = call_api(
         fun swag_client_wallet_reports_api:get_report/3,
         #{
@@ -163,19 +156,22 @@ get_report_ok_test(C) ->
         wapi_ct_helper:cfg(context, C)
     ).
 
--spec get_reports_ok_test(config()) ->
-    _.
+-spec get_reports_ok_test(config()) -> _.
 get_reports_ok_test(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services([
-        {fistful_report, fun
-            ('GetReports', _) -> {ok, [
-                ?REPORT_EXT(pending, []),
-                ?REPORT_EXT(created, undefined),
-                ?REPORT_WITH_STATUS(canceled)]}
-        end},
-        {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)} end}
-    ], C),
+    wapi_ct_helper:mock_services(
+        [
+            {fistful_report, fun('GetReports', _) ->
+                {ok, [
+                    ?REPORT_EXT(pending, []),
+                    ?REPORT_EXT(created, undefined),
+                    ?REPORT_WITH_STATUS(canceled)
+                ]}
+            end},
+            {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)} end}
+        ],
+        C
+    ),
     {ok, _} = call_api(
         fun swag_client_wallet_reports_api:get_reports/3,
         #{
@@ -191,18 +187,20 @@ get_reports_ok_test(C) ->
         wapi_ct_helper:cfg(context, C)
     ).
 
--spec reports_with_wrong_identity_ok_test(config()) ->
-    _.
+-spec reports_with_wrong_identity_ok_test(config()) -> _.
 reports_with_wrong_identity_ok_test(C) ->
     IdentityID = <<"WrongIdentity">>,
-    wapi_ct_helper:mock_services([
-        {fistful_report, fun
-            ('GenerateReport', _) -> {ok, ?REPORT_ID};
-            ('GetReport', _) -> {ok, ?REPORT};
-            ('GetReports', _) -> {ok, [?REPORT, ?REPORT, ?REPORT]}
-        end},
-        {fistful_identity, fun('Get', _) -> throw(#fistful_IdentityNotFound{}) end}
-    ], C),
+    wapi_ct_helper:mock_services(
+        [
+            {fistful_report, fun
+                ('GenerateReport', _) -> {ok, ?REPORT_ID};
+                ('GetReport', _) -> {ok, ?REPORT};
+                ('GetReports', _) -> {ok, [?REPORT, ?REPORT, ?REPORT]}
+            end},
+            {fistful_identity, fun('Get', _) -> throw(#fistful_IdentityNotFound{}) end}
+        ],
+        C
+    ),
     ?emptyresp(400) = call_api(
         fun swag_client_wallet_reports_api:create_report/3,
         #{
@@ -242,12 +240,9 @@ reports_with_wrong_identity_ok_test(C) ->
         wapi_ct_helper:cfg(context, C)
     ).
 
--spec download_file_ok_test(config()) ->
-    _.
+-spec download_file_ok_test(config()) -> _.
 download_file_ok_test(C) ->
-    wapi_ct_helper:mock_services([{file_storage, fun
-        ('GenerateDownloadUrl', _) -> {ok, ?STRING}
-    end}], C),
+    wapi_ct_helper:mock_services([{file_storage, fun('GenerateDownloadUrl', _) -> {ok, ?STRING} end}], C),
     {ok, _} = call_api(
         fun swag_client_wallet_downloads_api:download_file/3,
         #{
@@ -263,8 +258,7 @@ download_file_ok_test(C) ->
 
 %%
 
--spec call_api(function(), map(), wapi_client_lib:context()) ->
-    {ok, term()} | {error, term()}.
+-spec call_api(function(), map(), wapi_client_lib:context()) -> {ok, term()} | {error, term()}.
 call_api(F, Params, Context) ->
     {Url, PreparedParams, Opts} = wapi_client_lib:make_request(Context, Params),
     Response = F(Url, PreparedParams, Opts),

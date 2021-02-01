@@ -32,9 +32,9 @@
 -define(badresp(Code), {error, {invalid_response_code, Code}}).
 -define(emptyresp(Code), {error, {Code, #{}}}).
 
--type test_case_name()  :: atom().
--type config()          :: [{atom(), any()}].
--type group_name()      :: atom().
+-type test_case_name() :: atom().
+-type config() :: [{atom(), any()}].
+-type group_name() :: atom().
 
 % common-api is used since it is the domain used in production RN
 % TODO: change to wallet-api (or just omit since it is the default one) when new tokens will be a thing
@@ -42,54 +42,48 @@
 
 -behaviour(supervisor).
 
--spec init([]) ->
-    {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
+-spec init([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init([]) ->
     {ok, {#{strategy => one_for_all, intensity => 1, period => 1}, []}}.
 
--spec all() ->
-    [test_case_name()].
+-spec all() -> [test_case_name()].
 all() ->
     [
         {group, base}
     ].
 
--spec groups() ->
-    [{group_name(), list(), [test_case_name()]}].
+-spec groups() -> [{group_name(), list(), [test_case_name()]}].
 groups() ->
     [
-        {base, [],
-            [
-                create_webhook_ok_test,
-                create_withdrawal_webhook_ok_test,
-                get_webhooks_ok_test,
-                get_webhook_ok_test,
-                delete_webhook_ok_test
-            ]
-        }
+        {base, [], [
+            create_webhook_ok_test,
+            create_withdrawal_webhook_ok_test,
+            get_webhooks_ok_test,
+            get_webhook_ok_test,
+            delete_webhook_ok_test
+        ]}
     ].
 
 %%
 %% starting/stopping
 %%
 -spec init_per_suite(config()) -> config().
-
 init_per_suite(C) ->
     wapi_ct_helper:init_suite(?MODULE, C).
 
 -spec end_per_suite(config()) -> _.
-
 end_per_suite(C) ->
     _ = wapi_ct_helper:stop_mocked_service_sup(?config(suite_test_sup, C)),
     _ = [application:stop(App) || App <- ?config(apps, C)],
     ok.
 
--spec init_per_group(group_name(), config()) ->
-    config().
+-spec init_per_group(group_name(), config()) -> config().
 init_per_group(Group, Config) when Group =:= base ->
-    ok = wapi_context:save(wapi_context:create(#{
-        woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
-    })),
+    ok = wapi_context:save(
+        wapi_context:create(#{
+            woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
+        })
+    ),
     Party = genlib:bsuuid(),
     {ok, Token} = wapi_ct_helper:issue_token(Party, [{[party], write}], unlimited, ?DOMAIN),
     Config1 = [{party, Party} | Config],
@@ -97,20 +91,17 @@ init_per_group(Group, Config) when Group =:= base ->
 init_per_group(_, Config) ->
     Config.
 
--spec end_per_group(group_name(), config()) ->
-    _.
+-spec end_per_group(group_name(), config()) -> _.
 end_per_group(_Group, _C) ->
     ok.
 
--spec init_per_testcase(test_case_name(), config()) ->
-    config().
+-spec init_per_testcase(test_case_name(), config()) -> config().
 init_per_testcase(Name, C) ->
     C1 = wapi_ct_helper:makeup_cfg([wapi_ct_helper:test_case_name(Name), wapi_ct_helper:woody_ctx()], C),
     ok = wapi_context:save(C1),
     [{test_sup, wapi_ct_helper:start_mocked_service_sup(?MODULE)} | C1].
 
--spec end_per_testcase(test_case_name(), config()) ->
-    config().
+-spec end_per_testcase(test_case_name(), config()) -> config().
 end_per_testcase(_Name, C) ->
     ok = wapi_context:cleanup(),
     wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
@@ -118,15 +109,17 @@ end_per_testcase(_Name, C) ->
 
 %%% Tests
 
--spec create_webhook_ok_test(config()) ->
-    _.
+-spec create_webhook_ok_test(config()) -> _.
 create_webhook_ok_test(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services([
-        {webhook_manager, fun('Create', _) -> {ok, ?WEBHOOK(?DESTINATION_EVENT_FILTER)} end},
-        {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
-        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end}
-    ], C),
+    wapi_ct_helper:mock_services(
+        [
+            {webhook_manager, fun('Create', _) -> {ok, ?WEBHOOK(?DESTINATION_EVENT_FILTER)} end},
+            {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+            {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end}
+        ],
+        C
+    ),
     {ok, _} = call_api(
         fun swag_client_wallet_webhooks_api:create_webhook/3,
         #{
@@ -142,15 +135,17 @@ create_webhook_ok_test(C) ->
         wapi_ct_helper:cfg(context, C)
     ).
 
--spec create_withdrawal_webhook_ok_test(config()) ->
-    _.
+-spec create_withdrawal_webhook_ok_test(config()) -> _.
 create_withdrawal_webhook_ok_test(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services([
-        {webhook_manager, fun('Create', _) -> {ok, ?WEBHOOK(?WITHDRAWAL_EVENT_FILTER)} end},
-        {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
-        {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end}
-    ], C),
+    wapi_ct_helper:mock_services(
+        [
+            {webhook_manager, fun('Create', _) -> {ok, ?WEBHOOK(?WITHDRAWAL_EVENT_FILTER)} end},
+            {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+            {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end}
+        ],
+        C
+    ),
     WalletID = ?STRING,
     {ok, #{<<"scope">> := #{<<"walletID">> := WalletID}}} = call_api(
         fun swag_client_wallet_webhooks_api:create_webhook/3,
@@ -168,16 +163,18 @@ create_withdrawal_webhook_ok_test(C) ->
         ?config(context, C)
     ).
 
--spec get_webhooks_ok_test(config()) ->
-    _.
+-spec get_webhooks_ok_test(config()) -> _.
 get_webhooks_ok_test(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services([
-        {webhook_manager, fun('GetList', _) -> {ok,
-            [?WEBHOOK(?WITHDRAWAL_EVENT_FILTER), ?WEBHOOK(?DESTINATION_EVENT_FILTER)]} end},
-        {fistful_identity, fun('GetContext', _) -> {ok,
-            ?DEFAULT_CONTEXT(PartyID)} end}
-    ], C),
+    wapi_ct_helper:mock_services(
+        [
+            {webhook_manager, fun('GetList', _) ->
+                {ok, [?WEBHOOK(?WITHDRAWAL_EVENT_FILTER), ?WEBHOOK(?DESTINATION_EVENT_FILTER)]}
+            end},
+            {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end}
+        ],
+        C
+    ),
     {ok, _} = call_api(
         fun swag_client_wallet_webhooks_api:get_webhooks/3,
         #{
@@ -188,14 +185,16 @@ get_webhooks_ok_test(C) ->
         wapi_ct_helper:cfg(context, C)
     ).
 
--spec get_webhook_ok_test(config()) ->
-    _.
+-spec get_webhook_ok_test(config()) -> _.
 get_webhook_ok_test(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services([
-        {webhook_manager, fun('Get', _) -> {ok, ?WEBHOOK(?WITHDRAWAL_EVENT_FILTER)} end},
-        {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end}
-    ], C),
+    wapi_ct_helper:mock_services(
+        [
+            {webhook_manager, fun('Get', _) -> {ok, ?WEBHOOK(?WITHDRAWAL_EVENT_FILTER)} end},
+            {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end}
+        ],
+        C
+    ),
     {ok, _} = call_api(
         fun swag_client_wallet_webhooks_api:get_webhook_by_id/3,
         #{
@@ -209,14 +208,16 @@ get_webhook_ok_test(C) ->
         wapi_ct_helper:cfg(context, C)
     ).
 
--spec delete_webhook_ok_test(config()) ->
-    _.
+-spec delete_webhook_ok_test(config()) -> _.
 delete_webhook_ok_test(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services([
-        {webhook_manager, fun('Delete', _) -> {ok, ok} end},
-        {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end}
-    ], C),
+    wapi_ct_helper:mock_services(
+        [
+            {webhook_manager, fun('Delete', _) -> {ok, ok} end},
+            {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end}
+        ],
+        C
+    ),
     {ok, _} = call_api(
         fun swag_client_wallet_webhooks_api:delete_webhook_by_id/3,
         #{
@@ -232,8 +233,7 @@ delete_webhook_ok_test(C) ->
 
 %%
 
--spec call_api(function(), map(), wapi_client_lib:context()) ->
-    {ok, term()} | {error, term()}.
+-spec call_api(function(), map(), wapi_client_lib:context()) -> {ok, term()} | {error, term()}.
 call_api(F, Params, Context) ->
     {Url, PreparedParams, Opts} = wapi_client_lib:make_request(Context, Params),
     Response = F(Url, PreparedParams, Opts),

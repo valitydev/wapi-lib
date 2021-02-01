@@ -29,7 +29,8 @@
         snowflake,
         uac,
         prometheus,
-        prometheus_cowboy
+        prometheus_cowboy,
+        thrift
     ]},
     {env, []}
 ]}.

@@ -25,11 +25,11 @@
 -export([get_lifetime/0]).
 -export([create_auth_ctx/1]).
 
--define(WAPI_IP,        "::").
--define(WAPI_PORT,      8080).
+-define(WAPI_IP, "::").
+-define(WAPI_PORT, 8080).
 -define(WAPI_HOST_NAME, "localhost").
--define(WAPI_URL,       ?WAPI_HOST_NAME ++ ":" ++ integer_to_list(?WAPI_PORT)).
--define(DOMAIN,         <<"wallet-api">>).
+-define(WAPI_URL, ?WAPI_HOST_NAME ++ ":" ++ integer_to_list(?WAPI_PORT)).
+-define(DOMAIN, <<"wallet-api">>).
 
 %%
 -type config() :: [{atom(), any()}].
@@ -40,29 +40,25 @@
 -define(SIGNEE, wapi).
 
 -spec cfg(atom(), config()) -> term().
-
 cfg(Key, Config) ->
     case lists:keyfind(Key, 1, Config) of
         {Key, V} -> V;
-        _        -> error({'ct config entry missing', Key})
+        _ -> error({'ct config entry missing', Key})
     end.
 
 -spec cfg(atom(), _, config()) -> config().
-
 cfg(Key, Value, Config) ->
     lists:keystore(Key, 1, Config, {Key, Value}).
 
 -type config_mut_fun() :: fun((config()) -> config()).
 
 -spec makeup_cfg([config_mut_fun()], config()) -> config().
-
 makeup_cfg(CMFs, C0) ->
-    lists:foldl(fun (CMF, C) -> CMF(C) end, C0, CMFs).
+    lists:foldl(fun(CMF, C) -> CMF(C) end, C0, CMFs).
 
 -spec woody_ctx() -> config_mut_fun().
-
 woody_ctx() ->
-    fun (C) -> cfg('$woody_ctx', construct_woody_ctx(C), C) end.
+    fun(C) -> cfg('$woody_ctx', construct_woody_ctx(C), C) end.
 
 construct_woody_ctx(C) ->
     woody_context:new(construct_rpc_id(get_test_case_name(C))).
@@ -75,85 +71,69 @@ construct_rpc_id(TestCaseName) ->
     ).
 
 -spec get_woody_ctx(config()) -> woody_context:ctx().
-
 get_woody_ctx(C) ->
     cfg('$woody_ctx', C).
 
 %%
 
 -spec test_case_name(test_case_name()) -> config_mut_fun().
-
 test_case_name(TestCaseName) ->
-    fun (C) -> cfg('$test_case_name', TestCaseName, C) end.
+    fun(C) -> cfg('$test_case_name', TestCaseName, C) end.
 
 -spec get_test_case_name(config()) -> test_case_name().
-
 get_test_case_name(C) ->
     cfg('$test_case_name', C).
 
 %
 
--spec init_suite(module(), config()) ->
-    config().
+-spec init_suite(module(), config()) -> config().
 init_suite(Module, Config) ->
     SupPid = start_mocked_service_sup(Module),
     Apps1 =
         start_app(scoper) ++
-        start_app(woody) ++
-        start_app({wapi, Config}),
+            start_app(woody) ++
+            start_app({wapi, Config}),
     [{apps, lists:reverse(Apps1)}, {suite_test_sup, SupPid} | Config].
 
--spec start_app(app_name()) ->
-    [app_name()].
-
+-spec start_app(app_name()) -> [app_name()].
 start_app(scoper = AppName) ->
     start_app_with(AppName, [
         {storage, scoper_storage_logger}
     ]);
-
 start_app(woody = AppName) ->
     start_app_with(AppName, [
         {acceptors_pool_size, 4}
     ]);
-
 start_app({wapi = AppName, Config}) ->
-    JwkPath = get_keysource("jwk.json", Config),
     start_app_with(AppName, [
-        {ip, "::"},
-        {port, 8080},
+        {ip, ?WAPI_IP},
+        {port, ?WAPI_PORT},
         {realm, <<"external">>},
         {public_endpoint, <<"localhost:8080">>},
         {access_conf, #{
             jwt => #{
                 keyset => #{
-                    wapi     => {pem_file, get_keysource("private.pem", Config)}
+                    wapi => {pem_file, get_keysource("private.pem", Config)}
                 }
             }
         }},
-        {signee, wapi},
-        {lechiffre_opts,  #{
-            encryption_key_path => JwkPath,
-            decryption_key_paths => [JwkPath]
-        }},
-        {swagger_handler_opts, #{
-            validation_opts => #{
-                custom_validator => wapi_swagger_validator
-            }
+        {signee, ?SIGNEE},
+        {lechiffre_opts, #{
+            encryption_source => {json, {file, get_keysource("jwk.publ.json", Config)}},
+            decryption_sources => [
+                {json, {file, get_keysource("jwk.priv.json", Config)}}
+            ]
         }},
         {events_fetch_limit, 32}
     ]);
-
 start_app(AppName) ->
     [genlib_app:start_application(AppName)].
 
--spec start_app(app_name(), list()) ->
-    [app_name()].
-
+-spec start_app(app_name(), list()) -> [app_name()].
 start_app(AppName, Env) ->
     genlib_app:start_application_with(AppName, Env).
 
 -spec start_app_with(app_name(), app_env()) -> [app_name()].
-
 start_app_with(AppName, Env) ->
     _ = application:load(AppName),
     _ = set_app_env(AppName, Env),
@@ -166,28 +146,24 @@ start_app_with(AppName, Env) ->
 
 set_app_env(AppName, Env) ->
     lists:foreach(
-        fun ({K, V}) ->
+        fun({K, V}) ->
             ok = application:set_env(AppName, K, V)
         end,
         Env
     ).
 
--spec get_keysource(_, config()) ->
-    _.
-
+-spec get_keysource(_, config()) -> _.
 get_keysource(Key, Config) ->
     filename:join(?config(data_dir, Config), Key).
 
--spec issue_token(_, _, _, _) -> % TODO: spec
-    {ok, binary()} |
-    {error,
-        nonexistent_signee
-    }.
-
+% TODO: spec
+-spec issue_token(_, _, _, _) ->
+    {ok, binary()}
+    | {error, nonexistent_signee}.
 issue_token(PartyID, ACL, LifeTime, Domain) ->
     Claims = #{
         <<"exp">> => LifeTime,
-        <<"resource_access">> =>#{
+        <<"resource_access">> => #{
             Domain => uac_acl:from_list(ACL)
         }
     },
@@ -198,31 +174,23 @@ issue_token(PartyID, ACL, LifeTime, Domain) ->
         ?SIGNEE
     ).
 
--spec get_context(binary()) ->
-    wapi_client_lib:context().
-
+-spec get_context(binary()) -> wapi_client_lib:context().
 get_context(Token) ->
     wapi_client_lib:get_context(?WAPI_URL, Token, 10000, ipv4).
 
 % TODO move it to `wapi_dummy_service`, looks more appropriate
 
--spec start_mocked_service_sup(module()) ->
-    pid().
-
+-spec start_mocked_service_sup(module()) -> pid().
 start_mocked_service_sup(Module) ->
     {ok, SupPid} = supervisor:start_link(Module, []),
     _ = unlink(SupPid),
     SupPid.
 
--spec stop_mocked_service_sup(pid()) ->
-    _.
-
+-spec stop_mocked_service_sup(pid()) -> _.
 stop_mocked_service_sup(SupPid) ->
     exit(SupPid, shutdown).
 
--spec mock_services(_, _) ->
-    _.
-
+-spec mock_services(_, _) -> _.
 mock_services(Services, SupOrConfig) ->
     maps:map(fun start_woody_client/2, mock_services_(Services, SupOrConfig)).
 
@@ -241,13 +209,10 @@ start_woody_client(wapi, Urls) ->
     ),
     start_app(wapi_woody_client, []).
 
--spec mock_services_(_, _) ->
-    _.
-
+-spec mock_services_(_, _) -> _.
 % TODO need a better name
 mock_services_(Services, Config) when is_list(Config) ->
     mock_services_(Services, ?config(test_sup, Config));
-
 mock_services_(Services, SupPid) when is_pid(SupPid) ->
     Name = lists:map(fun get_service_name/1, Services),
 
@@ -265,7 +230,7 @@ mock_services_(Services, SupPid) when is_pid(SupPid) ->
     {ok, _} = supervisor:start_child(SupPid, ChildSpec),
 
     lists:foldl(
-        fun (Service, Acc) ->
+        fun(Service, Acc) ->
             ServiceName = get_service_name(Service),
             case ServiceName of
                 bender_thrift ->
@@ -304,22 +269,18 @@ make_url(ServiceName, Port) ->
 make_path(ServiceName) ->
     "/" ++ atom_to_list(ServiceName).
 
--spec get_lifetime() ->
-    map().
-
+-spec get_lifetime() -> map().
 get_lifetime() ->
     get_lifetime(0, 0, 7).
 
 get_lifetime(YY, MM, DD) ->
     #{
-       <<"years">>  => YY,
-       <<"months">> => MM,
-       <<"days">>   => DD
+        <<"years">> => YY,
+        <<"months">> => MM,
+        <<"days">> => DD
     }.
 
--spec create_auth_ctx(ff_party:id()) ->
-    wapi_handler:context().
-
+-spec create_auth_ctx(ff_party:id()) -> wapi_handler:context().
 create_auth_ctx(PartyID) ->
     #{
         swagger_context => #{auth_context => {?STRING, PartyID, #{}}}
