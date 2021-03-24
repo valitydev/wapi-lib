@@ -9,7 +9,7 @@ UTILS_PATH := build-utils
 TEMPLATES_PATH := .
 
 # Name of the service
-SERVICE_NAME := fistful-server
+SERVICE_NAME := wapi-v0
 # Service image default tag
 SERVICE_IMAGE_TAG ?= $(shell git rev-parse HEAD)
 # The tag for service image to be pushed with
