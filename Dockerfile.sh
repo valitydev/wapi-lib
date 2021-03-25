@@ -2,8 +2,8 @@
 cat <<EOF
 FROM ${BASE_IMAGE}
 MAINTAINER Andrey Mayorov <a.mayorov@rbkmoney.com>
-COPY ./_build/prod/rel/wapi /opt/wapi
-CMD /opt/wapi/bin/wapi foreground
+COPY ./_build/prod/rel/${SERVICE_NAME} /opt/${SERVICE_NAME}
+CMD /opt/${SERVICE_NAME}/bin/${SERVICE_NAME} foreground
 EXPOSE 8022
 
 # wapi
