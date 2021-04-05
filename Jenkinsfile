@@ -10,7 +10,7 @@ def finalHook = {
   }
 }
 
-build('fistful-server', 'docker-host', finalHook) {
+build('wapi-v0', 'docker-host', finalHook) {
   checkoutRepo()
   loadBuildUtils('build-utils')
 
