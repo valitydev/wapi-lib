@@ -32,7 +32,14 @@
     list_destinations_bad_token_error/1,
     list_identities/1,
     list_identities_invalid_error/1,
-    list_identities_bad_token_error/1
+    list_identities_bad_token_error/1,
+    list_deposit_revert/1,
+    list_deposit_revert_invalid_error/1,
+    list_deposit_revert_bad_token_error/1,
+    list_deposit_adjustment_wo_changes_plan/1,
+    list_deposit_adjustment_with_changes_plan/1,
+    list_deposit_adjustment_invalid_error/1,
+    list_deposit_adjustment_bad_token_error/1
 ]).
 
 % common-api is used since it is the domain used in production RN
@@ -51,7 +58,7 @@
 init([]) ->
     {ok, {#{strategy => one_for_all, intensity => 1, period => 1}, []}}.
 
--spec all() -> [test_case_name()].
+-spec all() -> [{group, test_case_name()}].
 all() ->
     [
         {group, base}
@@ -75,7 +82,14 @@ groups() ->
             list_destinations_bad_token_error,
             list_identities,
             list_identities_invalid_error,
-            list_identities_bad_token_error
+            list_identities_bad_token_error,
+            list_deposit_revert,
+            list_deposit_revert_invalid_error,
+            list_deposit_revert_bad_token_error,
+            list_deposit_adjustment_wo_changes_plan,
+            list_deposit_adjustment_with_changes_plan,
+            list_deposit_adjustment_invalid_error,
+            list_deposit_adjustment_bad_token_error
         ]}
     ].
 
@@ -119,7 +133,7 @@ init_per_testcase(Name, C) ->
 -spec end_per_testcase(test_case_name(), config()) -> config().
 end_per_testcase(_Name, C) ->
     ok = wapi_context:cleanup(),
-    wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
+    _ = wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
     ok.
 
 %%% Tests
@@ -144,23 +158,19 @@ list_wallets(C) ->
 
 -spec list_wallets_invalid_error(config()) -> _.
 list_wallets_invalid_error(C) ->
-    MockFunc = fun('GetWallets', _) ->
-        woody_error:raise(business, ?STAT_INVALID_EXCEPTION([<<"Error 1">>, <<"Error 2">>]))
-    end,
+    MockFunc = fun('GetWallets', _) -> {throwing, ?STAT_INVALID_EXCEPTION([<<"Error 1">>, <<"Error 2">>])} end,
     SwagFunc = fun swag_client_wallet_wallets_api:list_wallets/3,
     check_invalid_error(MockFunc, SwagFunc, C).
 
 -spec list_wallets_bad_token_error(config()) -> _.
 list_wallets_bad_token_error(C) ->
-    MockFunc = fun('GetWallets', _) ->
-        woody_error:raise(business, ?STAT_BADTOKEN_EXCEPTION)
-    end,
+    MockFunc = fun('GetWallets', _) -> {throwing, ?STAT_BADTOKEN_EXCEPTION} end,
     SwagFunc = fun swag_client_wallet_wallets_api:list_wallets/3,
     check_bad_token_error(MockFunc, SwagFunc, C).
 
 -spec list_withdrawals(config()) -> _.
 list_withdrawals(C) ->
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {fistful_stat, fun('GetWithdrawals', _) -> {ok, ?STAT_RESPONCE(?STAT_WITHDRAWALS)} end}
         ],
@@ -178,23 +188,19 @@ list_withdrawals(C) ->
 
 -spec list_withdrawals_invalid_error(config()) -> _.
 list_withdrawals_invalid_error(C) ->
-    MockFunc = fun('GetWithdrawals', _) ->
-        woody_error:raise(business, ?STAT_INVALID_EXCEPTION([<<"Error 1">>, <<"Error 2">>]))
-    end,
+    MockFunc = fun('GetWithdrawals', _) -> {throwing, ?STAT_INVALID_EXCEPTION([<<"Error 1">>, <<"Error 2">>])} end,
     SwagFunc = fun swag_client_wallet_withdrawals_api:list_withdrawals/3,
     check_invalid_error(MockFunc, SwagFunc, C).
 
 -spec list_withdrawals_bad_token_error(config()) -> _.
 list_withdrawals_bad_token_error(C) ->
-    MockFunc = fun('GetWithdrawals', _) ->
-        woody_error:raise(business, ?STAT_BADTOKEN_EXCEPTION)
-    end,
+    MockFunc = fun('GetWithdrawals', _) -> {throwing, ?STAT_BADTOKEN_EXCEPTION} end,
     SwagFunc = fun swag_client_wallet_withdrawals_api:list_withdrawals/3,
     check_bad_token_error(MockFunc, SwagFunc, C).
 
 -spec list_deposits(config()) -> _.
 list_deposits(C) ->
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {fistful_stat, fun('GetDeposits', _) -> {ok, ?STAT_RESPONCE(?STAT_DEPOSITS)} end}
         ],
@@ -212,23 +218,19 @@ list_deposits(C) ->
 
 -spec list_deposits_invalid_error(config()) -> _.
 list_deposits_invalid_error(C) ->
-    MockFunc = fun('GetDeposits', _) ->
-        woody_error:raise(business, ?STAT_INVALID_EXCEPTION([<<"Error 1">>, <<"Error 2">>]))
-    end,
+    MockFunc = fun('GetDeposits', _) -> {throwing, ?STAT_INVALID_EXCEPTION([<<"Error 1">>, <<"Error 2">>])} end,
     SwagFunc = fun swag_client_wallet_deposits_api:list_deposits/3,
     check_invalid_error(MockFunc, SwagFunc, C).
 
 -spec list_deposits_bad_token_error(config()) -> _.
 list_deposits_bad_token_error(C) ->
-    MockFunc = fun('GetDeposits', _) ->
-        woody_error:raise(business, ?STAT_BADTOKEN_EXCEPTION)
-    end,
+    MockFunc = fun('GetDeposits', _) -> {throwing, ?STAT_BADTOKEN_EXCEPTION} end,
     SwagFunc = fun swag_client_wallet_deposits_api:list_deposits/3,
     check_bad_token_error(MockFunc, SwagFunc, C).
 
 -spec list_destinations(config()) -> _.
 list_destinations(C) ->
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {fistful_stat, fun('GetDestinations', _) -> {ok, ?STAT_RESPONCE(?STAT_DESTINATIONS)} end}
         ],
@@ -246,23 +248,19 @@ list_destinations(C) ->
 
 -spec list_destinations_invalid_error(config()) -> _.
 list_destinations_invalid_error(C) ->
-    MockFunc = fun('GetDestinations', _) ->
-        woody_error:raise(business, ?STAT_INVALID_EXCEPTION([<<"Error 1">>, <<"Error 2">>]))
-    end,
+    MockFunc = fun('GetDestinations', _) -> {throwing, ?STAT_INVALID_EXCEPTION([<<"Error 1">>, <<"Error 2">>])} end,
     SwagFunc = fun swag_client_wallet_withdrawals_api:list_destinations/3,
     check_invalid_error(MockFunc, SwagFunc, C).
 
 -spec list_destinations_bad_token_error(config()) -> _.
 list_destinations_bad_token_error(C) ->
-    MockFunc = fun('GetDestinations', _) ->
-        woody_error:raise(business, ?STAT_BADTOKEN_EXCEPTION)
-    end,
+    MockFunc = fun('GetDestinations', _) -> {throwing, ?STAT_BADTOKEN_EXCEPTION} end,
     SwagFunc = fun swag_client_wallet_withdrawals_api:list_destinations/3,
     check_bad_token_error(MockFunc, SwagFunc, C).
 
 -spec list_identities(config()) -> _.
 list_identities(C) ->
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {fistful_stat, fun('GetIdentities', _) -> {ok, ?STAT_RESPONCE(?STAT_IDENTITIES)} end}
         ],
@@ -280,19 +278,99 @@ list_identities(C) ->
 
 -spec list_identities_invalid_error(config()) -> _.
 list_identities_invalid_error(C) ->
-    MockFunc = fun('GetIdentities', _) ->
-        woody_error:raise(business, ?STAT_INVALID_EXCEPTION([<<"Error 1">>, <<"Error 2">>]))
-    end,
+    MockFunc = fun('GetIdentities', _) -> {throwing, ?STAT_INVALID_EXCEPTION([<<"Error 1">>, <<"Error 2">>])} end,
     SwagFunc = fun swag_client_wallet_identities_api:list_identities/3,
     check_invalid_error(MockFunc, SwagFunc, C).
 
 -spec list_identities_bad_token_error(config()) -> _.
 list_identities_bad_token_error(C) ->
-    MockFunc = fun('GetIdentities', _) ->
-        woody_error:raise(business, ?STAT_BADTOKEN_EXCEPTION)
-    end,
+    MockFunc = fun('GetIdentities', _) -> {throwing, ?STAT_BADTOKEN_EXCEPTION} end,
     SwagFunc = fun swag_client_wallet_identities_api:list_identities/3,
     check_bad_token_error(MockFunc, SwagFunc, C).
+
+-spec list_deposit_revert(config) -> _.
+list_deposit_revert(Cfg) ->
+    _ = wapi_ct_helper:mock_services(
+        [
+            {fistful_stat, fun('GetDepositReverts', _) -> {ok, ?STAT_RESPONCE(?STAT_DEPOSIT_REVERTS)} end}
+        ],
+        Cfg
+    ),
+    {ok, _} = call_api(
+        fun swag_client_wallet_deposits_api:list_deposit_reverts/3,
+        #{
+            qs_val => #{
+                <<"limit">> => <<"123">>
+            }
+        },
+        wapi_ct_helper:cfg(context, Cfg)
+    ).
+
+-spec list_deposit_revert_invalid_error(config) -> _.
+list_deposit_revert_invalid_error(Cfg) ->
+    MockFunc = fun('GetDepositReverts', _) -> {throwing, ?STAT_INVALID_EXCEPTION([<<"Error 1">>, <<"Error 2">>])} end,
+    SwagFunc = fun swag_client_wallet_deposits_api:list_deposit_reverts/3,
+    check_invalid_error(MockFunc, SwagFunc, Cfg).
+
+-spec list_deposit_revert_bad_token_error(config) -> _.
+list_deposit_revert_bad_token_error(Cfg) ->
+    MockFunc = fun('GetDepositReverts', _) -> {throwing, ?STAT_BADTOKEN_EXCEPTION} end,
+    SwagFunc = fun swag_client_wallet_deposits_api:list_deposit_reverts/3,
+    check_bad_token_error(MockFunc, SwagFunc, Cfg).
+
+-spec list_deposit_adjustment_wo_changes_plan(config) -> _.
+list_deposit_adjustment_wo_changes_plan(Cfg) ->
+    _ = wapi_ct_helper:mock_services(
+        [
+            {fistful_stat, fun('GetDepositAdjustments', _) ->
+                {ok, ?STAT_RESPONCE(?STAT_DEPOSIT_ADJUSTMENTS_WO_CANGES_PLAN)}
+            end}
+        ],
+        Cfg
+    ),
+    {ok, _} = call_api(
+        fun swag_client_wallet_deposits_api:list_deposit_adjustments/3,
+        #{
+            qs_val => #{
+                <<"limit">> => <<"123">>
+            }
+        },
+        wapi_ct_helper:cfg(context, Cfg)
+    ).
+
+-spec list_deposit_adjustment_with_changes_plan(config) -> _.
+list_deposit_adjustment_with_changes_plan(Cfg) ->
+    _ = wapi_ct_helper:mock_services(
+        [
+            {fistful_stat, fun('GetDepositAdjustments', _) ->
+                {ok, ?STAT_RESPONCE(?STAT_DEPOSIT_ADJUSTMENTS_WITH_CANGES_PLAN)}
+            end}
+        ],
+        Cfg
+    ),
+    {ok, _} = call_api(
+        fun swag_client_wallet_deposits_api:list_deposit_adjustments/3,
+        #{
+            qs_val => #{
+                <<"limit">> => <<"123">>
+            }
+        },
+        wapi_ct_helper:cfg(context, Cfg)
+    ).
+
+-spec list_deposit_adjustment_invalid_error(config) -> _.
+list_deposit_adjustment_invalid_error(Cfg) ->
+    MockFunc = fun('GetDepositAdjustments', _) ->
+        {throwing, ?STAT_INVALID_EXCEPTION([<<"Error 1">>, <<"Error 2">>])}
+    end,
+    SwagFunc = fun swag_client_wallet_deposits_api:list_deposit_adjustments/3,
+    check_invalid_error(MockFunc, SwagFunc, Cfg).
+
+-spec list_deposit_adjustment_bad_token_error(config) -> _.
+list_deposit_adjustment_bad_token_error(Cfg) ->
+    MockFunc = fun('GetDepositAdjustments', _) -> {throwing, ?STAT_BADTOKEN_EXCEPTION} end,
+    SwagFunc = fun swag_client_wallet_deposits_api:list_deposit_adjustments/3,
+    check_bad_token_error(MockFunc, SwagFunc, Cfg).
 
 %%
 
@@ -303,7 +381,7 @@ check_bad_token_error(MockFunc, SwagFunc, C) ->
     check_error(<<"InvalidToken">>, MockFunc, SwagFunc, C).
 
 check_error(Error, MockFunc, SwagFunc, C) ->
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {fistful_stat, MockFunc}
         ],

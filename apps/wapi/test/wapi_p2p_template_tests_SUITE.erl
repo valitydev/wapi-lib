@@ -50,7 +50,7 @@ init([]) ->
 
 %% Configure tests
 
--spec all() -> [test_case_name()].
+-spec all() -> [{group, test_case_name()}].
 all() ->
     [
         {group, base}
@@ -114,10 +114,10 @@ init_per_testcase(Name, C) ->
     ok = wapi_context:save(C1),
     [{test_sup, wapi_ct_helper:start_mocked_service_sup(?MODULE)} | C1].
 
--spec end_per_testcase(test_case_name(), config()) -> config().
+-spec end_per_testcase(test_case_name(), config()) -> _.
 end_per_testcase(_Name, C) ->
     ok = wapi_context:cleanup(),
-    wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
+    _ = wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
     ok.
 
 %% Tests
@@ -125,7 +125,7 @@ end_per_testcase(_Name, C) ->
 -spec create_ok_test(config()) -> _.
 create_ok_test(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
             {fistful_identity, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
@@ -159,7 +159,7 @@ create_ok_test(C) ->
 -spec get_ok_test(config()) -> _.
 get_ok_test(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {fistful_p2p_template, fun('Get', _) -> {ok, ?P2P_TEMPLATE(PartyID)} end}
         ],
@@ -178,7 +178,7 @@ get_ok_test(C) ->
 -spec block_ok_test(config()) -> _.
 block_ok_test(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {fistful_p2p_template, fun('Get', _) -> {ok, ?P2P_TEMPLATE(PartyID)} end}
         ],
@@ -197,7 +197,7 @@ block_ok_test(C) ->
 -spec issue_access_token_ok_test(config()) -> _.
 issue_access_token_ok_test(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {fistful_p2p_template, fun
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
@@ -223,7 +223,7 @@ issue_access_token_ok_test(C) ->
 -spec issue_transfer_ticket_ok_test(config()) -> _.
 issue_transfer_ticket_ok_test(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
             {fistful_p2p_template, fun
@@ -251,7 +251,7 @@ issue_transfer_ticket_ok_test(C) ->
 -spec issue_transfer_ticket_with_access_expiration_ok_test(config()) -> _.
 issue_transfer_ticket_with_access_expiration_ok_test(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
             {fistful_p2p_template, fun
@@ -280,7 +280,7 @@ issue_transfer_ticket_with_access_expiration_ok_test(C) ->
 -spec quote_transfer_ok_test(config()) -> _.
 quote_transfer_ok_test(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)} end},
             {fistful_p2p_template, fun
@@ -290,35 +290,12 @@ quote_transfer_ok_test(C) ->
         ],
         C
     ),
-    Token = create_card_token(),
-    {ok, #{<<"token">> := _QuoteToken}} = call_api(
-        fun swag_client_wallet_p2_p_templates_api:quote_p2_p_transfer_with_template/3,
-        #{
-            binding => #{
-                <<"p2pTransferTemplateID">> => ?STRING
-            },
-            body => #{
-                <<"body">> => #{
-                    <<"amount">> => ?INTEGER,
-                    <<"currency">> => ?RUB
-                },
-                <<"sender">> => #{
-                    <<"type">> => <<"BankCardSenderResource">>,
-                    <<"token">> => Token
-                },
-                <<"receiver">> => #{
-                    <<"type">> => <<"BankCardReceiverResource">>,
-                    <<"token">> => Token
-                }
-            }
-        },
-        ?config(context, C)
-    ).
+    ?assertMatch({ok, #{<<"token">> := _QuoteToken}}, quote_p2p_transfer_with_template_call_api(C)).
 
 -spec quote_transfer_fail_resource_token_invalid_test(config()) -> _.
 quote_transfer_fail_resource_token_invalid_test(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {fistful_p2p_template, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end}
         ],
@@ -346,7 +323,7 @@ quote_transfer_fail_resource_token_invalid_test(C) ->
 -spec quote_transfer_fail_resource_token_expire_test(config()) -> _.
 quote_transfer_fail_resource_token_expire_test(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {fistful_p2p_template, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end}
         ],
@@ -374,7 +351,7 @@ quote_transfer_fail_resource_token_expire_test(C) ->
 -spec create_transfer_ok_test(config()) -> _.
 create_transfer_ok_test(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
             {fistful_p2p_template, fun
@@ -393,7 +370,7 @@ create_transfer_ok_test(C) ->
 -spec create_transfer_fail_resource_token_invalid_test(config()) -> _.
 create_transfer_fail_resource_token_invalid_test(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
             {fistful_p2p_template, fun
@@ -428,7 +405,7 @@ create_transfer_fail_resource_token_invalid_test(C) ->
 -spec create_transfer_fail_resource_token_expire_test(config()) -> _.
 create_transfer_fail_resource_token_expire_test(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
             {fistful_p2p_template, fun
@@ -461,6 +438,8 @@ create_transfer_fail_resource_token_expire_test(C) ->
     ).
 
 %% Utility
+quote_p2p_transfer_with_template_call_api(C) ->
+    quote_p2p_transfer_with_template_call_api(C, create_card_token(), create_card_token()).
 
 quote_p2p_transfer_with_template_call_api(C, SenderToken, ReceiverToken) ->
     call_api(
@@ -488,8 +467,8 @@ quote_p2p_transfer_with_template_call_api(C, SenderToken, ReceiverToken) ->
     ).
 
 create_p2p_transfer_with_template_call_api(C, Ticket) ->
-    ValidResourceToken = create_card_token(),
-    create_p2p_transfer_with_template_call_api(C, Ticket, ValidResourceToken, ValidResourceToken).
+    ResourceToken = create_card_token(),
+    create_p2p_transfer_with_template_call_api(C, Ticket, ResourceToken, ResourceToken).
 
 create_p2p_transfer_with_template_call_api(C, Ticket, SenderToken, ReceiverToken) ->
     Context = maps:merge(wapi_ct_helper:cfg(context, C), #{token => Ticket}),

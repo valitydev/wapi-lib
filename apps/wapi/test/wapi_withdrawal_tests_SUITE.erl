@@ -66,7 +66,7 @@
 init([]) ->
     {ok, {#{strategy => one_for_all, intensity => 1, period => 1}, []}}.
 
--spec all() -> [test_case_name()].
+-spec all() -> [{group, test_case_name()}].
 all() ->
     [
         {group, base}
@@ -145,7 +145,7 @@ init_per_testcase(Name, C) ->
 -spec end_per_testcase(test_case_name(), config()) -> config().
 end_per_testcase(_Name, C) ->
     ok = wapi_context:cleanup(),
-    wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
+    _ = wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
     ok.
 
 %%% Tests
@@ -153,12 +153,12 @@ end_per_testcase(_Name, C) ->
 -spec create_ok(config()) -> _.
 create_ok(C) ->
     PartyID = ?config(party, C),
-    create_withdrawal_start_mocks(C, fun() -> {ok, ?WITHDRAWAL(PartyID)} end),
+    _ = create_withdrawal_start_mocks(C, fun() -> {ok, ?WITHDRAWAL(PartyID)} end),
     {ok, _} = create_withdrawal_call_api(C).
 
 -spec create_fail_wallet_notfound(config()) -> _.
 create_fail_wallet_notfound(C) ->
-    create_withdrawal_start_mocks(C, fun() -> throw(#fistful_WalletNotFound{}) end),
+    _ = create_withdrawal_start_mocks(C, fun() -> {throwing, #fistful_WalletNotFound{}} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"No such wallet">>}}},
         create_withdrawal_call_api(C)
@@ -166,7 +166,7 @@ create_fail_wallet_notfound(C) ->
 
 -spec create_fail_destination_notfound(config()) -> _.
 create_fail_destination_notfound(C) ->
-    create_withdrawal_start_mocks(C, fun() -> throw(#fistful_DestinationNotFound{}) end),
+    _ = create_withdrawal_start_mocks(C, fun() -> {throwing, #fistful_DestinationNotFound{}} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"No such destination">>}}},
         create_withdrawal_call_api(C)
@@ -174,7 +174,7 @@ create_fail_destination_notfound(C) ->
 
 -spec create_fail_destination_unauthorized(config()) -> _.
 create_fail_destination_unauthorized(C) ->
-    create_withdrawal_start_mocks(C, fun() -> throw(#fistful_DestinationUnauthorized{}) end),
+    _ = create_withdrawal_start_mocks(C, fun() -> {throwing, #fistful_DestinationUnauthorized{}} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Destination unauthorized">>}}},
         create_withdrawal_call_api(C)
@@ -188,7 +188,7 @@ create_fail_forbidden_operation_currency(C) ->
             #'CurrencyRef'{symbolic_code = ?RUB}
         ]
     },
-    create_withdrawal_start_mocks(C, fun() -> throw(ForbiddenOperationCurrencyException) end),
+    _ = create_withdrawal_start_mocks(C, fun() -> {throwing, ForbiddenOperationCurrencyException} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Forbidden currency">>}}},
         create_withdrawal_call_api(C)
@@ -203,7 +203,7 @@ create_fail_forbidden_operation_amount(C) ->
             lower = {inclusive, ?CASH}
         }
     },
-    create_withdrawal_start_mocks(C, fun() -> throw(ForbiddenOperationAmountException) end),
+    _ = create_withdrawal_start_mocks(C, fun() -> {throwing, ForbiddenOperationAmountException} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Invalid cash amount">>}}},
         create_withdrawal_call_api(C)
@@ -214,7 +214,7 @@ create_fail_invalid_operation_amount(C) ->
     InvalidOperationAmountException = #fistful_InvalidOperationAmount{
         amount = ?CASH
     },
-    create_withdrawal_start_mocks(C, fun() -> throw(InvalidOperationAmountException) end),
+    _ = create_withdrawal_start_mocks(C, fun() -> {throwing, InvalidOperationAmountException} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Invalid cash amount">>}}},
         create_withdrawal_call_api(C)
@@ -233,7 +233,7 @@ create_fail_inconsistent_withdrawal_currency(C) ->
             symbolic_code = ?RUB
         }
     },
-    create_withdrawal_start_mocks(C, fun() -> throw(InconsistentWithdrawalCurrencyException) end),
+    _ = create_withdrawal_start_mocks(C, fun() -> {throwing, InconsistentWithdrawalCurrencyException} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Invalid currency">>}}},
         create_withdrawal_call_api(C)
@@ -241,7 +241,7 @@ create_fail_inconsistent_withdrawal_currency(C) ->
 
 -spec create_fail_no_destination_resource_info(config()) -> _.
 create_fail_no_destination_resource_info(C) ->
-    create_withdrawal_start_mocks(C, fun() -> throw(#wthd_NoDestinationResourceInfo{}) end),
+    _ = create_withdrawal_start_mocks(C, fun() -> {throwing, #wthd_NoDestinationResourceInfo{}} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Unknown card issuer">>}}},
         create_withdrawal_call_api(C)
@@ -253,7 +253,7 @@ create_fail_identity_providers_mismatch(C) ->
         wallet_provider = ?INTEGER,
         destination_provider = ?INTEGER
     },
-    create_withdrawal_start_mocks(C, fun() -> throw(IdentityProviderMismatchException) end),
+    _ = create_withdrawal_start_mocks(C, fun() -> {throwing, IdentityProviderMismatchException} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"This wallet and destination cannot be used together">>}}},
         create_withdrawal_call_api(C)
@@ -264,7 +264,7 @@ create_fail_wallet_inaccessible(C) ->
     WalletInaccessibleException = #fistful_WalletInaccessible{
         id = ?STRING
     },
-    create_withdrawal_start_mocks(C, fun() -> throw(WalletInaccessibleException) end),
+    _ = create_withdrawal_start_mocks(C, fun() -> {throwing, WalletInaccessibleException} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Wallet inaccessible">>}}},
         create_withdrawal_call_api(C)
@@ -273,7 +273,7 @@ create_fail_wallet_inaccessible(C) ->
 -spec get_ok(config()) -> _.
 get_ok(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {fistful_withdrawal, fun('Get', _) -> {ok, ?WITHDRAWAL(PartyID)} end}
         ],
@@ -291,9 +291,9 @@ get_ok(C) ->
 
 -spec get_fail_withdrawal_notfound(config()) -> _.
 get_fail_withdrawal_notfound(C) ->
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
-            {fistful_withdrawal, fun('Get', _) -> throw(#fistful_WithdrawalNotFound{}) end}
+            {fistful_withdrawal, fun('Get', _) -> {throwing, #fistful_WithdrawalNotFound{}} end}
         ],
         C
     ),
@@ -313,7 +313,7 @@ get_fail_withdrawal_notfound(C) ->
 -spec get_by_external_id_ok(config()) -> _.
 get_by_external_id_ok(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {bender_thrift, fun('GetInternalID', _) -> {ok, ?GET_INTERNAL_ID_RESULT} end},
             {fistful_withdrawal, fun('Get', _) -> {ok, ?WITHDRAWAL(PartyID)} end}
@@ -332,12 +332,12 @@ get_by_external_id_ok(C) ->
 
 -spec create_quote_ok(config()) -> _.
 create_quote_ok(C) ->
-    get_quote_start_mocks(C, fun() -> {ok, ?WITHDRAWAL_QUOTE} end),
+    _ = get_quote_start_mocks(C, fun() -> {ok, ?WITHDRAWAL_QUOTE} end),
     {ok, _} = create_qoute_call_api(C).
 
 -spec get_quote_fail_wallet_notfound(config()) -> _.
 get_quote_fail_wallet_notfound(C) ->
-    get_quote_start_mocks(C, fun() -> throw(#fistful_WalletNotFound{}) end),
+    _ = get_quote_start_mocks(C, fun() -> {throwing, #fistful_WalletNotFound{}} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"No such wallet">>}}},
         create_qoute_call_api(C)
@@ -345,7 +345,7 @@ get_quote_fail_wallet_notfound(C) ->
 
 -spec get_quote_fail_destination_notfound(config()) -> _.
 get_quote_fail_destination_notfound(C) ->
-    get_quote_start_mocks(C, fun() -> throw(#fistful_DestinationNotFound{}) end),
+    _ = get_quote_start_mocks(C, fun() -> {throwing, #fistful_DestinationNotFound{}} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"No such destination">>}}},
         create_qoute_call_api(C)
@@ -353,7 +353,7 @@ get_quote_fail_destination_notfound(C) ->
 
 -spec get_quote_fail_destination_unauthorized(config()) -> _.
 get_quote_fail_destination_unauthorized(C) ->
-    get_quote_start_mocks(C, fun() -> throw(#fistful_DestinationUnauthorized{}) end),
+    _ = get_quote_start_mocks(C, fun() -> {throwing, #fistful_DestinationUnauthorized{}} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Destination unauthorized">>}}},
         create_qoute_call_api(C)
@@ -367,7 +367,7 @@ get_quote_fail_forbidden_operation_currency(C) ->
             #'CurrencyRef'{symbolic_code = ?RUB}
         ]
     },
-    get_quote_start_mocks(C, fun() -> throw(ForbiddenOperationCurrencyException) end),
+    _ = get_quote_start_mocks(C, fun() -> {throwing, ForbiddenOperationCurrencyException} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Forbidden currency">>}}},
         create_qoute_call_api(C)
@@ -382,7 +382,7 @@ get_quote_fail_forbidden_operation_amount(C) ->
             lower = {inclusive, ?CASH}
         }
     },
-    get_quote_start_mocks(C, fun() -> throw(ForbiddenOperationAmountException) end),
+    _ = get_quote_start_mocks(C, fun() -> {throwing, ForbiddenOperationAmountException} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Invalid cash amount">>}}},
         create_qoute_call_api(C)
@@ -393,7 +393,7 @@ get_quote_fail_invalid_operation_amount(C) ->
     InvalidOperationAmountException = #fistful_InvalidOperationAmount{
         amount = ?CASH
     },
-    get_quote_start_mocks(C, fun() -> throw(InvalidOperationAmountException) end),
+    _ = get_quote_start_mocks(C, fun() -> {throwing, InvalidOperationAmountException} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Invalid cash amount">>}}},
         create_qoute_call_api(C)
@@ -412,7 +412,7 @@ get_quote_fail_inconsistent_withdrawal_currency(C) ->
             symbolic_code = ?RUB
         }
     },
-    get_quote_start_mocks(C, fun() -> throw(InconsistentWithdrawalCurrencyException) end),
+    _ = get_quote_start_mocks(C, fun() -> {throwing, InconsistentWithdrawalCurrencyException} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Invalid currency">>}}},
         create_qoute_call_api(C)
@@ -424,7 +424,7 @@ get_quote_fail_identity_provider_mismatch(C) ->
         wallet_provider = ?INTEGER,
         destination_provider = ?INTEGER
     },
-    get_quote_start_mocks(C, fun() -> throw(IdentityProviderMismatchException) end),
+    _ = get_quote_start_mocks(C, fun() -> {throwing, IdentityProviderMismatchException} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"This wallet and destination cannot be used together">>}}},
         create_qoute_call_api(C)
@@ -432,7 +432,7 @@ get_quote_fail_identity_provider_mismatch(C) ->
 
 -spec get_event_ok(config()) -> _.
 get_event_ok(C) ->
-    get_events_start_mocks(C, fun() -> {ok, []} end),
+    _ = get_events_start_mocks(C, fun() -> {ok, []} end),
     {ok, _} = call_api(
         fun swag_client_wallet_withdrawals_api:get_withdrawal_events/3,
         #{
@@ -446,7 +446,7 @@ get_event_ok(C) ->
 
 -spec get_events_ok(config()) -> _.
 get_events_ok(C) ->
-    get_events_start_mocks(C, fun() -> {ok, []} end),
+    _ = get_events_start_mocks(C, fun() -> {ok, []} end),
     {ok, _} = call_api(
         fun swag_client_wallet_withdrawals_api:poll_withdrawal_events/3,
         #{
@@ -462,7 +462,7 @@ get_events_ok(C) ->
 
 -spec get_events_fail_withdrawal_notfound(config()) -> _.
 get_events_fail_withdrawal_notfound(C) ->
-    get_events_start_mocks(C, fun() -> throw(#fistful_WithdrawalNotFound{}) end),
+    _ = get_events_start_mocks(C, fun() -> {throwing, #fistful_WithdrawalNotFound{}} end),
     ?assertEqual(
         {error, {404, #{}}},
         call_api(

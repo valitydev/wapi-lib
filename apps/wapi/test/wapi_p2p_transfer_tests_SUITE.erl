@@ -65,7 +65,7 @@
 init([]) ->
     {ok, {#{strategy => one_for_all, intensity => 1, period => 1}, []}}.
 
--spec all() -> [test_case_name()].
+-spec all() -> [{group, test_case_name()}].
 all() ->
     [
         {group, base}
@@ -207,7 +207,7 @@ create_fail_resource_token_expire_test(C) ->
 -spec create_fail_unauthorized_test(config()) -> _.
 create_fail_unauthorized_test(C) ->
     WrongPartyID = <<"SomeWrongPartyID">>,
-    create_ok_start_mocks(C, WrongPartyID),
+    _ = create_ok_start_mocks(C, WrongPartyID),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"No such identity">>}}},
         create_p2p_transfer_call_api(C)
@@ -215,7 +215,7 @@ create_fail_unauthorized_test(C) ->
 
 -spec create_fail_identity_notfound_test(config()) -> _.
 create_fail_identity_notfound_test(C) ->
-    create_fail_start_mocks(C, fun() -> throw(#fistful_IdentityNotFound{}) end),
+    _ = create_fail_start_mocks(C, fun() -> {throwing, #fistful_IdentityNotFound{}} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"No such identity">>}}},
         create_p2p_transfer_call_api(C)
@@ -229,7 +229,7 @@ create_fail_forbidden_operation_currency_test(C) ->
             #'CurrencyRef'{symbolic_code = ?RUB}
         ]
     },
-    create_fail_start_mocks(C, fun() -> throw(ForbiddenOperationCurrencyException) end),
+    _ = create_fail_start_mocks(C, fun() -> {throwing, ForbiddenOperationCurrencyException} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Currency not allowed">>}}},
         create_p2p_transfer_call_api(C)
@@ -244,7 +244,7 @@ create_fail_forbidden_operation_amount_test(C) ->
             lower = {inclusive, ?CASH}
         }
     },
-    create_fail_start_mocks(C, fun() -> throw(ForbiddenOperationAmountException) end),
+    _ = create_fail_start_mocks(C, fun() -> {throwing, ForbiddenOperationAmountException} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Transfer amount is out of allowed range">>}}},
         create_p2p_transfer_call_api(C)
@@ -252,7 +252,7 @@ create_fail_forbidden_operation_amount_test(C) ->
 
 -spec create_fail_operation_not_permitted_test(config()) -> _.
 create_fail_operation_not_permitted_test(C) ->
-    create_fail_start_mocks(C, fun() -> throw(#fistful_OperationNotPermitted{}) end),
+    _ = create_fail_start_mocks(C, fun() -> {throwing, #fistful_OperationNotPermitted{}} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Operation not permitted">>}}},
         create_p2p_transfer_call_api(C)
@@ -263,7 +263,7 @@ create_fail_no_resource_info_test(C) ->
     NoResourceInfoException = #p2p_transfer_NoResourceInfo{
         type = sender
     },
-    create_fail_start_mocks(C, fun() -> throw(NoResourceInfoException) end),
+    _ = create_fail_start_mocks(C, fun() -> {throwing, NoResourceInfoException} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Invalid sender resource">>}}},
         create_p2p_transfer_call_api(C)
@@ -272,7 +272,7 @@ create_fail_no_resource_info_test(C) ->
 -spec create_quote_ok_test(config()) -> _.
 create_quote_ok_test(C) ->
     IdentityID = <<"id">>,
-    get_quote_start_mocks(C, fun() -> {ok, ?P2P_TRANSFER_QUOTE(IdentityID)} end),
+    _ = get_quote_start_mocks(C, fun() -> {ok, ?P2P_TRANSFER_QUOTE(IdentityID)} end),
     SenderToken = store_bank_card(),
     ReceiverToken = store_bank_card(),
     {ok, #{<<"token">> := Token}} = call_api(
@@ -302,7 +302,7 @@ create_quote_ok_test(C) ->
 -spec create_quote_fail_resource_token_invalid_test(config()) -> _.
 create_quote_fail_resource_token_invalid_test(C) ->
     IdentityID = <<"id">>,
-    get_quote_start_mocks(C, fun() -> {ok, ?P2P_TRANSFER_QUOTE(IdentityID)} end),
+    _ = get_quote_start_mocks(C, fun() -> {ok, ?P2P_TRANSFER_QUOTE(IdentityID)} end),
     InvalidToken = <<"v1.InvalidToken">>,
     ValidToken = store_bank_card(wapi_utils:deadline_from_timeout(100000)),
     ?assertMatch(
@@ -325,7 +325,7 @@ create_quote_fail_resource_token_invalid_test(C) ->
 -spec create_quote_fail_resource_token_expire_test(config()) -> _.
 create_quote_fail_resource_token_expire_test(C) ->
     IdentityID = <<"id">>,
-    get_quote_start_mocks(C, fun() -> {ok, ?P2P_TRANSFER_QUOTE(IdentityID)} end),
+    _ = get_quote_start_mocks(C, fun() -> {ok, ?P2P_TRANSFER_QUOTE(IdentityID)} end),
     InvalidToken = store_bank_card(wapi_utils:deadline_from_timeout(0)),
     ValidToken = store_bank_card(wapi_utils:deadline_from_timeout(100000)),
     ?assertMatch(
@@ -349,7 +349,7 @@ create_quote_fail_resource_token_expire_test(C) ->
 create_with_quote_token_ok_test(C) ->
     IdentityID = <<"id">>,
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
             {fistful_identity, fun
@@ -365,27 +365,7 @@ create_with_quote_token_ok_test(C) ->
     ),
     SenderToken = store_bank_card(),
     ReceiverToken = store_bank_card(),
-    {ok, #{<<"token">> := QuoteToken}} = call_api(
-        fun swag_client_wallet_p2_p_api:quote_p2_p_transfer/3,
-        #{
-            body => #{
-                <<"identityID">> => IdentityID,
-                <<"body">> => #{
-                    <<"amount">> => ?INTEGER,
-                    <<"currency">> => ?RUB
-                },
-                <<"sender">> => #{
-                    <<"type">> => <<"BankCardSenderResource">>,
-                    <<"token">> => SenderToken
-                },
-                <<"receiver">> => #{
-                    <<"type">> => <<"BankCardReceiverResource">>,
-                    <<"token">> => ReceiverToken
-                }
-            }
-        },
-        ?config(context, C)
-    ),
+    {ok, #{<<"token">> := QuoteToken}} = quote_p2p_transfer_call_api(C, IdentityID),
     {ok, _} = call_api(
         fun swag_client_wallet_p2_p_api:create_p2_p_transfer/3,
         #{
@@ -416,7 +396,7 @@ create_with_quote_token_ok_test(C) ->
 
 -spec create_with_bad_quote_token_fail_test(config()) -> _.
 create_with_bad_quote_token_fail_test(C) ->
-    create_ok_start_mocks(C),
+    _ = create_ok_start_mocks(C),
     SenderToken = store_bank_card(),
     ReceiverToken = store_bank_card(),
     {error,
@@ -453,7 +433,7 @@ create_with_bad_quote_token_fail_test(C) ->
 -spec get_quote_fail_identity_not_found_test(config()) -> _.
 get_quote_fail_identity_not_found_test(C) ->
     IdentityID = <<"id">>,
-    get_quote_start_mocks(C, fun() -> throw(#fistful_IdentityNotFound{}) end),
+    _ = get_quote_start_mocks(C, fun() -> {throwing, #fistful_IdentityNotFound{}} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"No such identity">>}}},
         quote_p2p_transfer_call_api(C, IdentityID)
@@ -468,7 +448,7 @@ get_quote_fail_forbidden_operation_currency_test(C) ->
         ]
     },
     IdentityID = <<"id">>,
-    get_quote_start_mocks(C, fun() -> throw(ForbiddenOperationCurrencyException) end),
+    _ = get_quote_start_mocks(C, fun() -> {throwing, ForbiddenOperationCurrencyException} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Currency not allowed">>}}},
         quote_p2p_transfer_call_api(C, IdentityID)
@@ -484,7 +464,7 @@ get_quote_fail_forbidden_operation_amount_test(C) ->
         }
     },
     IdentityID = <<"id">>,
-    get_quote_start_mocks(C, fun() -> throw(ForbiddenOperationAmountException) end),
+    _ = get_quote_start_mocks(C, fun() -> {throwing, ForbiddenOperationAmountException} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Transfer amount is out of allowed range">>}}},
         quote_p2p_transfer_call_api(C, IdentityID)
@@ -493,7 +473,7 @@ get_quote_fail_forbidden_operation_amount_test(C) ->
 -spec get_quote_fail_operation_not_permitted_test(config()) -> _.
 get_quote_fail_operation_not_permitted_test(C) ->
     IdentityID = <<"id">>,
-    get_quote_start_mocks(C, fun() -> throw(#fistful_OperationNotPermitted{}) end),
+    _ = get_quote_start_mocks(C, fun() -> {throwing, #fistful_OperationNotPermitted{}} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Operation not permitted">>}}},
         quote_p2p_transfer_call_api(C, IdentityID)
@@ -505,7 +485,7 @@ get_quote_fail_no_resource_info_test(C) ->
         type = sender
     },
     IdentityID = <<"id">>,
-    get_quote_start_mocks(C, fun() -> throw(NoResourceInfoException) end),
+    _ = get_quote_start_mocks(C, fun() -> {throwing, NoResourceInfoException} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Invalid sender resource">>}}},
         quote_p2p_transfer_call_api(C, IdentityID)
@@ -514,12 +494,12 @@ get_quote_fail_no_resource_info_test(C) ->
 -spec get_ok_test(config()) -> _.
 get_ok_test(C) ->
     PartyID = ?config(party, C),
-    get_start_mocks(C, fun() -> {ok, ?P2P_TRANSFER(PartyID)} end),
+    _ = get_start_mocks(C, fun() -> {ok, ?P2P_TRANSFER(PartyID)} end),
     {ok, _} = get_call_api(C).
 
 -spec get_fail_p2p_notfound_test(config()) -> _.
 get_fail_p2p_notfound_test(C) ->
-    get_start_mocks(C, fun() -> throw(#fistful_P2PNotFound{}) end),
+    _ = get_start_mocks(C, fun() -> {throwing, #fistful_P2PNotFound{}} end),
     ?assertEqual(
         {error, {404, #{}}},
         get_call_api(C)
@@ -528,7 +508,7 @@ get_fail_p2p_notfound_test(C) ->
 -spec get_events_ok(config()) -> _.
 get_events_ok(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {fistful_p2p_transfer, fun
                 ('GetContext', _) ->
@@ -555,16 +535,15 @@ get_events_ok(C) ->
 -spec get_events_fail(config()) -> _.
 get_events_fail(C) ->
     PartyID = ?config(party, C),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {fistful_p2p_transfer, fun
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-                ('Get', _) -> throw(#fistful_P2PNotFound{})
+                ('Get', _) -> {throwing, #fistful_P2PNotFound{}}
             end}
         ],
         C
     ),
-
     ?assertMatch({error, {404, #{}}}, get_events_call_api(C)).
 
 %%

@@ -5,7 +5,7 @@
 
 %% swag_server_wallet_logic_handler callbacks
 -export([map_error/2]).
--export([authorize_api_key/3]).
+-export([authorize_api_key/4]).
 -export([handle_request/4]).
 
 %% wapi_handler callbacks
@@ -52,15 +52,16 @@ map_error_type(schema_violated) -> <<"SchemaViolated">>;
 map_error_type(wrong_type) -> <<"WrongType">>;
 map_error_type(wrong_array) -> <<"WrongArray">>.
 
--spec authorize_api_key(operation_id(), api_key(), handler_opts()) -> false | {true, wapi_auth:context()}.
-authorize_api_key(OperationID, ApiKey, _Opts) ->
-    ok = scoper:add_meta(#{api => wallet, operation_id => OperationID}),
+-spec authorize_api_key(operation_id(), api_key(), request_context(), handler_opts()) ->
+    false | {true, wapi_auth:context()}.
+authorize_api_key(OperationID, ApiKey, _SwagContext, _Opts) ->
+    ok = scoper:add_scope('swag.server', #{api => wallet, operation_id => OperationID}),
     case uac:authorize_api_key(ApiKey, wapi_auth:get_verification_options()) of
         {ok, Context0} ->
             Context = wapi_auth:create_wapi_context(Context0),
             {true, Context};
         {error, Error} ->
-            _ = logger:info("API Key authorization failed: ~p", [Error]),
+            _ = logger:info("API Key authorization failed for ~p due to ~p", [OperationID, Error]),
             false
     end.
 
@@ -581,6 +582,36 @@ process_request(
 
 process_request('ListDeposits', Params, Context, _Opts) ->
     case wapi_stat_backend:list_deposits(Params, Context) of
+        {ok, List} ->
+            wapi_handler_utils:reply_ok(200, List);
+        {error, {invalid, Errors}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">> => <<"NoMatch">>,
+                <<"description">> => Errors
+            });
+        {error, {bad_token, Reason}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">> => <<"InvalidToken">>,
+                <<"description">> => Reason
+            })
+    end;
+process_request('ListDepositReverts', Params, Context, _Opts) ->
+    case wapi_stat_backend:list_deposit_reverts(Params, Context) of
+        {ok, List} ->
+            wapi_handler_utils:reply_ok(200, List);
+        {error, {invalid, Errors}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">> => <<"NoMatch">>,
+                <<"description">> => Errors
+            });
+        {error, {bad_token, Reason}} ->
+            wapi_handler_utils:reply_error(400, #{
+                <<"errorType">> => <<"InvalidToken">>,
+                <<"description">> => Reason
+            })
+    end;
+process_request('ListDepositAdjustments', Params, Context, _Opts) ->
+    case wapi_stat_backend:list_deposit_adjustments(Params, Context) of
         {ok, List} ->
             wapi_handler_utils:reply_ok(200, List);
         {error, {invalid, Errors}} ->
