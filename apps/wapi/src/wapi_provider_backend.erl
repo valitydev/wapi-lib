@@ -24,11 +24,11 @@ get_providers(Residences, HandlerContext) ->
     {ok, Providers} = wapi_handler_utils:service_call(Request, HandlerContext),
     [
         P
-        || P <- unmarshal_providers(Providers),
-           ordsets:is_subset(
-               ResidenceSet,
-               ordsets:from_list(maps:get(<<"residences">>, P))
-           )
+     || P <- unmarshal_providers(Providers),
+        ordsets:is_subset(
+            ResidenceSet,
+            ordsets:from_list(maps:get(<<"residences">>, P))
+        )
     ].
 
 -spec get_provider(id(), handler_context()) -> {ok, response_data()} | {error, notfound}.

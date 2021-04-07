@@ -758,7 +758,8 @@ unmarshal_events_test_() ->
 
     Request = fun
         ({_, Woody, Swag}) ->
-            {fun unmarshal_request/1,
+            {
+                fun unmarshal_request/1,
                 {post_request, #ui_BrowserPostRequest{
                     uri = <<"uri://post">>,
                     form = Woody
@@ -767,16 +768,19 @@ unmarshal_events_test_() ->
                     <<"requestType">> => <<"BrowserPostRequest">>,
                     <<"uriTemplate">> => <<"uri://post">>,
                     <<"form">> => Swag
-                }};
+                }
+            };
         (get_request) ->
-            {fun unmarshal_request/1,
+            {
+                fun unmarshal_request/1,
                 {get_request, #ui_BrowserGetRequest{
                     uri = <<"uri://get">>
                 }},
                 #{
                     <<"requestType">> => <<"BrowserGetRequest">>,
                     <<"uriTemplate">> => <<"uri://get">>
-                }}
+                }
+            }
     end,
 
     UIRedirect = fun({_, Woody, Swag}) ->
@@ -788,7 +792,8 @@ unmarshal_events_test_() ->
 
     UIChangePayload = fun
         ({_, Woody, Swag}) ->
-            {fun unmarshal_user_interaction_change/1,
+            {
+                fun unmarshal_user_interaction_change/1,
                 {created, #p2p_session_UserInteractionCreatedChange{
                     ui = #p2p_session_UserInteraction{
                         id = <<"id://p2p_session/ui">>,
@@ -798,20 +803,24 @@ unmarshal_events_test_() ->
                 #{
                     <<"changeType">> => <<"UserInteractionCreated">>,
                     <<"userInteraction">> => Swag
-                }};
+                }
+            };
         (ui_finished) ->
-            {fun unmarshal_user_interaction_change/1,
+            {
+                fun unmarshal_user_interaction_change/1,
                 {status_changed, #p2p_session_UserInteractionStatusChange{
                     status = {finished, #p2p_session_UserInteractionStatusFinished{}}
                 }},
                 #{
                     <<"changeType">> => <<"UserInteractionFinished">>
-                }}
+                }
+            }
     end,
 
     EventChange = fun
         ({_, Woody, Swag}) ->
-            {fun unmarshal_event_change/1,
+            {
+                fun unmarshal_event_change/1,
                 {ui, #p2p_session_UserInteractionChange{
                     id = <<"id://p2p_session/change">>,
                     payload = Woody
@@ -820,9 +829,11 @@ unmarshal_events_test_() ->
                     <<"changeType">> => <<"P2PTransferInteractionChanged">>,
                     <<"userInteractionID">> => <<"id://p2p_session/change">>,
                     <<"userInteractionChange">> => Swag
-                }};
+                }
+            };
         (TransferStatus) ->
-            {fun unmarshal_event_change/1,
+            {
+                fun unmarshal_event_change/1,
                 {status_changed, #p2p_transfer_StatusChange{
                     status =
                         case TransferStatus of
@@ -837,12 +848,14 @@ unmarshal_events_test_() ->
                             pending -> <<"Pending">>;
                             succeeded -> <<"Succeeded">>
                         end
-                }}
+                }
+            }
     end,
 
     Event = fun
         ({_, {ui, _} = Woody, Swag}) ->
-            {fun unmarshal_event/1,
+            {
+                fun unmarshal_event/1,
                 #p2p_session_Event{
                     event = 1,
                     occured_at = <<"2020-05-25T12:34:56.123456Z">>,
@@ -851,9 +864,11 @@ unmarshal_events_test_() ->
                 #{
                     <<"createdAt">> => <<"2020-05-25T12:34:56.123456Z">>,
                     <<"change">> => Swag
-                }};
+                }
+            };
         ({_, {status_changed, _} = Woody, Swag}) ->
-            {fun unmarshal_event/1,
+            {
+                fun unmarshal_event/1,
                 #p2p_transfer_Event{
                     event = 1,
                     occured_at = <<"2020-05-25T12:34:56.123456Z">>,
@@ -862,11 +877,13 @@ unmarshal_events_test_() ->
                 #{
                     <<"createdAt">> => <<"2020-05-25T12:34:56.123456Z">>,
                     <<"change">> => Swag
-                }}
+                }
+            }
     end,
 
     Events = fun(List) ->
-        {fun unmarshal_events/1,
+        {
+            fun unmarshal_events/1,
             {
                 <<"token">>,
                 [Woody || {_, Woody, _} <- List]
@@ -874,19 +891,20 @@ unmarshal_events_test_() ->
             #{
                 <<"continuationToken">> => <<"token">>,
                 <<"result">> => [Swag || {_, _, Swag} <- List]
-            }}
+            }
+        }
     end,
 
     EvList = [
         E
-        || Type <- [Form(), get_request],
-           Change <- [UIChangePayload(UIRedirect(Request(Type))), pending, succeeded],
-           E <- [Event(EventChange(Change))]
+     || Type <- [Form(), get_request],
+        Change <- [UIChangePayload(UIRedirect(Request(Type))), pending, succeeded],
+        E <- [Event(EventChange(Change))]
     ],
 
     [
         ?_assertEqual(ExpectedSwag, Unmarshal(Woody))
-        || {Unmarshal, Woody, ExpectedSwag} <- [Events(EvList) | EvList]
+     || {Unmarshal, Woody, ExpectedSwag} <- [Events(EvList) | EvList]
     ].
 
 -spec events_collect_test_() -> _.

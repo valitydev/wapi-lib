@@ -351,13 +351,15 @@ marshal({list, Type}, List) ->
     lists:map(fun(V) -> marshal(Type, V) end, List);
 marshal(
     identity_params,
-    {Params = #{
+    {
+        Params = #{
             <<"id">> := ID,
             <<"name">> := Name,
             <<"provider">> := Provider,
             <<"class">> := Class
         },
-        Owner}
+        Owner
+    }
 ) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
     #idnt_IdentityParams{
@@ -441,13 +443,15 @@ unmarshal(identity, #idnt_IdentityState{
     });
 unmarshal(
     challenge,
-    {#idnt_ChallengeState{
+    {
+        #idnt_ChallengeState{
             id = ID,
             cls = Class,
             proofs = Proofs,
             status = Status
         },
-        HandlerContext}
+        HandlerContext
+    }
 ) ->
     genlib_map:compact(
         maps:merge(

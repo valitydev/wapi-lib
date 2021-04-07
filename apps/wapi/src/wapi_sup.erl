@@ -38,10 +38,12 @@ init([]) ->
 
 -spec get_logic_handler_info() -> {wapi_swagger_server:logic_handlers(), [supervisor:child_spec()]}.
 get_logic_handler_info() ->
-    {#{
+    {
+        #{
             wallet => {wapi_wallet_handler, #{}}
         },
-        []}.
+        []
+    }.
 
 -spec enable_health_logging(erl_health:check()) -> erl_health:check().
 enable_health_logging(Check) ->
