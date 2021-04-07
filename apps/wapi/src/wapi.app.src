@@ -29,7 +29,8 @@
         uac,
         prometheus,
         prometheus_cowboy,
-        thrift
+        thrift,
+        wapi_core
     ]},
     {env, []}
 ]}.
