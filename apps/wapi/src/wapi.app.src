@@ -30,7 +30,8 @@
         prometheus,
         prometheus_cowboy,
         thrift,
-        wapi_core
+        wapi_core,
+        dmt_client
     ]},
     {env, []}
 ]}.

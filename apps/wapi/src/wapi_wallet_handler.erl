@@ -1139,6 +1139,18 @@ process_request('DownloadFile', #{fileID := FileId}, Context, _Opts) ->
             wapi_handler_utils:reply_ok(201, #{<<"url">> => URL, <<"expiresAt">> => ExpiresAt});
         {error, notfound} ->
             wapi_handler_utils:reply_ok(404)
+    end;
+%% Residences
+process_request('GetResidence', #{'residence' := ResidenceId}, _Context, _Opts) ->
+    case wapi_residence:get(ResidenceId) of
+        {ok, Residence} -> wapi_handler_utils:reply_ok(200, Residence);
+        {error, notfound} -> wapi_handler_utils:reply_ok(404)
+    end;
+%% Currencies
+process_request('GetCurrency', #{'currencyID' := CurrencyId}, _Context, _Opts) ->
+    case wapi_domain_backend:get_currency(CurrencyId) of
+        {ok, Currency} -> wapi_handler_utils:reply_ok(200, Currency);
+        {error, notfound} -> wapi_handler_utils:reply_ok(404)
     end.
 
 %% Internal functions
