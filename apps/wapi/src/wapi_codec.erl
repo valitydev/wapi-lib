@@ -86,6 +86,10 @@ marshal(resource, {crypto_wallet, #{crypto_wallet := CryptoWallet}}) ->
     {crypto_wallet, #'ResourceCryptoWallet'{
         crypto_wallet = marshal(crypto_wallet, CryptoWallet)
     }};
+marshal(resource, {digital_wallet, #{digital_wallet := DigitalWallet}}) ->
+    {digital_wallet, #'ResourceDigitalWallet'{
+        digital_wallet = marshal(digital_wallet, DigitalWallet)
+    }};
 marshal(resource_descriptor, {bank_card, BinDataID}) ->
     {bank_card, #'ResourceDescriptorBankCard'{
         bin_data_id = marshal(msgpack, BinDataID)
@@ -116,11 +120,16 @@ marshal(bank_card_auth_data, {session, #{session_id := ID}}) ->
     {session_data, #'SessionAuthData'{
         id = marshal(string, ID)
     }};
-marshal(crypto_wallet, #{id := ID, currency := Currency}) ->
+marshal(crypto_wallet, #{id := ID, data := Data}) ->
     #'CryptoWallet'{
         id = marshal(string, ID),
-        currency = marshal(crypto_currency, Currency),
-        data = marshal(crypto_data, Currency)
+        data = marshal(crypto_data, Data),
+        currency = marshal(crypto_currency, Data)
+    };
+marshal(digital_wallet, #{id := ID, data := Data}) ->
+    #'DigitalWallet'{
+        id = marshal(string, ID),
+        data = marshal(digital_data, Data)
     };
 marshal(exp_date, {Month, Year}) ->
     #'BankCardExpDate'{
@@ -145,6 +154,8 @@ marshal(crypto_data, {ripple, Data}) ->
     {ripple, #'CryptoDataRipple'{
         tag = maybe_marshal(string, maps:get(tag, Data, undefined))
     }};
+marshal(digital_data, {webmoney, #{}}) ->
+    {webmoney, #'DigitalDataWebmoney'{}};
 marshal(payment_system_deprecated, V) when is_atom(V) ->
     V;
 marshal(iso_country_code, V) when is_atom(V) ->
