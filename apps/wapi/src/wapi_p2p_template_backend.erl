@@ -621,7 +621,7 @@ unmarshal_sender(
         <<"type">> => <<"BankCardSenderResource">>,
         <<"contactInfo">> => unmarshal_contact_info(ContactInfo),
         <<"token">> => BankCard#'BankCard'.token,
-        <<"paymentSystem">> => genlib:to_binary(BankCard#'BankCard'.payment_system),
+        <<"paymentSystem">> => genlib:to_binary(BankCard#'BankCard'.payment_system_deprecated),
         <<"bin">> => BankCard#'BankCard'.bin,
         <<"lastDigits">> => wapi_utils:get_last_pan_digits(BankCard#'BankCard'.masked_pan)
     }).
@@ -638,7 +638,7 @@ unmarshal_receiver(
         <<"type">> => <<"BankCardReceiverResource">>,
         <<"token">> => BankCard#'BankCard'.token,
         <<"bin">> => BankCard#'BankCard'.bin,
-        <<"paymentSystem">> => genlib:to_binary(BankCard#'BankCard'.payment_system),
+        <<"paymentSystem">> => genlib:to_binary(BankCard#'BankCard'.payment_system_deprecated),
         <<"lastDigits">> => wapi_utils:get_last_pan_digits(BankCard#'BankCard'.masked_pan)
     }).
 
