@@ -1,8 +1,8 @@
-{application, wapi , [
+{application, wapi, [
     {description, "Wallet API service adapter"},
     {vsn, "0.1.0"},
     {registered, []},
-    {mod, {wapi , []}},
+    {mod, {wapi, []}},
     {applications, [
         kernel,
         stdlib,
@@ -29,6 +29,7 @@
         uac,
         prometheus,
         prometheus_cowboy,
+        how_are_you,
         thrift,
         wapi_core,
         dmt_client
