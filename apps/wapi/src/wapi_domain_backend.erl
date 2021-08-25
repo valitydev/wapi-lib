@@ -10,14 +10,7 @@
 %%
 
 -type id() :: binary().
-
--export([object/1]).
--export([object/2]).
--export([head/0]).
-
--type revision() :: pos_integer().
 -type object_data() :: any().
--type object_ref() :: dmsl_domain_thrift:'Reference'().
 
 %% Pipeline
 
@@ -28,12 +21,7 @@
 -spec get_currency(id()) -> {ok, response_data()} | {error, notfound}.
 get_currency(ID) ->
     do(fun() ->
-        Currency = unwrap(
-            object(
-                head(),
-                {currency, #domain_CurrencyRef{symbolic_code = ID}}
-            )
-        ),
+        Currency = unwrap(object({currency, #domain_CurrencyRef{symbolic_code = ID}})),
         #{
             <<"id">> => genlib_string:to_upper(genlib:to_binary(ID)),
             <<"name">> => Currency#domain_Currency.name,
@@ -46,25 +34,16 @@ get_currency(ID) ->
 %% Internal
 %%
 
--spec object(object_ref()) -> {ok, object_data()} | {error, notfound}.
+-spec object(dmt_client:object_ref()) -> {ok, object_data()} | {error, notfound}.
 object(ObjectRef) ->
-    object(head(), ObjectRef).
+    object(latest, ObjectRef).
 
--spec object(head | revision() | dmt_client:ref(), object_ref()) -> {ok, object_data()} | {error, notfound}.
-object(head, ObjectRef) ->
-    object({head, #'Head'{}}, ObjectRef);
-object(Revision, ObjectRef) when is_integer(Revision) ->
-    object({version, Revision}, ObjectRef);
+-spec object(dmt_client:version(), dmt_client:object_ref()) -> {ok, object_data()} | {error, notfound}.
 object(Ref, {Type, ObjectRef}) ->
     try dmt_client:checkout_object(Ref, {Type, ObjectRef}) of
-        #'VersionedObject'{object = Object} ->
-            {Type, {_RecordName, ObjectRef, ObjectData}} = Object,
+        {Type, {_RecordName, ObjectRef, ObjectData}} ->
             {ok, ObjectData}
     catch
         #'ObjectNotFound'{} ->
             {error, notfound}
     end.
-
--spec head() -> revision().
-head() ->
-    dmt_client:get_last_version().
