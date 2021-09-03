@@ -9,6 +9,7 @@
 -include_lib("jose/include/jose_jwk.hrl").
 -include_lib("wapi_wallet_dummy_data.hrl").
 -include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
+-include_lib("wapi_bouncer_data.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -110,6 +111,7 @@ end_per_testcase(_Name, C) ->
 -spec create_report_ok_test(config()) -> _.
 create_report_ok_test(C) ->
     PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_identity_op_ctx(<<"CreateReport">>, ?STRING, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
             {fistful_report, fun
@@ -138,6 +140,18 @@ create_report_ok_test(C) ->
 -spec get_report_ok_test(config()) -> _.
 get_report_ok_test(C) ->
     PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_generic_op_ctx(
+        [
+            {report, genlib:to_binary(?INTEGER), #{identity => ?STRING, files => [?STRING, ?STRING, ?STRING]}},
+            {identity, ?STRING, PartyID}
+        ],
+        ?CTX_WAPI(#bctx_v1_WalletAPIOperation{
+            id = <<"GetReport">>,
+            identity = ?STRING,
+            report = genlib:to_binary(?INTEGER)
+        }),
+        C
+    ),
     _ = wapi_ct_helper:mock_services(
         [
             {fistful_report, fun('GetReport', _) -> {ok, ?REPORT} end},
@@ -159,6 +173,7 @@ get_report_ok_test(C) ->
 -spec get_reports_ok_test(config()) -> _.
 get_reports_ok_test(C) ->
     PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_identity_op_ctx(<<"GetReports">>, ?STRING, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
             {fistful_report, fun('GetReports', _) ->
@@ -190,6 +205,7 @@ get_reports_ok_test(C) ->
 -spec reports_with_wrong_identity_ok_test(config()) -> _.
 reports_with_wrong_identity_ok_test(C) ->
     IdentityID = <<"WrongIdentity">>,
+    _ = wapi_ct_helper_bouncer:mock_arbiter(_ = wapi_ct_helper_bouncer:judge_always_forbidden(), C),
     _ = wapi_ct_helper:mock_services(
         [
             {fistful_report, fun
@@ -242,6 +258,7 @@ reports_with_wrong_identity_ok_test(C) ->
 
 -spec download_file_ok_test(config()) -> _.
 download_file_ok_test(C) ->
+    _ = wapi_ct_helper_bouncer:mock_assert_op_ctx(<<"DownloadFile">>, C),
     _ = wapi_ct_helper:mock_services([{file_storage, fun('GenerateDownloadUrl', _) -> {ok, ?STRING} end}], C),
     {ok, _} = call_api(
         fun swag_client_wallet_downloads_api:download_file/3,

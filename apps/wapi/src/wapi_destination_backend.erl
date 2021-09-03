@@ -82,7 +82,7 @@ create_request(ID, Params, ResourceThrift, HandlerContext) ->
     end.
 
 -spec get(id(), handler_context()) ->
-    {ok, response_data()}
+    {ok, response_data(), id()}
     | {error, {destination, notfound}}
     | {error, {destination, unauthorized}}.
 get(DestinationID, HandlerContext) ->
@@ -91,7 +91,8 @@ get(DestinationID, HandlerContext) ->
         {ok, DestinationThrift} ->
             case wapi_access_backend:check_resource(destination, DestinationThrift, HandlerContext) of
                 ok ->
-                    {ok, unmarshal(destination, DestinationThrift)};
+                    {ok, Owner} = wapi_access_backend:get_resource_owner(destination, DestinationThrift),
+                    {ok, unmarshal(destination, DestinationThrift), Owner};
                 {error, unauthorized} ->
                     {error, {destination, unauthorized}}
             end;
@@ -100,7 +101,7 @@ get(DestinationID, HandlerContext) ->
     end.
 
 -spec get_by_external_id(external_id(), handler_context()) ->
-    {ok, response_data()}
+    {ok, response_data(), id()}
     | {error, {destination, notfound}}
     | {error, {destination, unauthorized}}
     | {error, {external_id, {unknown_external_id, external_id()}}}.

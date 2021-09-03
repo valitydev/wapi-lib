@@ -122,7 +122,7 @@ get_from_ctx(Key, #{?CTX_NS := Ctx}) ->
 issue_grant_token(TokenSpec, Expiration, Context) ->
     case get_expiration_deadline(Expiration) of
         {ok, Deadline} ->
-            {ok, wapi_auth:issue_access_token(wapi_handler_utils:get_owner(Context), TokenSpec, {deadline, Deadline})};
+            {ok, wapi_auth:issue_access_token(wapi_handler_utils:get_owner(Context), TokenSpec, Deadline)};
         Error = {error, _} ->
             Error
     end.

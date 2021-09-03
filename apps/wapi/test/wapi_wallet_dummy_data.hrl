@@ -22,6 +22,8 @@
 }).
 
 -define(BOOLEAN, true).
+-define(TEST_USER_REALM, <<"external">>).
+-define(TEST_RULESET_ID, <<"test/api">>).
 
 -define(DEFAULT_CONTEXT_NO_NAME(PartyID), #{
     <<"com.rbkmoney.wapi">> =>
@@ -156,6 +158,12 @@
     masked_pan = ?LAST_DIGITS(Pan)
 }).
 
+-define(RESOURCE_BANK_CARD,
+    {bank_card, #'ResourceBankCard'{
+        bank_card = ?BANK_CARD
+    }}
+).
+
 -define(RESOURCE, {bank_card, ?BANK_CARD}).
 
 -define(BIN(CardNumber), string:slice(CardNumber, 0, 6)).
@@ -169,7 +177,7 @@
     name = ?STRING,
     status = ?DESTINATION_STATUS,
     account = ?ACCOUNT,
-    resource = ?RESOURCE,
+    resource = ?RESOURCE_BANK_CARD,
     external_id = ?STRING,
     created_at = ?TIMESTAMP,
     context = ?DEFAULT_CONTEXT(PartyID)
@@ -413,15 +421,17 @@
     ])
 }).
 
--define(WEBHOOK(EventFilter), #webhooker_Webhook{
+-define(WEBHOOK_WITH_WALLET(EventFilter, WalletID), #webhooker_Webhook{
     id = ?INTEGER,
     identity_id = ?STRING,
-    wallet_id = ?STRING,
+    wallet_id = WalletID,
     event_filter = EventFilter,
     url = ?STRING,
     pub_key = ?STRING,
     enabled = false
 }).
+
+-define(WEBHOOK(EventFilter), ?WEBHOOK_WITH_WALLET(EventFilter, undefined)).
 
 -define(W2W_TRANSFER(PartyID), #w2w_transfer_W2WTransferState{
     id = ?STRING,
@@ -531,12 +541,6 @@
                 }
             ])}
 }).
-
--define(RESOURCE_BANK_CARD,
-    {bank_card, #'ResourceBankCard'{
-        bank_card = ?BANK_CARD
-    }}
-).
 
 -define(RAW_RESOURCE,
     {resource, #'p2p_transfer_RawResource'{

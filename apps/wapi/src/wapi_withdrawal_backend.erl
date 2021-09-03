@@ -106,7 +106,7 @@ create(Params, Context, HandlerContext) ->
     end.
 
 -spec get(id(), handler_context()) ->
-    {ok, response_data()}
+    {ok, response_data(), id()}
     | {error, {withdrawal, notfound}}
     | {error, {withdrawal, unauthorized}}.
 get(WithdrawalID, HandlerContext) ->
@@ -115,7 +115,8 @@ get(WithdrawalID, HandlerContext) ->
         {ok, WithdrawalThrift} ->
             case wapi_access_backend:check_resource(withdrawal, WithdrawalThrift, HandlerContext) of
                 ok ->
-                    {ok, unmarshal(withdrawal, WithdrawalThrift)};
+                    {ok, Owner} = wapi_access_backend:get_resource_owner(withdrawal, WithdrawalThrift),
+                    {ok, unmarshal(withdrawal, WithdrawalThrift), Owner};
                 {error, unauthorized} ->
                     {error, {withdrawal, unauthorized}}
             end;
@@ -124,7 +125,7 @@ get(WithdrawalID, HandlerContext) ->
     end.
 
 -spec get_by_external_id(external_id(), handler_context()) ->
-    {ok, response_data()}
+    {ok, response_data(), id()}
     | {error, {withdrawal, notfound}}
     | {error, {withdrawal, unauthorized}}
     | {error, {external_id, {unknown_external_id, external_id()}}}.

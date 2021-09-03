@@ -9,6 +9,7 @@
 -include_lib("wapi_wallet_dummy_data.hrl").
 
 -include_lib("fistful_proto/include/ff_proto_w2w_transfer_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -125,10 +126,14 @@ create_ok_test(C) ->
 -spec create_fail_unauthorized_wallet_test(config()) -> _.
 create_fail_unauthorized_wallet_test(C) ->
     PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_arbiter(wapi_ct_helper_bouncer:judge_always_forbidden(), C),
     _ = wapi_ct_helper:mock_services(
         [
             {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
-            {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(<<"someotherparty">>)} end},
+            {fistful_wallet, fun
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(<<"someotherparty">>)};
+                ('Get', _) -> {ok, ?WALLET(<<"someotherparty">>)}
+            end},
             {fistful_w2w_transfer, fun('Create', _) -> {ok, ?W2W_TRANSFER(PartyID)} end}
         ],
         C
@@ -207,11 +212,13 @@ create_fail_wallet_inaccessible_test(C) ->
 -spec get_ok_test(config()) -> _.
 get_ok_test(C) ->
     PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_w2w_transfer_op_ctx(<<"GetW2WTransfer">>, ?STRING, PartyID, C),
     _ = get_w2_w_transfer_start_mocks(C, fun() -> {ok, ?W2W_TRANSFER(PartyID)} end),
     {ok, _} = get_w2_w_transfer_call_api(C).
 
 -spec get_fail_w2w_notfound_test(config()) -> _.
 get_fail_w2w_notfound_test(C) ->
+    _ = wapi_ct_helper_bouncer:mock_arbiter(wapi_ct_helper_bouncer:judge_always_forbidden(), C),
     _ = get_w2_w_transfer_start_mocks(C, fun() -> {throwing, #fistful_W2WNotFound{}} end),
     ?assertMatch(
         {error, {404, #{}}},
@@ -255,19 +262,27 @@ get_w2_w_transfer_call_api(C) ->
 
 create_w2_w_transfer_start_mocks(C, CreateResultFun) ->
     PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_wallet_op_ctx(<<"CreateW2WTransfer">>, ?STRING, PartyID, C),
     wapi_ct_helper:mock_services(
         [
             {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
-            {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+            {fistful_wallet, fun
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
+                ('Get', _) -> {ok, ?WALLET(PartyID)}
+            end},
             {fistful_w2w_transfer, fun('Create', _) -> CreateResultFun() end}
         ],
         C
     ).
 
 get_w2_w_transfer_start_mocks(C, GetResultFun) ->
+    PartyID = ?config(party, C),
     wapi_ct_helper:mock_services(
         [
-            {fistful_w2w_transfer, fun('Get', _) -> GetResultFun() end}
+            {fistful_w2w_transfer, fun
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
+                ('Get', _) -> GetResultFun()
+            end}
         ],
         C
     ).

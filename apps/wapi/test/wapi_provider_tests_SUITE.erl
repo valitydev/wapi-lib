@@ -107,6 +107,7 @@ end_per_testcase(_Name, C) ->
 
 -spec get_provider_ok(config()) -> _.
 get_provider_ok(C) ->
+    _ = wapi_ct_helper_bouncer:mock_assert_op_ctx(<<"GetProvider">>, C),
     _ = wapi_ct_helper:mock_services(
         [
             {fistful_provider, fun('GetProvider', _) -> {ok, ?PROVIDER} end}
@@ -125,6 +126,7 @@ get_provider_ok(C) ->
 
 -spec get_provider_fail_notfound(config()) -> _.
 get_provider_fail_notfound(C) ->
+    _ = wapi_ct_helper_bouncer:mock_assert_op_ctx(<<"GetProvider">>, C),
     _ = wapi_ct_helper:mock_services(
         [
             {fistful_provider, fun('GetProvider', _) -> throw(#fistful_ProviderNotFound{}) end}
@@ -143,6 +145,7 @@ get_provider_fail_notfound(C) ->
 
 -spec list_providers(config()) -> _.
 list_providers(C) ->
+    _ = wapi_ct_helper_bouncer:mock_assert_op_ctx(<<"ListProviders">>, C),
     _ = wapi_ct_helper:mock_services(
         [
             {fistful_provider, fun('ListProviders', _) -> {ok, [?PROVIDER, ?PROVIDER]} end}
@@ -161,6 +164,7 @@ list_providers(C) ->
 
 -spec get_provider_identity_classes(config()) -> _.
 get_provider_identity_classes(C) ->
+    _ = wapi_ct_helper_bouncer:mock_assert_op_ctx(<<"ListProviderIdentityClasses">>, C),
     _ = wapi_ct_helper:mock_services(
         [
             {fistful_provider, fun('GetProvider', _) -> {ok, ?PROVIDER} end}
@@ -179,6 +183,7 @@ get_provider_identity_classes(C) ->
 
 -spec get_provider_identity_class(config()) -> _.
 get_provider_identity_class(C) ->
+    _ = wapi_ct_helper_bouncer:mock_assert_op_ctx(<<"GetProviderIdentityClass">>, C),
     _ = wapi_ct_helper:mock_services(
         [
             {fistful_provider, fun('GetProvider', _) -> {ok, ?PROVIDER} end}

@@ -17,9 +17,9 @@
 -export([throw_not_implemented/0]).
 
 -export([get_owner/1]).
--export([get_auth_context/1]).
 
 -export([get_location/3]).
+-export([maybe_with/3]).
 
 -define(APP, wapi).
 
@@ -35,7 +35,7 @@
 -type headers() :: wapi_handler:headers().
 -type response_data() :: wapi_handler:response_data().
 
--type owner() :: binary().
+-type owner() :: binary() | undefined.
 
 -export_type([owner/0]).
 
@@ -43,9 +43,8 @@
 
 -spec get_owner(handler_context()) -> owner().
 get_owner(Context) ->
-    uac_authorizer_jwt:get_subject_id(get_auth_context(Context)).
+    wapi_auth:get_subject_id(get_auth_context(Context)).
 
--spec get_auth_context(handler_context()) -> wapi_auth:context().
 get_auth_context(#{swagger_context := #{auth_context := AuthContext}}) ->
     AuthContext.
 
@@ -109,3 +108,14 @@ get_location(PathSpec, Params, _Opts) ->
 ) -> woody:result().
 service_call({ServiceName, Function, Args}, #{woody_context := WoodyContext}) ->
     wapi_woody_client:call_service(ServiceName, Function, Args, WoodyContext).
+
+-spec maybe_with(term(), map(), fun((_Value) -> Result)) -> Result | undefined.
+maybe_with(_Name, undefined, _Then) ->
+    undefined;
+maybe_with(Name, Params, Then) ->
+    case maps:get(Name, Params, undefined) of
+        V when V /= undefined ->
+            Then(V);
+        undefined ->
+            undefined
+    end.

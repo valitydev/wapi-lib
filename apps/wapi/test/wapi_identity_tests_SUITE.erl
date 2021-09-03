@@ -119,7 +119,7 @@ init_per_group(Group, Config) when Group =:= base ->
         })
     ),
     Party = genlib:bsuuid(),
-    {ok, Token} = wapi_ct_helper:issue_token(Party, [{[party], write}], unlimited, ?DOMAIN),
+    {ok, Token} = wapi_ct_helper:issue_token(Party, [{[party], write}, {[party], read}], unlimited, ?DOMAIN),
     Config1 = [{party, Party} | Config],
     [{context, wapi_ct_helper:get_context(Token)} | Config1];
 init_per_group(_, Config) ->
@@ -145,6 +145,7 @@ end_per_testcase(_Name, C) ->
 -spec create_identity(config()) -> _.
 create_identity(C) ->
     PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_party_op_ctx(<<"CreateIdentity">>, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
             {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
@@ -156,6 +157,8 @@ create_identity(C) ->
 
 -spec create_identity_provider_notfound(config()) -> _.
 create_identity_provider_notfound(C) ->
+    PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_party_op_ctx(<<"CreateIdentity">>, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
             {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
@@ -170,6 +173,8 @@ create_identity_provider_notfound(C) ->
 
 -spec create_identity_party_notfound(config()) -> _.
 create_identity_party_notfound(C) ->
+    PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_party_op_ctx(<<"CreateIdentity">>, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
             {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
@@ -184,6 +189,8 @@ create_identity_party_notfound(C) ->
 
 -spec create_identity_class_notfound(config()) -> _.
 create_identity_class_notfound(C) ->
+    PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_party_op_ctx(<<"CreateIdentity">>, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
             {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
@@ -198,6 +205,8 @@ create_identity_class_notfound(C) ->
 
 -spec create_identity_party_inaccessible(config()) -> _.
 create_identity_party_inaccessible(C) ->
+    PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_party_op_ctx(<<"CreateIdentity">>, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
             {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
@@ -213,6 +222,7 @@ create_identity_party_inaccessible(C) ->
 -spec create_identity_thrift_name(config()) -> _.
 create_identity_thrift_name(C) ->
     PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_party_op_ctx(<<"CreateIdentity">>, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
             {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
@@ -225,6 +235,7 @@ create_identity_thrift_name(C) ->
 -spec get_identity(config()) -> _.
 get_identity(C) ->
     PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_identity_op_ctx(<<"GetIdentity">>, ?STRING, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
             {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)} end}
@@ -235,6 +246,7 @@ get_identity(C) ->
 
 -spec get_identity_notfound(config()) -> _.
 get_identity_notfound(C) ->
+    _ = wapi_ct_helper_bouncer:mock_arbiter(_ = wapi_ct_helper_bouncer:judge_always_forbidden(), C),
     _ = wapi_ct_helper:mock_services(
         [
             {fistful_identity, fun('Get', _) -> {throwing, #fistful_IdentityNotFound{}} end}
@@ -313,9 +325,11 @@ create_identity_challenge_proof_insufficient(C) ->
 -spec get_identity_challenge(config()) -> _.
 get_identity_challenge(C) ->
     PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_identity_op_ctx(<<"GetIdentityChallenge">>, ?STRING, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
             {fistful_identity, fun
+                ('Get', _) -> {ok, ?IDENTITY(PartyID)};
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
                 ('GetChallenges', _) -> {ok, [?IDENTITY_CHALLENGE(?IDENTITY_CHALLENGE_STATUS_COMPLETED)]}
             end},
@@ -337,9 +351,11 @@ get_identity_challenge(C) ->
 -spec list_identity_challenges(config()) -> _.
 list_identity_challenges(C) ->
     PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_identity_op_ctx(<<"ListIdentityChallenges">>, ?STRING, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
             {fistful_identity, fun
+                ('Get', _) -> {ok, ?IDENTITY(PartyID)};
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
                 ('GetChallenges', _) -> {ok, [?IDENTITY_CHALLENGE(?IDENTITY_CHALLENGE_STATUS_COMPLETED)]}
             end},
@@ -363,9 +379,11 @@ list_identity_challenges(C) ->
 -spec list_identity_challenges_identity_notfound(config()) -> _.
 list_identity_challenges_identity_notfound(C) ->
     PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_identity_op_ctx(<<"ListIdentityChallenges">>, ?STRING, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
             {fistful_identity, fun
+                ('Get', _) -> {ok, ?IDENTITY(PartyID)};
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
                 ('GetChallenges', _) -> {throwing, #fistful_IdentityNotFound{}}
             end},
@@ -392,9 +410,11 @@ list_identity_challenges_identity_notfound(C) ->
 -spec get_identity_challenge_event(config()) -> _.
 get_identity_challenge_event(C) ->
     PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_identity_op_ctx(<<"GetIdentityChallengeEvent">>, ?STRING, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
             {fistful_identity, fun
+                ('Get', _) -> {ok, ?IDENTITY(PartyID)};
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
                 ('GetEvents', _) -> {ok, [?IDENTITY_CHALLENGE_EVENT(?CHALLENGE_STATUS_CHANGE)]}
             end}
@@ -416,9 +436,11 @@ get_identity_challenge_event(C) ->
 -spec poll_identity_challenge_events(config()) -> _.
 poll_identity_challenge_events(C) ->
     PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_identity_op_ctx(<<"PollIdentityChallengeEvents">>, ?STRING, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
             {fistful_identity, fun
+                ('Get', _) -> {ok, ?IDENTITY(PartyID)};
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
                 ('GetEvents', _) -> {ok, [?IDENTITY_CHALLENGE_EVENT(?CHALLENGE_STATUS_CHANGE)]}
             end}
@@ -430,9 +452,11 @@ poll_identity_challenge_events(C) ->
 -spec poll_identity_challenge_events_identity_notfound(config()) -> _.
 poll_identity_challenge_events_identity_notfound(C) ->
     PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_identity_op_ctx(<<"PollIdentityChallengeEvents">>, ?STRING, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
             {fistful_identity, fun
+                ('Get', _) -> {ok, ?IDENTITY(PartyID)};
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
                 ('GetEvents', _) -> {throwing, #fistful_IdentityNotFound{}}
             end}
@@ -448,10 +472,12 @@ poll_identity_challenge_events_identity_notfound(C) ->
 
 create_identity_challenge_start_mocks(C, StartChallengeResultFun) ->
     PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_identity_op_ctx(<<"StartIdentityChallenge">>, ?STRING, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
             {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
             {fistful_identity, fun
+                ('Get', _) -> {ok, ?IDENTITY(PartyID)};
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
                 ('StartChallenge', _) -> StartChallengeResultFun()
             end},

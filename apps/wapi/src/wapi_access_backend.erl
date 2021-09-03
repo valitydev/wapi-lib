@@ -8,6 +8,7 @@
 -include_lib("fistful_proto/include/ff_proto_p2p_transfer_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 
+-export([get_resource_owner/2]).
 -export([check_resource/3]).
 -export([check_resource_by_id/3]).
 
@@ -31,6 +32,10 @@
 -define(CTX_NS, <<"com.rbkmoney.wapi">>).
 
 %% Pipeline
+
+-spec get_resource_owner(resource_type(), data()) -> {ok, id()}.
+get_resource_owner(Resource, Data) ->
+    {ok, get_owner(get_context_from_state(Resource, Data))}.
 
 -spec check_resource(resource_type(), data(), handler_context()) -> ok | {error, unauthorized}.
 check_resource(Resource, Data, HandlerContext) ->

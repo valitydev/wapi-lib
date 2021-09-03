@@ -12,4 +12,6 @@ handle_function(FunName, Args, _, #{function := Fun}) ->
             erlang:throw(Exception);
         Result ->
             Result
-    end.
+    end;
+handle_function(FunName, Args, _, Ctx) ->
+    error({test, FunName, Args, Ctx}).

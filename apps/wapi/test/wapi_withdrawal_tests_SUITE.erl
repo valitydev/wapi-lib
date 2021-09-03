@@ -7,8 +7,11 @@
 
 -include_lib("jose/include/jose_jwk.hrl").
 -include_lib("wapi_wallet_dummy_data.hrl").
+-include_lib("wapi_bouncer_data.hrl").
 
 -include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -273,9 +276,13 @@ create_fail_wallet_inaccessible(C) ->
 -spec get_ok(config()) -> _.
 get_ok(C) ->
     PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_withdrawal_op_ctx(<<"GetWithdrawal">>, ?STRING, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
-            {fistful_withdrawal, fun('Get', _) -> {ok, ?WITHDRAWAL(PartyID)} end}
+            {fistful_withdrawal, fun
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
+                ('Get', _) -> {ok, ?WITHDRAWAL(PartyID)}
+            end}
         ],
         C
     ),
@@ -291,9 +298,13 @@ get_ok(C) ->
 
 -spec get_fail_withdrawal_notfound(config()) -> _.
 get_fail_withdrawal_notfound(C) ->
+    _ = wapi_ct_helper_bouncer:mock_arbiter(wapi_ct_helper_bouncer:judge_always_forbidden(), C),
     _ = wapi_ct_helper:mock_services(
         [
-            {fistful_withdrawal, fun('Get', _) -> {throwing, #fistful_WithdrawalNotFound{}} end}
+            {fistful_withdrawal, fun
+                ('GetContext', _) -> {throwing, #fistful_WithdrawalNotFound{}};
+                ('Get', _) -> {throwing, #fistful_WithdrawalNotFound{}}
+            end}
         ],
         C
     ),
@@ -313,10 +324,14 @@ get_fail_withdrawal_notfound(C) ->
 -spec get_by_external_id_ok(config()) -> _.
 get_by_external_id_ok(C) ->
     PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_withdrawal_op_ctx(<<"GetWithdrawalByExternalID">>, ?STRING, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
             {bender_thrift, fun('GetInternalID', _) -> {ok, ?GET_INTERNAL_ID_RESULT} end},
-            {fistful_withdrawal, fun('Get', _) -> {ok, ?WITHDRAWAL(PartyID)} end}
+            {fistful_withdrawal, fun
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
+                ('Get', _) -> {ok, ?WITHDRAWAL(PartyID)}
+            end}
         ],
         C
     ),
@@ -432,7 +447,7 @@ get_quote_fail_identity_provider_mismatch(C) ->
 
 -spec get_event_ok(config()) -> _.
 get_event_ok(C) ->
-    _ = get_events_start_mocks(C, fun() -> {ok, []} end),
+    _ = get_events_start_mocks(<<"GetWithdrawalEvents">>, C, fun() -> {ok, []} end),
     {ok, _} = call_api(
         fun swag_client_wallet_withdrawals_api:get_withdrawal_events/3,
         #{
@@ -446,7 +461,7 @@ get_event_ok(C) ->
 
 -spec get_events_ok(config()) -> _.
 get_events_ok(C) ->
-    _ = get_events_start_mocks(C, fun() -> {ok, []} end),
+    _ = get_events_start_mocks(<<"PollWithdrawalEvents">>, C, fun() -> {ok, []} end),
     {ok, _} = call_api(
         fun swag_client_wallet_withdrawals_api:poll_withdrawal_events/3,
         #{
@@ -462,7 +477,7 @@ get_events_ok(C) ->
 
 -spec get_events_fail_withdrawal_notfound(config()) -> _.
 get_events_fail_withdrawal_notfound(C) ->
-    _ = get_events_start_mocks(C, fun() -> {throwing, #fistful_WithdrawalNotFound{}} end),
+    _ = get_events_start_mocks(<<"PollWithdrawalEvents">>, C, fun() -> {throwing, #fistful_WithdrawalNotFound{}} end),
     ?assertEqual(
         {error, {404, #{}}},
         call_api(
@@ -523,21 +538,41 @@ create_qoute_call_api(C) ->
 
 create_withdrawal_start_mocks(C, CreateWithdrawalResultFun) ->
     PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_generic_op_ctx(
+        [
+            {destination, ?STRING, PartyID},
+            {wallet, ?STRING, PartyID}
+        ],
+        ?CTX_WAPI(#bctx_v1_WalletAPIOperation{
+            id = <<"CreateWithdrawal">>,
+            destination = ?STRING,
+            wallet = ?STRING
+        }),
+        C
+    ),
     wapi_ct_helper:mock_services(
         [
             {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
-            {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
-            {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+            {fistful_wallet, fun
+                ('Get', _) -> {ok, ?WALLET(PartyID)};
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)}
+            end},
+            {fistful_destination, fun
+                ('Get', _) -> {ok, ?DESTINATION(PartyID)};
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)}
+            end},
             {fistful_withdrawal, fun('Create', _) -> CreateWithdrawalResultFun() end}
         ],
         C
     ).
 
-get_events_start_mocks(C, GetEventRangeResultFun) ->
+get_events_start_mocks(Op, C, GetEventRangeResultFun) ->
     PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_withdrawal_op_ctx(Op, ?STRING, PartyID, C),
     wapi_ct_helper:mock_services(
         [
             {fistful_withdrawal, fun
+                ('Get', _) -> {ok, ?WITHDRAWAL(PartyID)};
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
                 ('GetEvents', {_, #'EventRange'{limit = 0}}) -> GetEventRangeResultFun();
                 ('GetEvents', _) -> {ok, [?WITHDRAWAL_EVENT(?WITHDRAWAL_STATUS_CHANGE)]}
@@ -548,10 +583,28 @@ get_events_start_mocks(C, GetEventRangeResultFun) ->
 
 get_quote_start_mocks(C, GetQuoteResultFun) ->
     PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_generic_op_ctx(
+        [
+            {destination, ?STRING, PartyID},
+            {wallet, ?STRING, PartyID}
+        ],
+        ?CTX_WAPI(#bctx_v1_WalletAPIOperation{
+            id = <<"CreateQuote">>,
+            destination = ?STRING,
+            wallet = ?STRING
+        }),
+        C
+    ),
     wapi_ct_helper:mock_services(
         [
-            {fistful_wallet, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
-            {fistful_destination, fun('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)} end},
+            {fistful_wallet, fun
+                ('Get', _) -> {ok, ?WALLET(PartyID)};
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)}
+            end},
+            {fistful_destination, fun
+                ('Get', _) -> {ok, ?DESTINATION(PartyID)};
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)}
+            end},
             {fistful_withdrawal, fun('GetQuote', _) -> GetQuoteResultFun() end}
         ],
         C

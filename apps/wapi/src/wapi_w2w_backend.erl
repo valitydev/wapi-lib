@@ -52,7 +52,7 @@ create_transfer(ID, Params, Context, HandlerContext) ->
             {error, bad_w2w_transfer_amount}
     end.
 
--spec get_transfer(req_data(), handler_context()) -> {ok, response_data()} | {error, GetError} when
+-spec get_transfer(id(), handler_context()) -> {ok, response_data(), id()} | {error, GetError} when
     GetError ::
         {w2w_transfer, unauthorized}
         | {w2w_transfer, {unknown_w2w_transfer, id()}}.
@@ -63,7 +63,8 @@ get_transfer(ID, HandlerContext) ->
         {ok, TransferThrift} ->
             case wapi_access_backend:check_resource(w2w_transfer, TransferThrift, HandlerContext) of
                 ok ->
-                    {ok, unmarshal(transfer, TransferThrift)};
+                    {ok, Owner} = wapi_access_backend:get_resource_owner(w2w_transfer, TransferThrift),
+                    {ok, unmarshal(transfer, TransferThrift), Owner};
                 {error, unauthorized} ->
                     {error, {w2w_transfer, unauthorized}}
             end;
