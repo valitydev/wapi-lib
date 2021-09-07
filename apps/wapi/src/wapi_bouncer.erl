@@ -2,19 +2,23 @@
 
 -include_lib("bouncer_proto/include/bouncer_context_thrift.hrl").
 
--export([gather_context_fragments/3]).
+-export([gather_context_fragments/4]).
 -export([judge/2]).
 
 -define(CLAIM_BOUNCER_CTX, <<"bouncer_ctx">>).
 
 %%
 
--spec gather_context_fragments(tk_auth_data:auth_data(), swag_server_wallet:request_context(), woody_context:ctx()) ->
-    wapi_bouncer_context:fragments().
-gather_context_fragments(AuthData, ReqCtx, WoodyCtx) ->
+-spec gather_context_fragments(
+    TokenContextFragment :: token_keeper_auth_data:context_fragment(),
+    UserID :: binary() | undefined,
+    RequestContext :: swag_server_wallet:request_context(),
+    WoodyContext :: woody_context:ctx()
+) -> wapi_bouncer_context:fragments().
+gather_context_fragments(TokenContextFragment, UserID, ReqCtx, WoodyCtx) ->
     {Base, External0} = wapi_bouncer_context:new(),
-    External1 = External0#{<<"token-keeper">> => tk_auth_data:get_context_fragment(AuthData)},
-    {add_requester_context(ReqCtx, Base), maybe_add_userorg(External1, AuthData, WoodyCtx)}.
+    External1 = External0#{<<"token-keeper">> => {encoded_fragment, TokenContextFragment}},
+    {add_requester_context(ReqCtx, Base), maybe_add_userorg(UserID, External1, WoodyCtx)}.
 
 -spec judge(wapi_bouncer_context:fragments(), woody_context:ctx()) -> wapi_auth:resolution().
 judge({Acc, External}, WoodyCtx) ->
@@ -25,16 +29,13 @@ judge({Acc, External}, WoodyCtx) ->
 
 %%
 
-maybe_add_userorg(External, AuthData, WoodyCtx) ->
-    case tk_auth_data:get_user_id(AuthData) of
-        UserID when UserID =/= undefined ->
-            case bouncer_context_helpers:get_user_orgs_fragment(UserID, WoodyCtx) of
-                {ok, UserOrgsFragment} ->
-                    External#{<<"userorg">> => UserOrgsFragment};
-                {error, {user, notfound}} ->
-                    External
-            end;
-        undefined ->
+maybe_add_userorg(undefined, External, _WoodyCtx) ->
+    External;
+maybe_add_userorg(UserID, External, WoodyCtx) ->
+    case bouncer_context_helpers:get_user_orgs_fragment(UserID, WoodyCtx) of
+        {ok, UserOrgsFragment} ->
+            External#{<<"userorg">> => UserOrgsFragment};
+        {error, {user, notfound}} ->
             External
     end.
 

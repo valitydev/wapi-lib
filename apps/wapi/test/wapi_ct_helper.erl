@@ -1,8 +1,9 @@
 -module(wapi_ct_helper).
 
 -include_lib("common_test/include/ct.hrl").
--include_lib("wapi_wallet_dummy_data.hrl").
 -include_lib("damsel/include/dmsl_domain_config_thrift.hrl").
+-include_lib("wapi_wallet_dummy_data.hrl").
+-include_lib("wapi_token_keeper_data.hrl").
 
 -export([cfg/2]).
 -export([cfg/3]).
@@ -36,6 +37,11 @@
 -type test_case_name() :: atom().
 -type app_name() :: atom().
 -type app_env() :: [{atom(), term()}].
+-type sup_or_config() :: config() | pid().
+
+-export_type([config/0]).
+-export_type([app_name/0]).
+-export_type([sup_or_config/0]).
 
 -define(SIGNEE, wapi).
 
@@ -93,7 +99,7 @@ init_suite(Module, Config) ->
         start_app(scoper) ++
             start_app(woody) ++
             start_app({wapi, Config}) ++
-            wapi_ct_helper_tk:mock_service(wapi_ct_helper_tk:user_session_handler(), SupPid),
+            wapi_ct_helper_token_keeper:mock_user_session_token(SupPid),
     wapi_ct_helper_bouncer:mock_client(SupPid),
     [{apps, lists:reverse(Apps1)}, {suite_test_sup, SupPid} | Config].
 
@@ -133,7 +139,14 @@ start_app({wapi = AppName, Config}) ->
                 {json, {file, get_keysource("jwk.priv.json", Config)}}
             ]
         }},
-        {events_fetch_limit, 32}
+        {events_fetch_limit, 32},
+        {auth_config, #{
+            metadata_mappings => #{
+                party_id => ?TK_META_PARTY_ID,
+                user_id => ?TK_META_USER_ID,
+                user_email => ?TK_META_USER_EMAIL
+            }
+        }}
     ]);
 start_app(AppName) ->
     [genlib_app:start_application(AppName)].

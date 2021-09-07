@@ -41,7 +41,7 @@
 -type auth_context() ::
     {authorized, #{
         legacy := uac:context(),
-        auth_data => tk_auth_data:auth_data()
+        auth_data => token_keeper_auth_data:auth_data()
     }}.
 -type preauth_context() :: {unauthorized, {token_type(), token_keeper_client:token()}}.
 
@@ -63,24 +63,19 @@
 -define(unauthorized(Ctx), {unauthorized, Ctx}).
 
 -spec get_subject_id(auth_context()) -> binary() | undefined.
-get_subject_id(?authorized(#{auth_data := AuthData} = Context)) ->
-    case tk_auth_data:get_party_id(AuthData) of
+get_subject_id(?authorized(#{auth_data := AuthData})) ->
+    case get_party_id(AuthData) of
         PartyId when is_binary(PartyId) ->
             PartyId;
         undefined ->
-            case tk_auth_data:get_user_id(AuthData) of
-                PartyId when is_binary(PartyId) ->
-                    PartyId;
-                undefined ->
-                    get_subject_id(?authorized(maps:without([auth_data], Context)))
-            end
+            get_user_id(AuthData)
     end;
 get_subject_id(?authorized(#{legacy := Context})) ->
     uac_authorizer_jwt:get_subject_id(Context).
 
 -spec get_subject_email(auth_context()) -> binary() | undefined.
 get_subject_email(?authorized(#{auth_data := AuthData})) ->
-    tk_auth_data:get_user_email(AuthData);
+    get_user_email(AuthData);
 get_subject_email(?authorized(#{legacy := Context})) ->
     uac_authorizer_jwt:get_claim(<<"email">>, Context, undefined).
 
@@ -90,6 +85,27 @@ get_subject_name(?authorized(#{auth_data := _AuthData})) ->
     undefined;
 get_subject_name(?authorized(#{legacy := Context})) ->
     uac_authorizer_jwt:get_claim(<<"name">>, Context, undefined).
+
+get_party_id(AuthData) ->
+    get_metadata(get_metadata_mapped_key(party_id), token_keeper_auth_data:get_metadata(AuthData)).
+
+get_user_id(AuthData) ->
+    get_metadata(get_metadata_mapped_key(user_id), token_keeper_auth_data:get_metadata(AuthData)).
+
+get_user_email(AuthData) ->
+    get_metadata(get_metadata_mapped_key(user_email), token_keeper_auth_data:get_metadata(AuthData)).
+
+get_metadata(Key, Metadata) ->
+    maps:get(Key, Metadata, undefined).
+
+get_metadata_mapped_key(Key) ->
+    maps:get(Key, get_meta_mappings()).
+
+get_meta_mappings() ->
+    AuthConfig = genlib_app:env(wapi, auth_config),
+    maps:get(metadata_mappings, AuthConfig).
+
+%
 
 -spec preauthorize_api_key(swag_server_wallet:api_key()) -> {ok, preauth_context()} | {error, _Reason}.
 preauthorize_api_key(ApiKey) ->
@@ -423,8 +439,10 @@ get_auth_data(AuthContext) ->
 do_authorize_operation([], _) ->
     undefined;
 do_authorize_operation(Prototypes, Context = #{swagger_context := SwagContext, woody_context := WoodyContext}) ->
+    AuthData = get_auth_data(extract_auth_context(Context)),
     Fragments = wapi_bouncer:gather_context_fragments(
-        get_auth_data(extract_auth_context(Context)),
+        token_keeper_auth_data:get_context_fragment(AuthData),
+        get_user_id(AuthData),
         SwagContext,
         WoodyContext
     ),
