@@ -29,7 +29,6 @@
         uac,
         prometheus,
         prometheus_cowboy,
-        how_are_you,
         bouncer_client,
         token_keeper_client,
         thrift,
