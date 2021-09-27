@@ -3,7 +3,6 @@
 -behaviour(cowboy_stream).
 
 -define(APP, wapi).
--define(SWAG_HANDLER_SCOPE, swag_handler).
 
 %% callback exports
 
