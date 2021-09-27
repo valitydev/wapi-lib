@@ -153,9 +153,7 @@ authorize_operation(
     map_old_auth_result(handle_auth_result(OldAuthResult, AuthResult)).
 
 -type token_spec() ::
-    {p2p_templates, P2PTemplateID :: binary(), Data :: map()}
-    | {p2p_template_transfers, P2PTemplateID :: binary(), Data :: map()}
-    | {destinations, DestinationID :: binary()}
+    {destinations, DestinationID :: binary()}
     | {wallets, WalletID :: binary(), Asset :: map()}.
 
 -spec issue_access_token(wapi_handler_utils:owner(), token_spec()) -> uac_authorizer_jwt:token().
@@ -176,32 +174,6 @@ issue_access_token(PartyID, TokenSpec, Expiration) ->
         )
     ).
 
--spec resolve_token_spec(token_spec()) -> claims().
-resolve_token_spec({p2p_templates, P2PTemplateID, #{<<"expiration">> := Expiration}}) ->
-    #{
-        <<"data">> => #{<<"expiration">> => Expiration},
-        <<"resource_access">> => #{
-            ?DOMAIN => uac_acl:from_list(
-                [
-                    {[{p2p_templates, P2PTemplateID}, p2p_template_tickets], write},
-                    {[{p2p_templates, P2PTemplateID}], read}
-                ]
-            )
-        }
-    };
-resolve_token_spec({p2p_template_transfers, P2PTemplateID, #{<<"transferID">> := TransferID}}) ->
-    #{
-        <<"data">> => #{<<"transferID">> => TransferID},
-        <<"resource_access">> => #{
-            ?DOMAIN => uac_acl:from_list(
-                [
-                    {[{p2p_templates, P2PTemplateID}, p2p_template_transfers], write},
-                    {[{p2p_templates, P2PTemplateID}, p2p_template_quotes], write},
-                    {[{p2p, TransferID}], read}
-                ]
-            )
-        }
-    };
 resolve_token_spec({destinations, DestinationId}) ->
     #{
         <<"resource_access">> => #{
@@ -313,28 +285,6 @@ get_operation_access('PollWithdrawalEvents', _) ->
     [{[withdrawals], read}];
 get_operation_access('GetWithdrawalEvents', _) ->
     [{[withdrawals], read}];
-get_operation_access('CreateP2PTransfer', _) ->
-    [{[p2p], write}];
-get_operation_access('QuoteP2PTransfer', _) ->
-    [{[p2p, p2p_quotes], write}];
-get_operation_access('GetP2PTransfer', #{'p2pTransferID' := ID}) ->
-    [{[{p2p, ID}], read}];
-get_operation_access('GetP2PTransferEvents', _) ->
-    [{[p2p], read}];
-get_operation_access('CreateP2PTransferTemplate', _) ->
-    [{[p2p_templates], write}];
-get_operation_access('GetP2PTransferTemplateByID', #{'p2pTransferTemplateID' := ID}) ->
-    [{[{p2p_templates, ID}], read}];
-get_operation_access('BlockP2PTransferTemplate', _) ->
-    [{[p2p_templates], write}];
-get_operation_access('IssueP2PTransferTemplateAccessToken', _) ->
-    [{[p2p_templates], write}];
-get_operation_access('IssueP2PTransferTicket', #{'p2pTransferTemplateID' := ID}) ->
-    [{[{p2p_templates, ID}, p2p_template_tickets], write}];
-get_operation_access('CreateP2PTransferWithTemplate', #{'p2pTransferTemplateID' := ID}) ->
-    [{[{p2p_templates, ID}, p2p_template_transfers], write}];
-get_operation_access('QuoteP2PTransferWithTemplate', #{'p2pTransferTemplateID' := ID}) ->
-    [{[{p2p_templates, ID}, p2p_template_quotes], write}];
 get_operation_access('CreateW2WTransfer', _) ->
     [{[w2w], write}];
 get_operation_access('GetW2WTransfer', _) ->
@@ -355,12 +305,6 @@ get_resource_hierarchy() ->
         party => #{
             wallets => #{},
             destinations => #{}
-        },
-        p2p => #{p2p_quotes => #{}},
-        p2p_templates => #{
-            p2p_template_tickets => #{},
-            p2p_template_transfers => #{},
-            p2p_template_quotes => #{}
         },
         w2w => #{},
         webhooks => #{},

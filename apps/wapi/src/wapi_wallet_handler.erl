@@ -1217,51 +1217,6 @@ prepare(OperationID = 'GetW2WTransfer', Req = #{w2wTransferID := W2WTransferId},
         wapi_handler_utils:reply_ok(200, ResultW2WTransfer)
     end,
     {ok, #{authorize => Authorize, process => Process}};
-%% P2P
-prepare('QuoteP2PTransfer', #{'QuoteParameters' := _Params}, _Context, _Opts) ->
-    not_implemented();
-prepare('CreateP2PTransfer', #{'P2PTransferParameters' := _Params}, _Context, _Opts) ->
-    not_implemented();
-prepare('GetP2PTransfer', #{p2pTransferID := _ID}, _Context, _Opts) ->
-    not_implemented();
-prepare('GetP2PTransferEvents', #{p2pTransferID := _ID, continuationToken := _CT}, _Context, _Opts) ->
-    not_implemented();
-%% P2P Templates
-
-prepare('CreateP2PTransferTemplate', #{'P2PTransferTemplateParameters' := _Params}, _Context, _Opts) ->
-    not_implemented();
-prepare('GetP2PTransferTemplateByID', #{'p2pTransferTemplateID' := _P2PTemplateID}, _Context, _Opts) ->
-    not_implemented();
-prepare('BlockP2PTransferTemplate', #{p2pTransferTemplateID := _P2PTemplateID}, _Context, _Opts) ->
-    not_implemented();
-prepare(
-    'IssueP2PTransferTemplateAccessToken',
-    _Params,
-    _Context,
-    _Opts
-) ->
-    not_implemented();
-prepare(
-    'IssueP2PTransferTicket',
-    _Params,
-    _Context,
-    _Opts
-) ->
-    not_implemented();
-prepare(
-    'QuoteP2PTransferWithTemplate',
-    _Params,
-    _Context,
-    _Opts
-) ->
-    not_implemented();
-prepare(
-    'CreateP2PTransferWithTemplate',
-    _Params,
-    _Context,
-    _Opts
-) ->
-    not_implemented();
 %% Webhooks
 prepare(
     OperationID = 'CreateWebhook',

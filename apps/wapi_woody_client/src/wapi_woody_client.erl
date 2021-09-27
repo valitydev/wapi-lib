@@ -88,16 +88,10 @@ get_service_modname(fistful_destination) ->
     {ff_proto_destination_thrift, 'Management'};
 get_service_modname(fistful_withdrawal) ->
     {ff_proto_withdrawal_thrift, 'Management'};
-get_service_modname(fistful_p2p_template) ->
-    {ff_proto_p2p_template_thrift, 'Management'};
-get_service_modname(webhook_manager) ->
-    {ff_proto_webhooker_thrift, 'WebhookManager'};
-get_service_modname(fistful_p2p_transfer) ->
-    {ff_proto_p2p_transfer_thrift, 'Management'};
-get_service_modname(fistful_p2p_session) ->
-    {ff_proto_p2p_session_thrift, 'Management'};
 get_service_modname(fistful_w2w_transfer) ->
-    {ff_proto_w2w_transfer_thrift, 'Management'}.
+    {ff_proto_w2w_transfer_thrift, 'Management'};
+get_service_modname(webhook_manager) ->
+    {ff_proto_webhooker_thrift, 'WebhookManager'}.
 
 -spec get_service_deadline(service_name()) -> undefined | woody_deadline:deadline().
 get_service_deadline(ServiceName) ->
