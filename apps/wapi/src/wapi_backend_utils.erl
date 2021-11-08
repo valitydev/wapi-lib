@@ -1,6 +1,11 @@
 -module(wapi_backend_utils).
 
 -include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_w2w_transfer_thrift.hrl").
+-include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 
 -define(EXTERNAL_ID, <<"externalID">>).
 -define(CTX_NS, <<"com.rbkmoney.wapi">>).
@@ -33,6 +38,18 @@
     | destination
     | withdrawal
     | w2w_transfer.
+-type entity_type() ::
+    identity
+    | wallet
+    | destination
+    | withdrawal
+    | w2w_transfer.
+-type entity_state() ::
+    ff_proto_identity_thrift:'IdentityState'()
+    | ff_proto_wallet_thrift:'WalletState'()
+    | ff_proto_destination_thrift:'DestinationState'()
+    | ff_proto_w2w_transfer_thrift:'W2WTransferState'()
+    | ff_proto_withdrawal_thrift:'WithdrawalState'().
 
 -export([gen_id/3]).
 -export([gen_id/4]).
@@ -45,6 +62,7 @@
 -export([create_params_hash/1]).
 -export([decode_resource/1]).
 -export([tokenize_resource/1]).
+-export([get_entity_owner/2]).
 
 %% Pipeline
 
@@ -172,3 +190,22 @@ tokenize_resource({bank_card, BankCard}) ->
     create_params_hash(Map);
 tokenize_resource(Value) ->
     create_params_hash(Value).
+
+-spec get_entity_owner(entity_type(), entity_state()) -> {ok, id()}.
+get_entity_owner(Type, State) ->
+    {ok, get_context_owner(get_context_from_state(Type, State))}.
+
+get_context_from_state(identity, #idnt_IdentityState{context = Context}) ->
+    Context;
+get_context_from_state(wallet, #wlt_WalletState{context = Context}) ->
+    Context;
+get_context_from_state(destination, #dst_DestinationState{context = Context}) ->
+    Context;
+get_context_from_state(w2w_transfer, #w2w_transfer_W2WTransferState{context = Context}) ->
+    Context;
+get_context_from_state(withdrawal, #wthd_WithdrawalState{context = Context}) ->
+    Context.
+
+get_context_owner(ContextThrift) ->
+    Context = wapi_codec:unmarshal(context, ContextThrift),
+    wapi_backend_utils:get_from_ctx(<<"owner">>, Context).

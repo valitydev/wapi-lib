@@ -14,19 +14,17 @@
 
 %% Pipeline
 
--import(wapi_pipeline, [do/1, unwrap/1, unwrap/2]).
+-import(wapi_pipeline, [do/1, unwrap/1]).
 
 -spec create(req_data(), handler_context()) -> {ok, response_data()} | {error, DestinationError} when
     DestinationError ::
         {invalid_resource_token, binary()}
-        | {identity, unauthorized}
         | {identity, notfound}
         | {currency, notfound}
         | inaccessible
         | {external_id_conflict, {id(), external_id()}}.
-create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->
+create(Params, HandlerContext) ->
     do(fun() ->
-        unwrap(identity, wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext)),
         ResourceThrift = unwrap(construct_resource(maps:get(<<"resource">>, Params))),
         ID = unwrap(generate_id(Params, ResourceThrift, HandlerContext)),
         unwrap(create_request(ID, Params, ResourceThrift, HandlerContext))
@@ -83,19 +81,13 @@ create_request(ID, Params, ResourceThrift, HandlerContext) ->
 
 -spec get(id(), handler_context()) ->
     {ok, response_data(), id()}
-    | {error, {destination, notfound}}
-    | {error, {destination, unauthorized}}.
+    | {error, {destination, notfound}}.
 get(DestinationID, HandlerContext) ->
     Request = {fistful_destination, 'Get', {DestinationID, #'EventRange'{}}},
     case service_call(Request, HandlerContext) of
         {ok, DestinationThrift} ->
-            case wapi_access_backend:check_resource(destination, DestinationThrift, HandlerContext) of
-                ok ->
-                    {ok, Owner} = wapi_access_backend:get_resource_owner(destination, DestinationThrift),
-                    {ok, unmarshal(destination, DestinationThrift), Owner};
-                {error, unauthorized} ->
-                    {error, {destination, unauthorized}}
-            end;
+            {ok, Owner} = wapi_backend_utils:get_entity_owner(destination, DestinationThrift),
+            {ok, unmarshal(destination, DestinationThrift), Owner};
         {exception, #fistful_DestinationNotFound{}} ->
             {error, {destination, notfound}}
     end.
@@ -103,7 +95,6 @@ get(DestinationID, HandlerContext) ->
 -spec get_by_external_id(external_id(), handler_context()) ->
     {ok, response_data(), id()}
     | {error, {destination, notfound}}
-    | {error, {destination, unauthorized}}
     | {error, {external_id, {unknown_external_id, external_id()}}}.
 get_by_external_id(ExternalID, HandlerContext = #{woody_context := WoodyContext}) ->
     PartyID = wapi_handler_utils:get_owner(HandlerContext),

@@ -17,8 +17,7 @@
 
 -spec create_report(req_data(), handler_context()) -> {ok, response_data()} | {error, Error} when
     Error ::
-        {identity, unauthorized}
-        | {identity, notfound}
+        {identity, notfound}
         | invalid_request
         | invalid_contract.
 create_report(
@@ -51,8 +50,7 @@ create_report(
 
 -spec get_report(integer(), binary(), handler_context()) -> {ok, response_data()} | {error, Error} when
     Error ::
-        {identity, unauthorized}
-        | {identity, notfound}
+        {identity, notfound}
         | notfound.
 get_report(ReportID, IdentityID, HandlerContext) ->
     get_report(identityID, ReportID, IdentityID, HandlerContext).
@@ -76,8 +74,7 @@ get_report(contractID, ReportID, ContractID, HandlerContext) ->
 
 -spec get_reports(req_data(), handler_context()) -> {ok, response_data()} | {error, Error} when
     Error ::
-        {identity, unauthorized}
-        | {identity, notfound}
+        {identity, notfound}
         | invalid_request
         | {dataset_too_big, integer()}.
 get_reports(#{identityID := IdentityID} = Params, HandlerContext) ->
@@ -118,9 +115,7 @@ download_file(FileID, ExpiresAt, HandlerContext) ->
 %% Internal
 
 -spec get_contract_id_from_identity(id(), handler_context()) -> {ok, id()} | {error, Error} when
-    Error ::
-        {identity, unauthorized}
-        | {identity, notfound}.
+    Error :: {identity, notfound}.
 get_contract_id_from_identity(IdentityID, HandlerContext) ->
     case wapi_identity_backend:get_thrift_identity(IdentityID, HandlerContext) of
         {ok, #idnt_IdentityState{contract_id = ContractID}} ->

@@ -17,7 +17,7 @@
 
 -type create_error() ::
     {destination, notfound | unauthorized}
-    | {wallet, notfound | unauthorized}
+    | {wallet, notfound}
     | {external_id_conflict, id()}
     | {quote_invalid_party, _}
     | {quote_invalid_wallet, _}
@@ -33,7 +33,7 @@
 
 -type create_quote_error() ::
     {destination, notfound | unauthorized}
-    | {wallet, notfound | unauthorized}
+    | {wallet, notfound}
     | {forbidden_currency, _}
     | {forbidden_amount, _}
     | {invalid_amount, _}
@@ -107,19 +107,13 @@ create(Params, Context, HandlerContext) ->
 
 -spec get(id(), handler_context()) ->
     {ok, response_data(), id()}
-    | {error, {withdrawal, notfound}}
-    | {error, {withdrawal, unauthorized}}.
+    | {error, {withdrawal, notfound}}.
 get(WithdrawalID, HandlerContext) ->
     Request = {fistful_withdrawal, 'Get', {WithdrawalID, #'EventRange'{}}},
     case service_call(Request, HandlerContext) of
         {ok, WithdrawalThrift} ->
-            case wapi_access_backend:check_resource(withdrawal, WithdrawalThrift, HandlerContext) of
-                ok ->
-                    {ok, Owner} = wapi_access_backend:get_resource_owner(withdrawal, WithdrawalThrift),
-                    {ok, unmarshal(withdrawal, WithdrawalThrift), Owner};
-                {error, unauthorized} ->
-                    {error, {withdrawal, unauthorized}}
-            end;
+            {ok, Owner} = wapi_backend_utils:get_entity_owner(withdrawal, WithdrawalThrift),
+            {ok, unmarshal(withdrawal, WithdrawalThrift), Owner};
         {exception, #fistful_WithdrawalNotFound{}} ->
             {error, {withdrawal, notfound}}
     end.
@@ -127,7 +121,6 @@ get(WithdrawalID, HandlerContext) ->
 -spec get_by_external_id(external_id(), handler_context()) ->
     {ok, response_data(), id()}
     | {error, {withdrawal, notfound}}
-    | {error, {withdrawal, unauthorized}}
     | {error, {external_id, {unknown_external_id, external_id()}}}.
 get_by_external_id(ExternalID, HandlerContext = #{woody_context := WoodyContext}) ->
     PartyID = wapi_handler_utils:get_owner(HandlerContext),
@@ -141,14 +134,6 @@ get_by_external_id(ExternalID, HandlerContext = #{woody_context := WoodyContext}
 
 -spec create_quote(req_data(), handler_context()) -> {ok, response_data()} | {error, create_quote_error()}.
 create_quote(#{'WithdrawalQuoteParams' := Params}, HandlerContext) ->
-    case authorize_quote(Params, HandlerContext) of
-        ok ->
-            create_quote_(Params, HandlerContext);
-        {error, _} = Error ->
-            Error
-    end.
-
-create_quote_(Params, HandlerContext) ->
     CreateQuoteParams = marshal(create_quote_params, Params),
     Request = {fistful_withdrawal, 'GetQuote', {CreateQuoteParams}},
     case service_call(Request, HandlerContext) of
@@ -194,18 +179,12 @@ create_quote_(Params, HandlerContext) ->
     end.
 
 -spec get_events(req_data(), handler_context()) ->
-    {ok, response_data()}
-    | {error, {withdrawal, notfound}}
-    | {error, {withdrawal, unauthorized}}.
+    {ok, response_data()} | {error, {withdrawal, notfound}}.
 get_events(Params = #{'withdrawalID' := WithdrawalId, 'limit' := Limit}, HandlerContext) ->
     Cursor = maps:get('eventCursor', Params, undefined),
     case get_events(WithdrawalId, {Cursor, Limit}, HandlerContext) of
         {ok, Events} ->
             {ok, Events};
-        {error, {withdrawal, unauthorized}} = Error ->
-            Error;
-        {error, {withdrawal, notfound}} = Error ->
-            Error;
         {exception, #fistful_WithdrawalNotFound{}} ->
             {error, {withdrawal, notfound}}
     end.
@@ -213,7 +192,6 @@ get_events(Params = #{'withdrawalID' := WithdrawalId, 'limit' := Limit}, Handler
 -spec get_event(id(), integer(), handler_context()) ->
     {ok, response_data()}
     | {error, {withdrawal, notfound}}
-    | {error, {withdrawal, unauthorized}}
     | {error, {event, notfound}}.
 get_event(WithdrawalId, EventId, HandlerContext) ->
     case get_events(WithdrawalId, {EventId - 1, 1}, HandlerContext) of
@@ -221,10 +199,6 @@ get_event(WithdrawalId, EventId, HandlerContext) ->
             {ok, Event};
         {ok, []} ->
             {error, {event, notfound}};
-        {error, {withdrawal, unauthorized}} = Error ->
-            Error;
-        {error, {withdrawal, notfound}} = Error ->
-            Error;
         {exception, #fistful_WithdrawalNotFound{}} ->
             {error, {withdrawal, notfound}}
     end.
@@ -249,19 +223,12 @@ get_events(WithdrawalId, EventRange, HandlerContext) ->
         {ok, Events0} ->
             Events1 = lists:filter(fun event_filter/1, Events0),
             {ok, unmarshal({list, event}, Events1)};
-        {error, _} = Error ->
-            Error;
         {exception, _} = Exception ->
             Exception
     end.
 
 get_events_(WithdrawalId, EventRange, HandlerContext) ->
-    case authorize_resource_by_bearer(withdrawal, WithdrawalId, HandlerContext) of
-        ok ->
-            collect_events(WithdrawalId, EventRange, HandlerContext, []);
-        {error, _} = Error ->
-            Error
-    end.
+    collect_events(WithdrawalId, EventRange, HandlerContext, []).
 
 collect_events(WithdrawalId, {Cursor, Limit}, HandlerContext, AccEvents) ->
     Request = {fistful_withdrawal, 'GetEvents', {WithdrawalId, marshal_event_range(Cursor, Limit)}},
@@ -281,29 +248,9 @@ event_filter(_) ->
     false.
 
 %% Validators
-
-authorize_quote(Params = #{<<"walletID">> := WalletID}, HandlerContext) ->
-    do(fun() ->
-        unwrap(wallet, wapi_access_backend:check_resource_by_id(wallet, WalletID, HandlerContext)),
-        case maps:get(<<"destinationID">>, Params, undefined) of
-            undefined ->
-                ok;
-            DestinationID ->
-                unwrap(
-                    destination,
-                    wapi_access_backend:check_resource_by_id(
-                        destination,
-                        DestinationID,
-                        HandlerContext
-                    )
-                )
-        end
-    end).
-
 check_withdrawal_params(Params0, HandlerContext) ->
     do(fun() ->
         Params1 = unwrap(try_decode_quote_token(Params0)),
-        unwrap(authorize_withdrawal(Params1, HandlerContext)),
         Params2 = unwrap(maybe_check_quote_token(Params1, HandlerContext)),
         ID = unwrap(wapi_backend_utils:gen_id(withdrawal, Params2, HandlerContext)),
         Params2#{<<"id">> => ID}
@@ -324,96 +271,6 @@ try_decode_quote_token(Params = #{<<"quoteToken">> := QuoteToken}) ->
     end);
 try_decode_quote_token(Params) ->
     {ok, Params}.
-
-authorize_withdrawal(Params, HandlerContext) ->
-    case authorize_resource(wallet, Params, HandlerContext) of
-        ok ->
-            case authorize_resource(destination, Params, HandlerContext) of
-                ok ->
-                    ok;
-                {error, _} = Error ->
-                    Error
-            end;
-        {error, _} = Error ->
-            Error
-    end.
-
-authorize_resource(Resource, Params, HandlerContext) ->
-    case authorize_resource_by_grant(Resource, Params) of
-        ok ->
-            ok;
-        {error, missing} ->
-            authorize_resource_by_bearer(Resource, maps:get(genlib:to_binary(Resource), Params), HandlerContext)
-    end.
-
-authorize_resource_by_bearer(Resource, ResourceID, HandlerContext) ->
-    case wapi_access_backend:check_resource_by_id(Resource, ResourceID, HandlerContext) of
-        ok ->
-            ok;
-        {error, unauthorized} ->
-            {error, {Resource, unauthorized}};
-        {error, notfound} ->
-            {error, {Resource, notfound}}
-    end.
-
-authorize_resource_by_grant(R = destination, #{
-    <<"destination">> := ID,
-    <<"destinationGrant">> := Grant
-}) ->
-    authorize_resource_by_grant(R, Grant, get_resource_accesses(R, ID, write), undefined);
-authorize_resource_by_grant(R = wallet, #{
-    <<"wallet">> := ID,
-    <<"walletGrant">> := Grant,
-    <<"body">> := WithdrawalBody
-}) ->
-    authorize_resource_by_grant(R, Grant, get_resource_accesses(R, ID, write), WithdrawalBody);
-authorize_resource_by_grant(_, _) ->
-    {error, missing}.
-
-authorize_resource_by_grant(Resource, Grant, Access, Params) ->
-    do(fun() ->
-        {_, _, Claims} = unwrap(Resource, uac_authorizer_jwt:verify(Grant, #{})),
-        unwrap(Resource, verify_access(Access, Claims)),
-        unwrap(Resource, verify_claims(Resource, Claims, Params))
-    end).
-
-get_resource_accesses(Resource, ID, Permission) ->
-    [{get_resource_accesses(Resource, ID), Permission}].
-
-get_resource_accesses(destination, ID) ->
-    [party, {destinations, ID}];
-get_resource_accesses(wallet, ID) ->
-    [party, {wallets, ID}].
-
-verify_access(Access, #{<<"resource_access">> := #{?DOMAIN := ACL}}) ->
-    do_verify_access(Access, ACL);
-% Legacy grants support
-verify_access(Access, #{<<"resource_access">> := #{<<"common-api">> := ACL}}) ->
-    do_verify_access(Access, ACL);
-verify_access(_, _) ->
-    {error, {unauthorized, {grant, insufficient_access}}}.
-
-do_verify_access(Access, ACL) ->
-    case
-        lists:all(
-            fun({Scope, Permission}) -> lists:member(Permission, uac_acl:match(Scope, ACL)) end,
-            Access
-        )
-    of
-        true -> ok;
-        false -> {error, {unauthorized, {grant, insufficient_access}}}
-    end.
-
-verify_claims(destination, _Claims, _) ->
-    ok;
-verify_claims(
-    wallet,
-    #{<<"amount">> := GrantAmount, <<"currency">> := Currency},
-    #{<<"amount">> := ReqAmount, <<"currency">> := Currency}
-) when GrantAmount >= ReqAmount ->
-    ok;
-verify_claims(_, _, _) ->
-    {error, {unauthorized, {grant, insufficient_claims}}}.
 
 maybe_check_quote_token(
     Params = #{

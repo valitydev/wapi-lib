@@ -28,12 +28,11 @@
 
 -spec get_identity(id(), handler_context()) ->
     {ok, response_data(), id()}
-    | {error, {identity, notfound}}
-    | {error, {identity, unauthorized}}.
+    | {error, {identity, notfound}}.
 get_identity(IdentityID, HandlerContext) ->
     case get_thrift_identity(IdentityID, HandlerContext) of
         {ok, IdentityThrift} ->
-            {ok, Owner} = wapi_access_backend:get_resource_owner(identity, IdentityThrift),
+            {ok, Owner} = wapi_backend_utils:get_entity_owner(identity, IdentityThrift),
             {ok, unmarshal(identity, IdentityThrift), Owner};
         {error, _} = Error ->
             Error
@@ -86,7 +85,6 @@ get_identities(_Params, _Context) ->
     result(
         map(),
         {identity, notfound}
-        | {identity, unauthorized}
         | {challenge, pending}
         | {challenge, {class, notfound}}
         | {challenge, {proof, notfound}}
@@ -104,86 +102,68 @@ create_identity_challenge(IdentityID, Params, HandlerContext) ->
     end.
 
 create_identity_challenge(ChallengeID, IdentityID, Params, HandlerContext) ->
-    case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
-        ok ->
-            ChallengeParams = marshal(challenge_params, {ChallengeID, Params}),
-            Request = {fistful_identity, 'StartChallenge', {IdentityID, ChallengeParams}},
-            case service_call(Request, HandlerContext) of
-                {ok, Challenge} ->
-                    {ok, unmarshal(challenge, {Challenge, HandlerContext})};
-                {exception, #fistful_IdentityNotFound{}} ->
-                    {error, {identity, notfound}};
-                {exception, #fistful_ChallengePending{}} ->
-                    {error, {challenge, pending}};
-                {exception, #fistful_ChallengeClassNotFound{}} ->
-                    {error, {challenge, {class, notfound}}};
-                {exception, #fistful_ProofNotFound{}} ->
-                    {error, {challenge, {proof, notfound}}};
-                {exception, #fistful_ProofInsufficient{}} ->
-                    {error, {challenge, {proof, insufficient}}};
-                {exception, #fistful_ChallengeLevelIncorrect{}} ->
-                    {error, {challenge, level}};
-                {exception, #fistful_ChallengeConflict{}} ->
-                    {error, {challenge, conflict}};
-                {exception, Details} ->
-                    {error, Details}
-            end;
-        {error, unauthorized} ->
-            {error, {identity, unauthorized}}
+    ChallengeParams = marshal(challenge_params, {ChallengeID, Params}),
+    Request = {fistful_identity, 'StartChallenge', {IdentityID, ChallengeParams}},
+    case service_call(Request, HandlerContext) of
+        {ok, Challenge} ->
+            {ok, unmarshal(challenge, {Challenge, HandlerContext})};
+        {exception, #fistful_IdentityNotFound{}} ->
+            {error, {identity, notfound}};
+        {exception, #fistful_ChallengePending{}} ->
+            {error, {challenge, pending}};
+        {exception, #fistful_ChallengeClassNotFound{}} ->
+            {error, {challenge, {class, notfound}}};
+        {exception, #fistful_ProofNotFound{}} ->
+            {error, {challenge, {proof, notfound}}};
+        {exception, #fistful_ProofInsufficient{}} ->
+            {error, {challenge, {proof, insufficient}}};
+        {exception, #fistful_ChallengeLevelIncorrect{}} ->
+            {error, {challenge, level}};
+        {exception, #fistful_ChallengeConflict{}} ->
+            {error, {challenge, conflict}};
+        {exception, Details} ->
+            {error, Details}
     end.
 
 -spec get_identity_challenge(id(), id(), handler_context()) ->
     result(
         map(),
         {identity, notfound}
-        | {identity, unauthorized}
         | {challenge, notfound}
     ).
 get_identity_challenge(IdentityID, ChallengeID, HandlerContext) ->
-    case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
-        ok ->
-            Request = {fistful_identity, 'GetChallenges', {IdentityID}},
-            case service_call(Request, HandlerContext) of
-                {ok, Challenges} ->
-                    get_challenge_by_id(ChallengeID, Challenges, HandlerContext);
-                {exception, #fistful_IdentityNotFound{}} ->
-                    {error, {identity, notfound}};
-                {exception, Details} ->
-                    {error, Details}
-            end;
-        {error, unauthorized} ->
-            {error, {identity, unauthorized}}
+    Request = {fistful_identity, 'GetChallenges', {IdentityID}},
+    case service_call(Request, HandlerContext) of
+        {ok, Challenges} ->
+            get_challenge_by_id(ChallengeID, Challenges, HandlerContext);
+        {exception, #fistful_IdentityNotFound{}} ->
+            {error, {identity, notfound}};
+        {exception, Details} ->
+            {error, Details}
     end.
 
 -spec get_identity_challenges(id(), status(), handler_context()) ->
     result(
         map(),
         {identity, notfound}
-        | {identity, unauthorized}
         | {challenge, notfound}
     ).
 get_identity_challenges(IdentityID, Status, HandlerContext) ->
-    case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
-        ok ->
-            Request = {fistful_identity, 'GetChallenges', {IdentityID}},
-            case service_call(Request, HandlerContext) of
-                {ok, Challenges} ->
-                    Filtered = filter_challenges_by_status(Status, Challenges, HandlerContext, []),
-                    {ok, unmarshal({list, challenge}, Filtered)};
-                {exception, #fistful_IdentityNotFound{}} ->
-                    {error, {identity, notfound}};
-                {exception, Details} ->
-                    {error, Details}
-            end;
-        {error, unauthorized} ->
-            {error, {identity, unauthorized}}
+    Request = {fistful_identity, 'GetChallenges', {IdentityID}},
+    case service_call(Request, HandlerContext) of
+        {ok, Challenges} ->
+            Filtered = filter_challenges_by_status(Status, Challenges, HandlerContext, []),
+            {ok, unmarshal({list, challenge}, Filtered)};
+        {exception, #fistful_IdentityNotFound{}} ->
+            {error, {identity, notfound}};
+        {exception, Details} ->
+            {error, Details}
     end.
 
 -spec get_identity_challenge_events(params(), handler_context()) ->
     result(
         map(),
         {identity, notfound}
-        | {identity, unauthorized}
     ).
 get_identity_challenge_events(
     Params = #{
@@ -193,45 +173,26 @@ get_identity_challenge_events(
     },
     HandlerContext
 ) ->
-    case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
-        ok ->
-            Cursor = maps:get('eventCursor', Params, undefined),
-            EventRange = marshal(event_range, {Cursor, Limit}),
-            Request = {fistful_identity, 'GetEvents', {IdentityID, EventRange}},
-            case service_call(Request, HandlerContext) of
-                {ok, Events} ->
-                    Filtered = filter_events_by_challenge_id(ChallengeID, Events, []),
-                    {ok, unmarshal({list, identity_challenge_event}, Filtered)};
-                {exception, #fistful_IdentityNotFound{}} ->
-                    {error, {identity, notfound}};
-                {exception, Details} ->
-                    {error, Details}
-            end;
-        {error, unauthorized} ->
-            {error, {identity, unauthorized}}
+    Cursor = maps:get('eventCursor', Params, undefined),
+    EventRange = marshal(event_range, {Cursor, Limit}),
+    Request = {fistful_identity, 'GetEvents', {IdentityID, EventRange}},
+    case service_call(Request, HandlerContext) of
+        {ok, Events} ->
+            Filtered = filter_events_by_challenge_id(ChallengeID, Events, []),
+            {ok, unmarshal({list, identity_challenge_event}, Filtered)};
+        {exception, #fistful_IdentityNotFound{}} ->
+            {error, {identity, notfound}};
+        {exception, Details} ->
+            {error, Details}
     end.
 
 -spec get_identity_challenge_event(params(), handler_context()) ->
     result(
         map(),
         {identity, notfound}
-        | {identity, unauthorized}
         | {event, notfound}
     ).
 get_identity_challenge_event(
-    Params = #{
-        'identityID' := IdentityID
-    },
-    HandlerContext
-) ->
-    case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
-        ok ->
-            get_identity_challenge_event_(Params, HandlerContext);
-        {error, unauthorized} ->
-            {error, {identity, unauthorized}}
-    end.
-
-get_identity_challenge_event_(
     #{
         'identityID' := IdentityID,
         'challengeID' := ChallengeID,
@@ -259,18 +220,12 @@ get_identity_challenge_event_(
 
 -spec get_thrift_identity(id(), handler_context()) ->
     {ok, identity_state()}
-    | {error, {identity, notfound}}
-    | {error, {identity, unauthorized}}.
+    | {error, {identity, notfound}}.
 get_thrift_identity(IdentityID, HandlerContext) ->
     Request = {fistful_identity, 'Get', {IdentityID, #'EventRange'{}}},
     case service_call(Request, HandlerContext) of
         {ok, IdentityThrift} ->
-            case wapi_access_backend:check_resource(identity, IdentityThrift, HandlerContext) of
-                ok ->
-                    {ok, IdentityThrift};
-                {error, unauthorized} ->
-                    {error, {identity, unauthorized}}
-            end;
+            {ok, IdentityThrift};
         {exception, #fistful_IdentityNotFound{}} ->
             {error, {identity, notfound}}
     end.

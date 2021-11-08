@@ -2,8 +2,8 @@
 
 -export([create_webhook/2]).
 -export([get_webhooks/2]).
--export([get_webhook/3]).
--export([delete_webhook/3]).
+-export([get_webhook/2]).
+-export([delete_webhook/2]).
 
 -type id() :: binary() | undefined.
 -type ctx() :: wapi_handler:context().
@@ -13,83 +13,43 @@
 
 -include_lib("fistful_proto/include/ff_proto_webhooker_thrift.hrl").
 
--spec create_webhook(req_data(), handler_context()) -> {ok, response_data()} | {error, CreateError} when
-    CreateError ::
-        {identity, notfound}
-        | {identity, unauthorized}
-        | {wallet, notfound}
-        | {wallet, unauthorized}.
+-spec create_webhook(req_data(), handler_context()) -> {ok, response_data()}.
 create_webhook(#{'Webhook' := Params}, HandlerContext) ->
     WebhookParams = marshal_webhook_params(Params),
-    IdentityID = WebhookParams#webhooker_WebhookParams.identity_id,
-    WalletID = WebhookParams#webhooker_WebhookParams.wallet_id,
-    case check_wallet(WalletID, HandlerContext) of
-        ok ->
-            case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
-                ok ->
-                    Call = {webhook_manager, 'Create', {WebhookParams}},
-                    Result = wapi_handler_utils:service_call(Call, HandlerContext),
-                    process_create_webhook_result(Result);
-                {error, Error} ->
-                    {error, {identity, Error}}
-            end;
-        {error, Error} ->
-            {error, {wallet, Error}}
-    end.
+    Call = {webhook_manager, 'Create', {WebhookParams}},
+    Result = wapi_handler_utils:service_call(Call, HandlerContext),
+    process_create_webhook_result(Result).
 
--spec get_webhooks(id(), ctx()) -> {ok, response_data()} | {error, GetError} when
-    GetError ::
-        {identity, notfound}
-        | {identity, unauthorized}.
+-spec get_webhooks(id(), ctx()) -> {ok, response_data()}.
 get_webhooks(IdentityID, HandlerContext) ->
-    case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
-        ok ->
-            Call = {webhook_manager, 'GetList', {IdentityID}},
-            Result = wapi_handler_utils:service_call(Call, HandlerContext),
-            process_get_webhooks_result(Result);
-        {error, Error} ->
-            {error, {identity, Error}}
-    end.
+    Call = {webhook_manager, 'GetList', {IdentityID}},
+    Result = wapi_handler_utils:service_call(Call, HandlerContext),
+    process_get_webhooks_result(Result).
 
--spec get_webhook(id(), id(), ctx()) -> {ok, response_data()} | {error, GetError} when
+-spec get_webhook(id(), ctx()) -> {ok, response_data()} | {error, GetError} when
     GetError ::
-        notfound
-        | {webhook, notfound}
-        | {identity, notfound}
-        | {identity, unauthorized}.
-get_webhook(WebhookID, IdentityID, HandlerContext) ->
-    case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
-        ok ->
-            case encode_webhook_id(WebhookID) of
-                {error, notfound} ->
-                    {error, {webhook, notfound}};
-                EncodedID ->
-                    Call = {webhook_manager, 'Get', {EncodedID}},
-                    Result = wapi_handler_utils:service_call(Call, HandlerContext),
-                    process_get_webhook_result(Result)
-            end;
-        {error, Error} ->
-            {error, {identity, Error}}
+        notfound.
+get_webhook(WebhookID, HandlerContext) ->
+    case encode_webhook_id(WebhookID) of
+        {error, notfound} ->
+            {error, {webhook, notfound}};
+        EncodedID ->
+            Call = {webhook_manager, 'Get', {EncodedID}},
+            Result = wapi_handler_utils:service_call(Call, HandlerContext),
+            process_get_webhook_result(Result)
     end.
 
--spec delete_webhook(id(), id(), ctx()) -> ok | {error, DeleteError} when
+-spec delete_webhook(id(), ctx()) -> ok | {error, DeleteError} when
     DeleteError ::
-        notfound
-        | {identity, notfound}
-        | {identity, unauthorized}.
-delete_webhook(WebhookID, IdentityID, HandlerContext) ->
-    case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
-        ok ->
-            case encode_webhook_id(WebhookID) of
-                {error, notfound} ->
-                    {error, {webhook, notfound}};
-                EncodedID ->
-                    Call = {webhook_manager, 'Delete', {EncodedID}},
-                    Result = wapi_handler_utils:service_call(Call, HandlerContext),
-                    process_delete_webhook_result(Result)
-            end;
-        {error, Error} ->
-            {error, {identity, Error}}
+        notfound.
+delete_webhook(WebhookID, HandlerContext) ->
+    case encode_webhook_id(WebhookID) of
+        {error, notfound} ->
+            {error, {webhook, notfound}};
+        EncodedID ->
+            Call = {webhook_manager, 'Delete', {EncodedID}},
+            Result = wapi_handler_utils:service_call(Call, HandlerContext),
+            process_delete_webhook_result(Result)
     end.
 
 process_create_webhook_result({ok, #webhooker_Webhook{} = Webhook}) ->
@@ -115,11 +75,6 @@ encode_webhook_id(WebhookID) ->
         error:badarg ->
             {error, notfound}
     end.
-
-check_wallet(undefined, _) ->
-    ok;
-check_wallet(WalletID, HandlerContext) ->
-    wapi_access_backend:check_resource_by_id(wallet, WalletID, HandlerContext).
 
 %% marshaling
 

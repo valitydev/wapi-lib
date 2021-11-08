@@ -15,23 +15,17 @@
 -spec create_transfer(req_data(), handler_context()) -> {ok, response_data()} | {error, CreateError} when
     CreateError ::
         {external_id_conflict, external_id()}
-        | {wallet_from, unauthorized}
         | {wallet_from | wallet_to, notfound | inaccessible}
         | bad_w2w_transfer_amount
         | not_allowed_currency
         | inconsistent_currency.
-create_transfer(Params = #{<<"sender">> := SenderID}, HandlerContext) ->
-    case wapi_access_backend:check_resource_by_id(wallet, SenderID, HandlerContext) of
-        ok ->
-            case wapi_backend_utils:gen_id(w2w_transfer, Params, HandlerContext) of
-                {ok, ID} ->
-                    Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
-                    create_transfer(ID, Params, Context, HandlerContext);
-                {error, {external_id_conflict, _}} = Error ->
-                    Error
-            end;
-        {error, unauthorized} ->
-            {error, {wallet_from, unauthorized}}
+create_transfer(Params, HandlerContext) ->
+    case wapi_backend_utils:gen_id(w2w_transfer, Params, HandlerContext) of
+        {ok, ID} ->
+            Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
+            create_transfer(ID, Params, Context, HandlerContext);
+        {error, {external_id_conflict, _}} = Error ->
+            Error
     end.
 
 create_transfer(ID, Params, Context, HandlerContext) ->
@@ -53,21 +47,14 @@ create_transfer(ID, Params, Context, HandlerContext) ->
     end.
 
 -spec get_transfer(id(), handler_context()) -> {ok, response_data(), id()} | {error, GetError} when
-    GetError ::
-        {w2w_transfer, unauthorized}
-        | {w2w_transfer, {unknown_w2w_transfer, id()}}.
+    GetError :: {w2w_transfer, {unknown_w2w_transfer, id()}}.
 get_transfer(ID, HandlerContext) ->
     EventRange = #'EventRange'{},
     Request = {fistful_w2w_transfer, 'Get', {ID, EventRange}},
     case service_call(Request, HandlerContext) of
         {ok, TransferThrift} ->
-            case wapi_access_backend:check_resource(w2w_transfer, TransferThrift, HandlerContext) of
-                ok ->
-                    {ok, Owner} = wapi_access_backend:get_resource_owner(w2w_transfer, TransferThrift),
-                    {ok, unmarshal(transfer, TransferThrift), Owner};
-                {error, unauthorized} ->
-                    {error, {w2w_transfer, unauthorized}}
-            end;
+            {ok, Owner} = wapi_backend_utils:get_entity_owner(w2w_transfer, TransferThrift),
+            {ok, unmarshal(transfer, TransferThrift), Owner};
         {exception, #fistful_W2WNotFound{}} ->
             {error, {w2w_transfer, {unknown_w2w_transfer, ID}}}
     end.

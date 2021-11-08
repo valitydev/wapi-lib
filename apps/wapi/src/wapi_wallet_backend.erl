@@ -17,25 +17,17 @@
 
 -spec create(req_data(), handler_context()) -> {ok, response_data()} | {error, WalletError} when
     WalletError ::
-        {identity, unauthorized}
-        | {identity, notfound}
+        {identity, notfound}
         | {currency, notfound}
         | inaccessible
         | {external_id_conflict, id()}.
-create(Params = #{<<"identity">> := IdentityID}, HandlerContext) ->
-    case wapi_access_backend:check_resource_by_id(identity, IdentityID, HandlerContext) of
-        ok ->
-            case wapi_backend_utils:gen_id(wallet, Params, HandlerContext) of
-                {ok, ID} ->
-                    Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
-                    create(ID, Params, Context, HandlerContext);
-                {error, {external_id_conflict, _}} = Error ->
-                    Error
-            end;
-        {error, unauthorized} ->
-            {error, {identity, unauthorized}};
-        {error, notfound} ->
-            {error, {identity, notfound}}
+create(Params, HandlerContext) ->
+    case wapi_backend_utils:gen_id(wallet, Params, HandlerContext) of
+        {ok, ID} ->
+            Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
+            create(ID, Params, Context, HandlerContext);
+        {error, {external_id_conflict, _}} = Error ->
+            Error
     end.
 
 create(WalletID, Params, Context, HandlerContext) ->
@@ -57,7 +49,6 @@ create(WalletID, Params, Context, HandlerContext) ->
 -spec get_by_external_id(external_id(), handler_context()) ->
     {ok, response_data(), id()}
     | {error, {wallet, notfound}}
-    | {error, {wallet, unauthorized}}
     | {error, {external_id, {unknown_external_id, external_id()}}}.
 get_by_external_id(ExternalID, #{woody_context := WoodyContext} = HandlerContext) ->
     PartyID = wapi_handler_utils:get_owner(HandlerContext),
@@ -71,40 +62,26 @@ get_by_external_id(ExternalID, #{woody_context := WoodyContext} = HandlerContext
 
 -spec get(id(), handler_context()) ->
     {ok, response_data(), id()}
-    | {error, {wallet, notfound}}
-    | {error, {wallet, unauthorized}}.
+    | {error, {wallet, notfound}}.
 get(WalletID, HandlerContext) ->
     Request = {fistful_wallet, 'Get', {WalletID, #'EventRange'{}}},
     case service_call(Request, HandlerContext) of
         {ok, WalletThrift} ->
-            case wapi_access_backend:check_resource(wallet, WalletThrift, HandlerContext) of
-                ok ->
-                    {ok, Owner} = wapi_access_backend:get_resource_owner(wallet, WalletThrift),
-                    {ok, unmarshal(wallet, WalletThrift), Owner};
-                {error, unauthorized} ->
-                    {error, {wallet, unauthorized}}
-            end;
+            {ok, Owner} = wapi_backend_utils:get_entity_owner(wallet, WalletThrift),
+            {ok, unmarshal(wallet, WalletThrift), Owner};
         {exception, #fistful_WalletNotFound{}} ->
             {error, {wallet, notfound}}
     end.
 
 -spec get_account(id(), handler_context()) ->
     {ok, response_data()}
-    | {error, {wallet, notfound}}
-    | {error, {wallet, unauthorized}}.
+    | {error, {wallet, notfound}}.
 get_account(WalletID, HandlerContext) ->
-    case wapi_access_backend:check_resource_by_id(wallet, WalletID, HandlerContext) of
-        ok ->
-            Request = {fistful_wallet, 'GetAccountBalance', {WalletID}},
-            case service_call(Request, HandlerContext) of
-                {ok, AccountBalanceThrift} ->
-                    {ok, unmarshal(wallet_account_balance, AccountBalanceThrift)};
-                {exception, #fistful_WalletNotFound{}} ->
-                    {error, {wallet, notfound}}
-            end;
-        {error, unauthorized} ->
-            {error, {wallet, unauthorized}};
-        {error, notfound} ->
+    Request = {fistful_wallet, 'GetAccountBalance', {WalletID}},
+    case service_call(Request, HandlerContext) of
+        {ok, AccountBalanceThrift} ->
+            {ok, unmarshal(wallet_account_balance, AccountBalanceThrift)};
+        {exception, #fistful_WalletNotFound{}} ->
             {error, {wallet, notfound}}
     end.
 
