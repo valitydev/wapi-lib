@@ -102,7 +102,8 @@ create_query(deposits, Req, Context) ->
         <<"to_time">> => get_time(createdAtTo, Req),
         <<"amount_from">> => genlib_map:get(amountFrom, Req),
         <<"amount_to">> => genlib_map:get(amountTo, Req),
-        <<"currency_code">> => genlib_map:get(currencyID, Req)
+        <<"currency_code">> => genlib_map:get(currencyID, Req),
+        <<"revert_status">> => genlib_map:get(revertStatus, Req)
     };
 create_query(wallets, Req, Context) ->
     #{
@@ -235,7 +236,8 @@ unmarshal_response(deposits, Response) ->
             <<"fee">> => unmarshal_cash(
                 Response#fistfulstat_StatDeposit.fee,
                 Response#fistfulstat_StatDeposit.currency_symbolic_code
-            )
+            ),
+            <<"revertStatus">> => unmarshal_revert_status(Response#fistfulstat_StatDeposit.revert_status)
         },
         unmarshal_deposit_stat_status(Response#fistfulstat_StatDeposit.status)
     );
@@ -306,6 +308,15 @@ unmarshal_status({failed, _}) ->
         <<"status">> => <<"Failed">>,
         <<"failure">> => #{<<"code">> => <<"failed">>}
     }.
+
+unmarshal_revert_status(undefined) ->
+    undefined;
+unmarshal_revert_status(none) ->
+    <<"None"/utf8>>;
+unmarshal_revert_status(partial) ->
+    <<"Partial"/utf8>>;
+unmarshal_revert_status(full) ->
+    <<"Full"/utf8>>.
 
 unmarshal_changes_plan(#fistfulstat_DepositAdjustmentChangesPlan{new_cash = Cash, new_status = Status}) ->
     maps:merge(#{<<"cash">> => unmarshal_cash_change_plan(Cash)}, unmarshal_status_change_plan(Status)).
