@@ -139,7 +139,7 @@ create_fail_unauthorized_wallet_test(C) ->
         C
     ),
     ?assertEqual(
-        {error, {422, #{<<"message">> => <<"No such wallet sender">>}}},
+        ?emptyresp(401),
         create_w2_w_transfer_call_api(C)
     ).
 

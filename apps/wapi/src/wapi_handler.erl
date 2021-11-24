@@ -3,7 +3,6 @@
 %% API
 -export([handle_request/5]).
 -export([throw_result/1]).
--export([respond_if_undefined/2]).
 -export([respond_if_forbidden/2]).
 
 %% Behaviour definition
@@ -66,11 +65,11 @@
 -define(APP, wapi).
 
 -spec handle_request(tag(), operation_id(), req_data(), swagger_context(), opts()) -> request_result().
-handle_request(Tag, OperationID, Req, SwagContext = #{auth_context := AuthContext}, Opts) ->
+handle_request(Tag, OperationID, Req, SwagContext, Opts) ->
     #{'X-Request-Deadline' := Header} = Req,
     case wapi_utils:parse_deadline(Header) of
         {ok, Deadline} ->
-            WoodyContext = attach_deadline(Deadline, create_woody_context(Tag, Req, AuthContext, Opts)),
+            WoodyContext = attach_deadline(Deadline, create_woody_context(Tag, Req)),
             process_request(Tag, OperationID, Req, SwagContext, Opts, WoodyContext);
         _ ->
             _ = logger:warning("Operation ~p failed due to invalid deadline header ~p", [OperationID, Header]),
@@ -118,12 +117,6 @@ process_request(Tag, OperationID, Req, SwagContext0, Opts, WoodyContext) ->
 throw_result(Res) ->
     erlang:throw({?request_result, Res}).
 
--spec respond_if_undefined(undefined | _Entity, request_result()) -> ok | throw(request_result()).
-respond_if_undefined(undefined, Response) ->
-    throw_result(Response);
-respond_if_undefined(_, _Response) ->
-    ok.
-
 -spec respond_if_forbidden(Resolution, request_result()) -> Resolution | throw(request_result()) when
     Resolution :: wapi_auth:resolution().
 respond_if_forbidden(forbidden, Response) ->
@@ -134,8 +127,8 @@ respond_if_forbidden(allowed, _Response) ->
 get_handler(wallet) -> wapi_wallet_handler;
 get_handler(payres) -> wapi_payres_handler.
 
--spec create_woody_context(tag(), req_data(), wapi_auth:context(), opts()) -> woody_context:ctx().
-create_woody_context(Tag, #{'X-Request-ID' := RequestID}, _AuthContext, _Opts) ->
+-spec create_woody_context(tag(), req_data()) -> woody_context:ctx().
+create_woody_context(Tag, #{'X-Request-ID' := RequestID}) ->
     RpcID = #{trace_id := TraceID} = woody_context:new_rpc_id(genlib:to_binary(RequestID)),
     ok = scoper:add_meta(#{request_id => RequestID, trace_id => TraceID}),
     _ = logger:debug("Created TraceID for the request"),

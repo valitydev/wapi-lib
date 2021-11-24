@@ -53,7 +53,7 @@ enable_health_logging(Check) ->
 get_uac_config() ->
     maps:merge(
         genlib_app:env(wapi, access_conf),
-        #{access => wapi_auth:get_access_config()}
+        #{access => wapi_tokens_legacy:get_access_config()}
     ).
 
 -spec get_prometheus_route() -> {iodata(), module(), _Opts :: any()}.

@@ -175,6 +175,7 @@ get_fail_wallet_notfound(C) ->
 -spec get_by_external_id_ok(config()) -> _.
 get_by_external_id_ok(C) ->
     PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_wallet_op_ctx(<<"GetWalletByExternalID">>, ?STRING, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
             {bender_thrift, fun('GetInternalID', _) -> {ok, ?GET_INTERNAL_ID_RESULT} end},
@@ -226,7 +227,7 @@ get_account_fail_get_context_wallet_notfound(C) ->
         C
     ),
     ?assertEqual(
-        {error, {404, #{}}},
+        ?emptyresp(401),
         get_account_call_api(C)
     ).
 

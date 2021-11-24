@@ -213,7 +213,7 @@ create_quote_token(Quote, WalletID, DestinationID, PartyID) ->
     Token.
 
 issue_quote_token(PartyID, Data) ->
-    uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), PartyID, Data, wapi_auth:get_signee()).
+    uac_authorizer_jwt:issue(wapi_utils:get_unique_id(), PartyID, Data, wapi_tokens_legacy:get_signee()).
 
 service_call(Params, HandlerContext) ->
     wapi_handler_utils:service_call(Params, HandlerContext).

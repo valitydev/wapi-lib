@@ -217,7 +217,7 @@ reports_with_wrong_identity_ok_test(C) ->
         ],
         C
     ),
-    ?emptyresp(400) = call_api(
+    ?emptyresp(401) = call_api(
         fun swag_client_wallet_reports_api:create_report/3,
         #{
             binding => #{
@@ -231,7 +231,7 @@ reports_with_wrong_identity_ok_test(C) ->
         },
         wapi_ct_helper:cfg(context, C)
     ),
-    ?emptyresp(400) = call_api(
+    ?emptyresp(401) = call_api(
         fun swag_client_wallet_reports_api:get_report/3,
         #{
             binding => #{
@@ -241,7 +241,7 @@ reports_with_wrong_identity_ok_test(C) ->
         },
         wapi_ct_helper:cfg(context, C)
     ),
-    ?emptyresp(400) = call_api(
+    ?emptyresp(401) = call_api(
         fun swag_client_wallet_reports_api:get_reports/3,
         #{
             binding => #{
