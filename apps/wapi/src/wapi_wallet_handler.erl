@@ -111,61 +111,6 @@ prepare(OperationID = 'GetProvider', #{'providerID' := Id}, Context, _Opts) ->
         end
     end,
     {ok, #{authorize => Authorize, process => Process}};
-prepare(OperationID = 'ListProviderIdentityClasses', #{'providerID' := Id}, Context, _Opts) ->
-    Authorize = fun() ->
-        Prototypes = [{operation, #{id => OperationID}}],
-        Resolution = wapi_auth:authorize_operation(Prototypes, Context),
-        {ok, Resolution}
-    end,
-    Process = fun() ->
-        case wapi_provider_backend:get_provider_identity_classes(Id, Context) of
-            {ok, Classes} -> wapi_handler_utils:reply_ok(200, Classes);
-            {error, notfound} -> wapi_handler_utils:reply_ok(404)
-        end
-    end,
-    {ok, #{authorize => Authorize, process => Process}};
-prepare(
-    OperationID = 'GetProviderIdentityClass',
-    #{
-        'providerID' := ProviderId,
-        'identityClassID' := ClassId
-    },
-    Context,
-    _Opts
-) ->
-    Authorize = fun() ->
-        Prototypes = [{operation, #{id => OperationID}}],
-        Resolution = wapi_auth:authorize_operation(Prototypes, Context),
-        {ok, Resolution}
-    end,
-    Process = fun() ->
-        case wapi_provider_backend:get_provider_identity_class(ProviderId, ClassId, Context) of
-            {ok, Class} -> wapi_handler_utils:reply_ok(200, Class);
-            {error, notfound} -> wapi_handler_utils:reply_ok(404)
-        end
-    end,
-    {ok, #{authorize => Authorize, process => Process}};
-prepare(
-    _OperationID = 'ListProviderIdentityLevels',
-    #{
-        'providerID' := _ProviderId,
-        'identityClassID' := _ClassId
-    },
-    _Context,
-    _Opts
-) ->
-    not_implemented();
-prepare(
-    _OperationID = 'GetProviderIdentityLevel',
-    #{
-        'providerID' := _ProviderId,
-        'identityClassID' := _ClassId,
-        'identityLevelID' := _LevelId
-    },
-    _Context,
-    _Opts
-) ->
-    not_implemented();
 %% Identities
 prepare(OperationID = 'ListIdentities', Req, Context, _Opts) ->
     Authorize = fun() ->
@@ -244,134 +189,6 @@ prepare(OperationID = 'CreateIdentity', #{'Identity' := Params}, Context, Opts) 
                 wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Identity inaccessible">>));
             {error, {external_id_conflict, ID}} ->
                 wapi_handler_utils:reply_ok(409, #{<<"id">> => ID})
-        end
-    end,
-    {ok, #{authorize => Authorize, process => Process}};
-prepare(
-    OperationID = 'ListIdentityChallenges',
-    #{'identityID' := IdentityId, 'status' := Status},
-    Context,
-    _Opts
-) ->
-    AuthContext = build_auth_context([{identity, IdentityId}], [], Context),
-    Authorize = fun() ->
-        Prototypes = [
-            {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},
-            {wallet, build_prototype_for(wallet, [], AuthContext)}
-        ],
-        Resolution = wapi_auth:authorize_operation(Prototypes, Context),
-        {ok, Resolution}
-    end,
-    Process = fun() ->
-        case wapi_identity_backend:get_identity_challenges(IdentityId, Status, Context) of
-            {ok, Challenges} -> wapi_handler_utils:reply_ok(200, Challenges);
-            {error, {identity, notfound}} -> wapi_handler_utils:reply_ok(404)
-        end
-    end,
-    {ok, #{authorize => Authorize, process => Process}};
-prepare(
-    OperationID = 'StartIdentityChallenge',
-    #{
-        'identityID' := IdentityId,
-        'IdentityChallenge' := Params
-    },
-    Context,
-    Opts
-) ->
-    AuthContext = build_auth_context([{identity, IdentityId}], [], Context),
-    Authorize = fun() ->
-        Prototypes = [
-            {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},
-            {wallet, build_prototype_for(wallet, [], AuthContext)}
-        ],
-        Resolution = wapi_auth:authorize_operation(Prototypes, Context),
-        {ok, Resolution}
-    end,
-    Process = fun() ->
-        case wapi_identity_backend:create_identity_challenge(IdentityId, Params, Context) of
-            {ok, Challenge = #{<<"id">> := ChallengeId}} ->
-                wapi_handler_utils:reply_ok(202, Challenge, get_location('GetIdentityChallenge', [ChallengeId], Opts));
-            {error, {identity, notfound}} ->
-                wapi_handler_utils:reply_ok(404);
-            {error, {challenge, conflict}} ->
-                wapi_handler_utils:reply_ok(409);
-            {error, {external_id_conflict, ID}} ->
-                wapi_handler_utils:reply_ok(409, #{<<"id">> => ID});
-            {error, {challenge, pending}} ->
-                wapi_handler_utils:reply_ok(409);
-            {error, {challenge, {class, notfound}}} ->
-                wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such challenge type">>));
-            {error, {challenge, {proof, notfound}}} ->
-                wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Proof not found">>));
-            {error, {challenge, {proof, insufficient}}} ->
-                wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Insufficient proof">>));
-            {error, {challenge, level}} ->
-                wapi_handler_utils:reply_ok(
-                    422,
-                    wapi_handler_utils:get_error_msg(<<"Illegal identification type for current identity level">>)
-                )
-            %% TODO any other possible errors here?
-        end
-    end,
-    {ok, #{authorize => Authorize, process => Process}};
-prepare(
-    OperationID = 'GetIdentityChallenge',
-    #{
-        'identityID' := IdentityId,
-        'challengeID' := ChallengeId
-    },
-    Context,
-    _Opts
-) ->
-    AuthContext = build_auth_context([{identity, IdentityId}], [], Context),
-    Authorize = fun() ->
-        Prototypes = [
-            {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},
-            {wallet, build_prototype_for(wallet, [], AuthContext)}
-        ],
-        Resolution = wapi_auth:authorize_operation(Prototypes, Context),
-        {ok, Resolution}
-    end,
-    Process = fun() ->
-        case wapi_identity_backend:get_identity_challenge(IdentityId, ChallengeId, Context) of
-            {ok, Challenge} -> wapi_handler_utils:reply_ok(200, Challenge);
-            {error, {identity, notfound}} -> wapi_handler_utils:reply_ok(404);
-            {error, {challenge, notfound}} -> wapi_handler_utils:reply_ok(404)
-        end
-    end,
-    {ok, #{authorize => Authorize, process => Process}};
-prepare(OperationID = 'PollIdentityChallengeEvents', Req = #{'identityID' := IdentityId}, Context, _Opts) ->
-    AuthContext = build_auth_context([{identity, IdentityId}], [], Context),
-    Authorize = fun() ->
-        Prototypes = [
-            {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},
-            {wallet, build_prototype_for(wallet, [], AuthContext)}
-        ],
-        Resolution = wapi_auth:authorize_operation(Prototypes, Context),
-        {ok, Resolution}
-    end,
-    Process = fun() ->
-        case wapi_identity_backend:get_identity_challenge_events(Req, Context) of
-            {ok, Events} -> wapi_handler_utils:reply_ok(200, Events);
-            {error, {identity, notfound}} -> wapi_handler_utils:reply_ok(404)
-        end
-    end,
-    {ok, #{authorize => Authorize, process => Process}};
-prepare(OperationID = 'GetIdentityChallengeEvent', Req = #{'identityID' := IdentityId}, Context, _Opts) ->
-    AuthContext = build_auth_context([{identity, IdentityId}], [], Context),
-    Authorize = fun() ->
-        Prototypes = [
-            {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},
-            {wallet, build_prototype_for(wallet, [], AuthContext)}
-        ],
-        Resolution = wapi_auth:authorize_operation(Prototypes, Context),
-        {ok, Resolution}
-    end,
-    Process = fun() ->
-        case wapi_identity_backend:get_identity_challenge_event(Req, Context) of
-            {ok, Event} -> wapi_handler_utils:reply_ok(200, Event);
-            {error, {identity, notfound}} -> wapi_handler_utils:reply_ok(404);
-            {error, {event, notfound}} -> wapi_handler_utils:reply_ok(404)
         end
     end,
     {ok, #{authorize => Authorize, process => Process}};
@@ -1515,10 +1332,6 @@ get_default_url_lifetime() ->
     Now = erlang:system_time(second),
     Lifetime = application:get_env(wapi, file_storage_url_lifetime, ?DEFAULT_URL_LIFETIME),
     genlib_rfc3339:format(Now + Lifetime, second).
-
--spec not_implemented() -> no_return().
-not_implemented() ->
-    wapi_handler_utils:throw_not_implemented().
 
 maybe_to_list(undefined) ->
     [];

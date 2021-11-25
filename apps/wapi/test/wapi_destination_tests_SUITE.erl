@@ -444,7 +444,6 @@ generate_identity(PartyID) ->
         name = uniq(),
         party_id = PartyID,
         provider_id = uniq(),
-        class_id = uniq(),
         context = generate_context(PartyID)
     }.
 

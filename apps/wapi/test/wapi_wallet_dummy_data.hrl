@@ -48,8 +48,7 @@
 -define(PROVIDER, #provider_Provider{
     id = ?STRING,
     name = ?STRING,
-    residences = [?RESIDENCE_RUS, ?RESIDENCE_DEU],
-    identity_classes = #{?STRING => ?IDENTITY_CLASS}
+    residences = [?RESIDENCE_RUS, ?RESIDENCE_DEU]
 }).
 
 -define(GET_INTERNAL_ID_RESULT, {
@@ -189,42 +188,9 @@
     party_id = ?STRING,
     provider_id = ?STRING,
     contract_id = ?STRING,
-    class_id = ?STRING,
     metadata = ?DEFAULT_METADATA(),
     context = Context
 }).
-
--define(IDENTITY_CHALLENGE(Status), #idnt_ChallengeState{
-    cls = ?STRING,
-    proofs = [
-        #idnt_ChallengeProof{
-            type = rus_domestic_passport,
-            token = ?STRING
-        }
-    ],
-    id = ?STRING,
-    status = Status
-}).
-
--define(IDENTITY_CHALLENGE_STATUS_COMPLETED,
-    {completed, #idnt_ChallengeCompleted{
-        resolution = approved,
-        valid_until = ?TIMESTAMP
-    }}
-).
-
--define(IDENTITY_CHALLENGE_EVENT(Change), #idnt_Event{
-    change = Change,
-    occured_at = ?TIMESTAMP,
-    sequence = ?INTEGER
-}).
-
--define(CHALLENGE_STATUS_CHANGE,
-    {identity_challenge, #idnt_ChallengeChange{
-        id = ?STRING,
-        payload = {status_changed, ?IDENTITY_CHALLENGE_STATUS_COMPLETED}
-    }}
-).
 
 -define(STAT_INVALID_EXCEPTION(Errors), #fistfulstat_InvalidRequest{errors = Errors}).
 -define(STAT_BADTOKEN_EXCEPTION, #fistfulstat_BadToken{reason = ?STRING}).

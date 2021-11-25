@@ -21,9 +21,7 @@
 -export([
     get_provider_ok/1,
     get_provider_fail_notfound/1,
-    list_providers/1,
-    get_provider_identity_classes/1,
-    get_provider_identity_class/1
+    list_providers/1
 ]).
 
 % common-api is used since it is the domain used in production RN
@@ -54,9 +52,7 @@ groups() ->
         {base, [], [
             get_provider_ok,
             get_provider_fail_notfound,
-            list_providers,
-            get_provider_identity_classes,
-            get_provider_identity_class
+            list_providers
         ]}
     ].
 
@@ -157,45 +153,6 @@ list_providers(C) ->
         #{
             qs_val => #{
                 <<"residence">> => ?RESIDENCE_RUS
-            }
-        },
-        wapi_ct_helper:cfg(context, C)
-    ).
-
--spec get_provider_identity_classes(config()) -> _.
-get_provider_identity_classes(C) ->
-    _ = wapi_ct_helper_bouncer:mock_assert_op_ctx(<<"ListProviderIdentityClasses">>, C),
-    _ = wapi_ct_helper:mock_services(
-        [
-            {fistful_provider, fun('GetProvider', _) -> {ok, ?PROVIDER} end}
-        ],
-        C
-    ),
-    {ok, _} = call_api(
-        fun swag_client_wallet_providers_api:list_provider_identity_classes/3,
-        #{
-            binding => #{
-                <<"providerID">> => ?STRING
-            }
-        },
-        wapi_ct_helper:cfg(context, C)
-    ).
-
--spec get_provider_identity_class(config()) -> _.
-get_provider_identity_class(C) ->
-    _ = wapi_ct_helper_bouncer:mock_assert_op_ctx(<<"GetProviderIdentityClass">>, C),
-    _ = wapi_ct_helper:mock_services(
-        [
-            {fistful_provider, fun('GetProvider', _) -> {ok, ?PROVIDER} end}
-        ],
-        C
-    ),
-    {ok, _} = call_api(
-        fun swag_client_wallet_providers_api:get_provider_identity_class/3,
-        #{
-            binding => #{
-                <<"providerID">> => ?STRING,
-                <<"identityClassID">> => ?STRING
             }
         },
         wapi_ct_helper:cfg(context, C)
