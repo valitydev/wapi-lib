@@ -1,123 +1,92 @@
-REBAR := $(shell which rebar3 2>/dev/null || which ./rebar3)
-SUBMODULES = build-utils
+# HINT
+# Use this file to override variables here.
+# For example, to run with podman put `DOCKER=podman` there.
+-include Makefile.env
 
-# wapi
-SUBMODULES += schemes/swag
-SUBTARGETS = $(patsubst %,%/.git,$(SUBMODULES))
+# NOTE
+# Variables specified in `.env` file are used to pick and setup specific
+# component versions, both when building a development image and when running
+# CI workflows on GH Actions. This ensures that tasks run with `wc-` prefix
+# (like `wc-dialyze`) are reproducible between local machine and CI runners.
+DOTENV := $(shell grep -v '^\#' .env)
 
-UTILS_PATH := build-utils
-TEMPLATES_PATH := .
+# Development images
+DEV_IMAGE_TAG = wapi-dev
+DEV_IMAGE_ID = $(file < .image.dev)
 
-# Name of the service
-SERVICE_NAME := wapi-v0
-# Service image default tag
-SERVICE_IMAGE_TAG ?= $(shell git rev-parse HEAD)
-# The tag for service image to be pushed with
-SERVICE_IMAGE_PUSH_TAG ?= $(SERVICE_IMAGE_TAG)
-
-# Base image for the service
-BASE_IMAGE_NAME := service-erlang
-BASE_IMAGE_TAG := ef20e2ec1cb1528e9214bdeb862b15478950d5cd
-
-# Build image tag to be used
-BUILD_IMAGE_NAME := build-erlang
-BUILD_IMAGE_TAG := aaa79c2d6b597f93f5f8b724eecfc31ec2e2a23b
-
-REGISTRY := dr2.rbkmoney.com
-
-CALL_ANYWHERE := all submodules compile xref lint format check_format dialyze release clean distclean
-CALL_ANYWHERE += generate regenerate
-
-CALL_W_CONTAINER := $(CALL_ANYWHERE) test
+DOCKER ?= docker
+REBAR ?= rebar3
 
 all: compile
 
--include $(UTILS_PATH)/make_lib/utils_container.mk
--include $(UTILS_PATH)/make_lib/utils_image.mk
+.PHONY: dev-image clean-dev-image wc-shell test
 
-.PHONY: $(CALL_W_CONTAINER)
+dev-image: .image.dev
 
-$(SUBTARGETS): %/.git: %
-	git submodule update --init $<
-	touch $@
+.image.dev: Dockerfile.dev .env
+	$(DOCKER) build $(DOTENV:%=--build-arg %) -f Dockerfile.dev -t $(DEV_IMAGE_TAG) .
+	$(DOCKER) image ls -q -f "reference=$(DEV_IMAGE_ID)" | head -n1 > $@
 
-submodules: $(SUBTARGETS)
+clean-dev-image:
+ifneq ($(DEV_IMAGE_ID),)
+	$(DOCKER) image rm -f $(DEV_IMAGE_TAG)
+	rm .image.dev
+endif
 
-compile: submodules generate
+DOCKER_WC_OPTIONS := -v $(PWD):$(PWD) --workdir $(PWD)
+DOCKER_WC_EXTRA_OPTIONS ?= --rm
+DOCKER_RUN = $(DOCKER) run -t $(DOCKER_WC_OPTIONS) $(DOCKER_WC_EXTRA_OPTIONS)
+
+# Utility tasks
+
+wc-shell: dev-image
+	$(DOCKER_RUN) --interactive --tty $(DEV_IMAGE_TAG)
+
+wc-%: dev-image
+	$(DOCKER_RUN) $(DEV_IMAGE_TAG) make $*
+
+# Rebar tasks
+
+rebar-shell:
+	$(REBAR) shell
+
+compile:
 	$(REBAR) compile
 
-xref: submodules
+xref:
 	$(REBAR) xref
 
 lint:
-	elvis rock -V
+	$(REBAR) lint
 
-check_format:
+check-format:
 	$(REBAR) fmt -c
+
+dialyze:
+	$(REBAR) as test dialyzer
+
+release:
+	$(REBAR) as prod release
+
+eunit:
+	$(REBAR) eunit --cover
+
+common-test:
+	$(REBAR) ct --cover
+
+cover:
+	$(REBAR) covertool generate
 
 format:
 	$(REBAR) fmt -w
 
-dialyze: submodules generate
-	$(REBAR) dialyzer
-
-release: submodules generate
-	$(REBAR) as prod release
-
 clean:
 	$(REBAR) clean
 
-distclean: swagger.distclean.server.wallet swagger.distclean.client.wallet swagger.distclean.client.payres
+distclean: clean-build-image
 	rm -rf _build
 
-test: submodules
-	$(REBAR) eunit
-	$(REBAR) ct
+test: eunit common-test
 
-TESTSUITES = $(wildcard apps/*/test/*_SUITE.erl)
-
-define testsuite
-
-test.$(patsubst ff_%_SUITE.erl,%,$(notdir $(1))): $(1) submodules
-	$(REBAR) ct --suite=$$<
-
-endef
-
-$(foreach suite,$(TESTSUITES),$(eval $(call testsuite,$(suite))))
-
-# Swagger
-
-.PHONY: generate
-generate: swagger.generate.server.wallet swagger.generate.client.wallet swagger.generate.client.payres
-
-.PHONY: regenerate
-regenerate: swagger.regenerate.server.wallet swagger.regenerate.client.wallet swagger.generate.client.payres
-
-#
-
-SWAGGER_CODEGEN        = $(call which, swagger-codegen)
-SWAGGER_SPEC_BASE_PATH = schemes/swag/api
-
-swagger-spec-path = $(SWAGGER_SPEC_BASE_PATH)/$(1)/swagger.yaml
-swagger-app-target = apps/swag_$(1)_$(2)
-
-__swagger_role = $(word 1,$(subst ., ,$*))
-__swagger_spec = $(word 2,$(subst ., ,$*))
-
-swagger.generate.%:
-	@$(MAKE) \
-		SWAGGER_APP_ROLE=$(__swagger_role) \
-		SWAGGER_APP_SPEC=$(__swagger_spec) \
-		$(call swagger-app-target,$(__swagger_role),$(__swagger_spec))
-
-swagger.distclean.%:
-	rm -rf $(call swagger-app-target,$(__swagger_role),$(__swagger_spec))
-
-swagger.regenerate.%:
-	@$(MAKE) swagger.distclean.$* swagger.generate.$*
-
-apps/swag_$(SWAGGER_APP_ROLE)_%: $(call swagger-spec-path,%)
-	$(SWAGGER_CODEGEN) generate \
-		-i $< -l erlang-$(SWAGGER_APP_ROLE) -o $@ \
-		--additional-properties packageName=swag_$(SWAGGER_APP_ROLE)_$(SWAGGER_APP_SPEC)
-	touch $@
+cover-report:
+	$(REBAR) cover

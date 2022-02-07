@@ -3,9 +3,6 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("stdlib/include/assert.hrl").
 
--include_lib("damsel/include/dmsl_domain_config_thrift.hrl").
-
--include_lib("jose/include/jose_jwk.hrl").
 -include_lib("wapi_wallet_dummy_data.hrl").
 -include_lib("wapi_bouncer_data.hrl").
 
@@ -56,8 +53,6 @@
 % common-api is used since it is the domain used in production RN
 % TODO: change to wallet-api (or just omit since it is the default one) when new tokens will be a thing
 -define(DOMAIN, <<"common-api">>).
--define(badresp(Code), {error, {invalid_response_code, Code}}).
--define(emptyresp(Code), {error, {Code, #{}}}).
 
 -type test_case_name() :: atom().
 -type config() :: [{atom(), any()}].
@@ -123,11 +118,6 @@ end_per_suite(C) ->
 
 -spec init_per_group(group_name(), config()) -> config().
 init_per_group(Group, Config) when Group =:= base ->
-    ok = wapi_context:save(
-        wapi_context:create(#{
-            woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
-        })
-    ),
     Party = genlib:bsuuid(),
     {ok, Token} = wapi_ct_helper:issue_token(Party, [{[party], write}], unlimited, ?DOMAIN),
     Config1 = [{party, Party} | Config],
@@ -142,12 +132,10 @@ end_per_group(_Group, _C) ->
 -spec init_per_testcase(test_case_name(), config()) -> config().
 init_per_testcase(Name, C) ->
     C1 = wapi_ct_helper:makeup_cfg([wapi_ct_helper:test_case_name(Name), wapi_ct_helper:woody_ctx()], C),
-    ok = wapi_context:save(C1),
     [{test_sup, wapi_ct_helper:start_mocked_service_sup(?MODULE)} | C1].
 
--spec end_per_testcase(test_case_name(), config()) -> config().
+-spec end_per_testcase(test_case_name(), config()) -> ok.
 end_per_testcase(_Name, C) ->
-    ok = wapi_context:cleanup(),
     _ = wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
     ok.
 

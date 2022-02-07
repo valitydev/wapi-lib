@@ -1,6 +1,6 @@
--define(TK_AUTHORITY_KEYCLOAK, <<"test.rbkmoney.keycloak">>).
--define(TK_AUTHORITY_APIKEYMGMT, <<"test.rbkmoney.apikeymgmt">>).
+-define(TK_AUTHORITY_KEYCLOAK, <<"test.vality.keycloak">>).
+-define(TK_AUTHORITY_APIKEYMGMT, <<"test.vality.apikeymgmt">>).
 
--define(TK_META_PARTY_ID, <<"test.rbkmoney.party.id">>).
--define(TK_META_USER_ID, <<"test.rbkmoney.user.id">>).
--define(TK_META_USER_EMAIL, <<"test.rbkmoney.user.email">>).
+-define(TK_META_PARTY_ID, <<"test.vality.party.id">>).
+-define(TK_META_USER_ID, <<"test.vality.user.id">>).
+-define(TK_META_USER_EMAIL, <<"test.vality.user.email">>).

@@ -3,9 +3,6 @@
 -include_lib("stdlib/include/assert.hrl").
 -include_lib("common_test/include/ct.hrl").
 
--include_lib("damsel/include/dmsl_domain_config_thrift.hrl").
-
--include_lib("jose/include/jose_jwk.hrl").
 -include_lib("wapi_wallet_dummy_data.hrl").
 -include_lib("wapi_bouncer_data.hrl").
 
@@ -43,8 +40,6 @@
 % common-api is used since it is the domain used in production RN
 % TODO: change to wallet-api (or just omit since it is the default one) when new tokens will be a thing
 -define(DOMAIN, <<"common-api">>).
--define(badresp(Code), {error, {invalid_response_code, Code}}).
--define(emptyresp(Code), {error, {Code, #{}}}).
 
 -type test_case_name() :: atom().
 -type config() :: [{atom(), any()}].
@@ -101,11 +96,6 @@ end_per_suite(C) ->
 
 -spec init_per_group(group_name(), config()) -> config().
 init_per_group(Group, Config) when Group =:= base ->
-    ok = wapi_context:save(
-        wapi_context:create(#{
-            woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
-        })
-    ),
     Party = genlib:bsuuid(),
     {ok, Token} = wapi_ct_helper:issue_token(Party, [{[party], write}, {[party], read}], unlimited, ?DOMAIN),
     Config1 = [{party, Party} | Config],
@@ -120,12 +110,10 @@ end_per_group(_Group, _C) ->
 -spec init_per_testcase(test_case_name(), config()) -> config().
 init_per_testcase(Name, C) ->
     C1 = wapi_ct_helper:makeup_cfg([wapi_ct_helper:test_case_name(Name), wapi_ct_helper:woody_ctx()], C),
-    ok = wapi_context:save(C1),
     [{test_sup, wapi_ct_helper:start_mocked_service_sup(?MODULE)} | C1].
 
--spec end_per_testcase(test_case_name(), config()) -> config().
+-spec end_per_testcase(test_case_name(), config()) -> ok.
 end_per_testcase(_Name, C) ->
-    ok = wapi_context:cleanup(),
     wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
     ok.
 
@@ -134,7 +122,7 @@ end_per_testcase(_Name, C) ->
 -spec create_destination_ok_test(config()) -> _.
 create_destination_ok_test(C) ->
     Destination = make_destination(C, bank_card),
-    create_destination_start_mocks(C, fun() -> {ok, Destination} end),
+    _ = create_destination_start_mocks(C, {ok, Destination}),
     ?assertMatch(
         {ok, _},
         create_destination_call_api(C, Destination)
@@ -143,7 +131,7 @@ create_destination_ok_test(C) ->
 -spec create_destination_fail_resource_token_invalid_test(config()) -> _.
 create_destination_fail_resource_token_invalid_test(C) ->
     Destination = make_destination(C, bank_card),
-    create_destination_start_mocks(C, fun() -> {ok, Destination} end),
+    _ = create_destination_start_mocks(C, {ok, Destination}),
     ?assertMatch(
         {error,
             {400, #{
@@ -157,7 +145,7 @@ create_destination_fail_resource_token_invalid_test(C) ->
 create_destination_fail_resource_token_expire_test(C) ->
     InvalidResourceToken = wapi_crypto:create_resource_token(?RESOURCE, wapi_utils:deadline_from_timeout(0)),
     Destination = make_destination(C, bank_card),
-    create_destination_start_mocks(C, fun() -> {ok, Destination} end),
+    _ = create_destination_start_mocks(C, {ok, Destination}),
     ?assertMatch(
         {error,
             {400, #{
@@ -170,7 +158,7 @@ create_destination_fail_resource_token_expire_test(C) ->
 -spec create_destination_fail_identity_notfound_test(config()) -> _.
 create_destination_fail_identity_notfound_test(C) ->
     Destination = make_destination(C, bank_card),
-    create_destination_start_mocks(C, fun() -> throw(#fistful_IdentityNotFound{}) end),
+    _ = create_destination_start_mocks(C, {throwing, #fistful_IdentityNotFound{}}),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"No such identity">>}}},
         create_destination_call_api(C, Destination)
@@ -179,7 +167,7 @@ create_destination_fail_identity_notfound_test(C) ->
 -spec create_destination_fail_currency_notfound_test(config()) -> _.
 create_destination_fail_currency_notfound_test(C) ->
     Destination = make_destination(C, bank_card),
-    create_destination_start_mocks(C, fun() -> throw(#fistful_CurrencyNotFound{}) end),
+    _ = create_destination_start_mocks(C, {throwing, #fistful_CurrencyNotFound{}}),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Currency not supported">>}}},
         create_destination_call_api(C, Destination)
@@ -188,7 +176,7 @@ create_destination_fail_currency_notfound_test(C) ->
 -spec create_destination_fail_party_inaccessible_test(config()) -> _.
 create_destination_fail_party_inaccessible_test(C) ->
     Destination = make_destination(C, bank_card),
-    create_destination_start_mocks(C, fun() -> throw(#fistful_PartyInaccessible{}) end),
+    _ = create_destination_start_mocks(C, {throwing, #fistful_PartyInaccessible{}}),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"Identity inaccessible">>}}},
         create_destination_call_api(C, Destination)
@@ -199,7 +187,7 @@ get_destination_ok_test(C) ->
     Destination = make_destination(C, bank_card),
     PartyID = ?config(party, C),
     _ = wapi_ct_helper_bouncer:mock_assert_destination_op_ctx(<<"GetDestination">>, ?STRING, PartyID, C),
-    get_destination_start_mocks(C, fun() -> {ok, Destination} end),
+    _ = get_destination_start_mocks(C, {ok, Destination}),
     ?assertMatch(
         {ok, _},
         get_destination_call_api(C)
@@ -207,7 +195,7 @@ get_destination_ok_test(C) ->
 
 -spec get_destination_fail_notfound_test(config()) -> _.
 get_destination_fail_notfound_test(C) ->
-    get_destination_start_mocks(C, fun() -> throw(#fistful_DestinationNotFound{}) end),
+    _ = get_destination_start_mocks(C, {throwing, #fistful_DestinationNotFound{}}),
     _ = wapi_ct_helper_bouncer:mock_arbiter(wapi_ct_helper_bouncer:judge_always_forbidden(), C),
     ?assertEqual(
         {error, {404, #{}}},
@@ -304,7 +292,7 @@ do_destination_lifecycle(ResourceType, C) ->
     Resource = generate_resource(ResourceType),
     Context = generate_context(PartyID),
     Destination = generate_destination(Identity#idnt_IdentityState.id, Resource, Context),
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {bender_thrift, fun
                 ('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT};
@@ -449,7 +437,7 @@ generate_identity(PartyID) ->
 
 generate_context(PartyID) ->
     #{
-        <<"com.rbkmoney.wapi">> =>
+        <<"dev.vality.wapi">> =>
             {obj, #{
                 {str, <<"owner">>} => {str, PartyID},
                 {str, <<"name">>} => {str, uniq()},
@@ -548,7 +536,7 @@ make_destination(C, ResourceType) ->
     Context = generate_context(PartyID),
     generate_destination(Identity#idnt_IdentityState.id, Resource, Context).
 
-create_destination_start_mocks(C, CreateDestinationResultFun) ->
+create_destination_start_mocks(C, CreateDestinationResult) ->
     PartyID = ?config(party, C),
 
     _ = wapi_ct_helper_bouncer:mock_assert_identity_op_ctx(<<"CreateDestination">>, ?STRING, PartyID, C),
@@ -559,18 +547,18 @@ create_destination_start_mocks(C, CreateDestinationResultFun) ->
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
                 ('Get', _) -> {ok, ?IDENTITY(PartyID)}
             end},
-            {fistful_destination, fun('Create', _) -> CreateDestinationResultFun() end}
+            {fistful_destination, fun('Create', _) -> CreateDestinationResult end}
         ],
         C
     ).
 
-get_destination_start_mocks(C, GetDestinationResultFun) ->
+get_destination_start_mocks(C, GetDestinationResult) ->
     PartyID = ?config(party, C),
     wapi_ct_helper:mock_services(
         [
             {fistful_destination, fun
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-                ('Get', _) -> GetDestinationResultFun()
+                ('Get', _) -> GetDestinationResult
             end}
         ],
         C

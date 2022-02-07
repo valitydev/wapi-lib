@@ -22,7 +22,7 @@
         | invalid_contract.
 create_report(
     #{
-        identityID := IdentityID,
+        'identityID' := IdentityID,
         'ReportParams' := ReportParams
     },
     HandlerContext
@@ -38,7 +38,7 @@ create_report(
             Call = {fistful_report, 'GenerateReport', {Req, maps:get(<<"reportType">>, ReportParams)}},
             case wapi_handler_utils:service_call(Call, HandlerContext) of
                 {ok, ReportID} ->
-                    get_report(contractID, ReportID, ContractID, HandlerContext);
+                    get_report('contractID', ReportID, ContractID, HandlerContext);
                 {exception, #ff_reports_InvalidRequest{}} ->
                     {error, invalid_request};
                 {exception, #ff_reports_ContractNotFound{}} ->
@@ -53,16 +53,16 @@ create_report(
         {identity, notfound}
         | notfound.
 get_report(ReportID, IdentityID, HandlerContext) ->
-    get_report(identityID, ReportID, IdentityID, HandlerContext).
+    get_report('identityID', ReportID, IdentityID, HandlerContext).
 
-get_report(identityID, ReportID, IdentityID, HandlerContext) ->
+get_report('identityID', ReportID, IdentityID, HandlerContext) ->
     case get_contract_id_from_identity(IdentityID, HandlerContext) of
         {ok, ContractID} ->
-            get_report(contractID, ReportID, ContractID, HandlerContext);
+            get_report('contractID', ReportID, ContractID, HandlerContext);
         {error, _} = Error ->
             Error
     end;
-get_report(contractID, ReportID, ContractID, HandlerContext) ->
+get_report('contractID', ReportID, ContractID, HandlerContext) ->
     PartyID = wapi_handler_utils:get_owner(HandlerContext),
     Call = {fistful_report, 'GetReport', {PartyID, ContractID, ReportID}},
     case wapi_handler_utils:service_call(Call, HandlerContext) of
@@ -77,14 +77,14 @@ get_report(contractID, ReportID, ContractID, HandlerContext) ->
         {identity, notfound}
         | invalid_request
         | {dataset_too_big, integer()}.
-get_reports(#{identityID := IdentityID} = Params, HandlerContext) ->
+get_reports(#{'identityID' := IdentityID} = Params, HandlerContext) ->
     case get_contract_id_from_identity(IdentityID, HandlerContext) of
         {ok, ContractID} ->
             Req = create_report_request(#{
                 party_id => wapi_handler_utils:get_owner(HandlerContext),
                 contract_id => ContractID,
-                from_time => get_time(fromTime, Params),
-                to_time => get_time(toTime, Params)
+                from_time => get_time('fromTime', Params),
+                to_time => get_time('toTime', Params)
             }),
             Call = {fistful_report, 'GetReports', {Req, [genlib:to_binary(maps:get(type, Params))]}},
             case wapi_handler_utils:service_call(Call, HandlerContext) of

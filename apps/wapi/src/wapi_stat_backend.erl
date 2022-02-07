@@ -52,7 +52,7 @@ list_deposit_adjustments(Params, Context) ->
 service_call(StatTag, Params, Context) ->
     Req = create_request(
         create_dsl(StatTag, Params, Context),
-        maps:get(continuationToken, Params, undefined)
+        maps:get('continuationToken', Params, undefined)
     ),
     process_result(
         wapi_handler_utils:service_call({fistful_stat, method(StatTag), {Req}}, Context)
@@ -79,82 +79,82 @@ create_dsl(StatTag, Req, Context) ->
 create_query(withdrawals, Req, Context) ->
     #{
         <<"party_id">> => wapi_handler_utils:get_owner(Context),
-        <<"wallet_id">> => genlib_map:get(walletID, Req),
-        <<"identity_id">> => genlib_map:get(identityID, Req),
-        <<"withdrawal_id">> => genlib_map:get(withdrawalID, Req),
-        <<"destination_id">> => genlib_map:get(destinationID, Req),
+        <<"wallet_id">> => genlib_map:get('walletID', Req),
+        <<"identity_id">> => genlib_map:get('identityID', Req),
+        <<"withdrawal_id">> => genlib_map:get('withdrawalID', Req),
+        <<"destination_id">> => genlib_map:get('destinationID', Req),
         <<"status">> => genlib_map:get(status, Req),
-        <<"from_time">> => get_time(createdAtFrom, Req),
-        <<"to_time">> => get_time(createdAtTo, Req),
-        <<"amount_from">> => genlib_map:get(amountFrom, Req),
-        <<"amount_to">> => genlib_map:get(amountTo, Req),
-        <<"currency_code">> => genlib_map:get(currencyID, Req)
+        <<"from_time">> => get_time('createdAtFrom', Req),
+        <<"to_time">> => get_time('createdAtTo', Req),
+        <<"amount_from">> => genlib_map:get('amountFrom', Req),
+        <<"amount_to">> => genlib_map:get('amountTo', Req),
+        <<"currency_code">> => genlib_map:get('currencyID', Req)
     };
 create_query(deposits, Req, Context) ->
     #{
         <<"party_id">> => wapi_handler_utils:get_owner(Context),
-        <<"wallet_id">> => genlib_map:get(walletID, Req),
-        <<"identity_id">> => genlib_map:get(identityID, Req),
-        <<"deposit_id">> => genlib_map:get(depositID, Req),
-        <<"source_id">> => genlib_map:get(sourceID, Req),
+        <<"wallet_id">> => genlib_map:get('walletID', Req),
+        <<"identity_id">> => genlib_map:get('identityID', Req),
+        <<"deposit_id">> => genlib_map:get('depositID', Req),
+        <<"source_id">> => genlib_map:get('sourceID', Req),
         <<"status">> => genlib_map:get(status, Req),
-        <<"from_time">> => get_time(createdAtFrom, Req),
-        <<"to_time">> => get_time(createdAtTo, Req),
-        <<"amount_from">> => genlib_map:get(amountFrom, Req),
-        <<"amount_to">> => genlib_map:get(amountTo, Req),
-        <<"currency_code">> => genlib_map:get(currencyID, Req),
-        <<"revert_status">> => genlib_map:get(revertStatus, Req)
+        <<"from_time">> => get_time('createdAtFrom', Req),
+        <<"to_time">> => get_time('createdAtTo', Req),
+        <<"amount_from">> => genlib_map:get('amountFrom', Req),
+        <<"amount_to">> => genlib_map:get('amountTo', Req),
+        <<"currency_code">> => genlib_map:get('currencyID', Req),
+        <<"revert_status">> => genlib_map:get('revertStatus', Req)
     };
 create_query(wallets, Req, Context) ->
     #{
         <<"party_id">> => wapi_handler_utils:get_owner(Context),
-        <<"identity_id">> => genlib_map:get(identityID, Req),
-        <<"currency_code">> => genlib_map:get(currencyID, Req)
+        <<"identity_id">> => genlib_map:get('identityID', Req),
+        <<"currency_code">> => genlib_map:get('currencyID', Req)
     };
 create_query(destinations, Req, Context) ->
     #{
         <<"party_id">> => wapi_handler_utils:get_owner(Context),
-        <<"identity_id">> => genlib_map:get(identityID, Req),
-        <<"currency_code">> => genlib_map:get(currencyID, Req)
+        <<"identity_id">> => genlib_map:get('identityID', Req),
+        <<"currency_code">> => genlib_map:get('currencyID', Req)
     };
 create_query(identities, Req, Context) ->
     #{
         <<"party_id">> => wapi_handler_utils:get_owner(Context),
-        <<"provider_id">> => genlib_map:get(providerID, Req),
+        <<"provider_id">> => genlib_map:get('providerID', Req),
         <<"class">> => genlib_map:get(class, Req),
         <<"level">> => genlib_map:get(level, Req)
     };
 create_query(deposit_reverts, Req, Context) ->
     #{
         <<"party_id">> => wapi_handler_utils:get_owner(Context),
-        <<"identity_id">> => genlib_map:get(identityID, Req),
-        <<"source_id">> => genlib_map:get(sourceID, Req),
-        <<"wallet_id">> => genlib_map:get(walletID, Req),
-        <<"deposit_id">> => genlib_map:get(depositID, Req),
-        <<"revert_id">> => genlib_map:get(revertID, Req),
-        <<"amount_from">> => genlib_map:get(amountFrom, Req),
-        <<"amount_to">> => genlib_map:get(amountTo, Req),
-        <<"currency_code">> => genlib_map:get(currencyID, Req),
+        <<"identity_id">> => genlib_map:get('identityID', Req),
+        <<"source_id">> => genlib_map:get('sourceID', Req),
+        <<"wallet_id">> => genlib_map:get('walletID', Req),
+        <<"deposit_id">> => genlib_map:get('depositID', Req),
+        <<"revert_id">> => genlib_map:get('revertID', Req),
+        <<"amount_from">> => genlib_map:get('amountFrom', Req),
+        <<"amount_to">> => genlib_map:get('amountTo', Req),
+        <<"currency_code">> => genlib_map:get('currencyID', Req),
         <<"status">> => genlib_map:get(status, Req),
-        <<"deposit_status">> => genlib_map:get(depositStatus, Req),
-        <<"from_time">> => get_time(createdAtFrom, Req),
-        <<"to_time">> => get_time(createdAtTo, Req)
+        <<"deposit_status">> => genlib_map:get('depositStatus', Req),
+        <<"from_time">> => get_time('createdAtFrom', Req),
+        <<"to_time">> => get_time('createdAtTo', Req)
     };
 create_query(deposit_adjustments, Req, Context) ->
     #{
         <<"party_id">> => wapi_handler_utils:get_owner(Context),
-        <<"identity_id">> => genlib_map:get(identityID, Req),
-        <<"source_id">> => genlib_map:get(sourceID, Req),
-        <<"wallet_id">> => genlib_map:get(walletID, Req),
-        <<"deposit_id">> => genlib_map:get(depositID, Req),
-        <<"adjustment_id">> => genlib_map:get(adjustmentID, Req),
-        <<"amount_from">> => genlib_map:get(amountFrom, Req),
-        <<"amount_to">> => genlib_map:get(amountTo, Req),
-        <<"currency_code">> => genlib_map:get(currencyID, Req),
+        <<"identity_id">> => genlib_map:get('identityID', Req),
+        <<"source_id">> => genlib_map:get('sourceID', Req),
+        <<"wallet_id">> => genlib_map:get('walletID', Req),
+        <<"deposit_id">> => genlib_map:get('depositID', Req),
+        <<"adjustment_id">> => genlib_map:get('adjustmentID', Req),
+        <<"amount_from">> => genlib_map:get('amountFrom', Req),
+        <<"amount_to">> => genlib_map:get('amountTo', Req),
+        <<"currency_code">> => genlib_map:get('currencyID', Req),
         <<"status">> => genlib_map:get(status, Req),
-        <<"deposit_status">> => genlib_map:get(depositStatus, Req),
-        <<"from_time">> => get_time(createdAtFrom, Req),
-        <<"to_time">> => get_time(createdAtTo, Req)
+        <<"deposit_status">> => genlib_map:get('depositStatus', Req),
+        <<"from_time">> => get_time('createdAtFrom', Req),
+        <<"to_time">> => get_time('createdAtTo', Req)
     }.
 
 create_request(Dsl, Token) ->

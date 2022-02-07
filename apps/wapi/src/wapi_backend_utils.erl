@@ -8,7 +8,7 @@
 -include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
 
 -define(EXTERNAL_ID, <<"externalID">>).
--define(CTX_NS, <<"com.rbkmoney.wapi">>).
+-define(CTX_NS, <<"dev.vality.wapi">>).
 -define(BENDER_DOMAIN, <<"wapi">>).
 
 %% Context

@@ -2,11 +2,7 @@
 
 -include_lib("common_test/include/ct.hrl").
 
--include_lib("damsel/include/dmsl_domain_config_thrift.hrl").
 -include_lib("fistful_reporter_proto/include/ff_reporter_reports_thrift.hrl").
--include_lib("file_storage_proto/include/fs_file_storage_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
--include_lib("jose/include/jose_jwk.hrl").
 -include_lib("wapi_wallet_dummy_data.hrl").
 -include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
 -include_lib("wapi_bouncer_data.hrl").
@@ -33,8 +29,7 @@
 % common-api is used since it is the domain used in production RN
 % TODO: change to wallet-api (or just omit since it is the default one) when new tokens will be a thing
 -define(DOMAIN, <<"common-api">>).
--define(badresp(Code), {error, {invalid_response_code, Code}}).
--define(emptyresp(Code), {error, {Code, #{}}}).
+-define(EMPTY_RESP(Code), {error, {Code, #{}}}).
 
 -type test_case_name() :: atom().
 -type config() :: [{atom(), any()}].
@@ -79,11 +74,6 @@ end_per_suite(C) ->
 
 -spec init_per_group(group_name(), config()) -> config().
 init_per_group(Group, Config) when Group =:= base ->
-    ok = wapi_context:save(
-        wapi_context:create(#{
-            woody_context => woody_context:new(<<"init_per_group/", (atom_to_binary(Group, utf8))/binary>>)
-        })
-    ),
     Party = genlib:bsuuid(),
     {ok, Token} = wapi_ct_helper:issue_token(Party, [{[party], write}], unlimited, ?DOMAIN),
     Config1 = [{party, Party} | Config],
@@ -98,12 +88,10 @@ end_per_group(_Group, _C) ->
 -spec init_per_testcase(test_case_name(), config()) -> config().
 init_per_testcase(Name, C) ->
     C1 = wapi_ct_helper:makeup_cfg([wapi_ct_helper:test_case_name(Name), wapi_ct_helper:woody_ctx()], C),
-    ok = wapi_context:save(C1),
     [{test_sup, wapi_ct_helper:start_mocked_service_sup(?MODULE)} | C1].
 
--spec end_per_testcase(test_case_name(), config()) -> config().
+-spec end_per_testcase(test_case_name(), config()) -> ok.
 end_per_testcase(_Name, C) ->
-    ok = wapi_context:cleanup(),
     _ = wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
     ok.
 
@@ -217,7 +205,7 @@ reports_with_wrong_identity_ok_test(C) ->
         ],
         C
     ),
-    ?emptyresp(401) = call_api(
+    ?EMPTY_RESP(401) = call_api(
         fun swag_client_wallet_reports_api:create_report/3,
         #{
             binding => #{
@@ -231,7 +219,7 @@ reports_with_wrong_identity_ok_test(C) ->
         },
         wapi_ct_helper:cfg(context, C)
     ),
-    ?emptyresp(401) = call_api(
+    ?EMPTY_RESP(401) = call_api(
         fun swag_client_wallet_reports_api:get_report/3,
         #{
             binding => #{
@@ -241,7 +229,7 @@ reports_with_wrong_identity_ok_test(C) ->
         },
         wapi_ct_helper:cfg(context, C)
     ),
-    ?emptyresp(401) = call_api(
+    ?EMPTY_RESP(401) = call_api(
         fun swag_client_wallet_reports_api:get_reports/3,
         #{
             binding => #{

@@ -242,7 +242,7 @@ prepare(OperationID = 'GetWallet', #{'walletID' := WalletId}, Context, _Opts) ->
         wapi_handler_utils:reply_ok(200, ResultWallet)
     end,
     {ok, #{authorize => Authorize, process => Process}};
-prepare(OperationID = 'GetWalletByExternalID', #{externalID := ExternalID}, Context, _Opts) ->
+prepare(OperationID = 'GetWalletByExternalID', #{'externalID' := ExternalID}, Context, _Opts) ->
     {ResultWallet, ResultWalletOwner, WalletId} =
         case wapi_wallet_backend:get_by_external_id(ExternalID, Context) of
             {ok, Wallet = #{<<"id">> := ID}, Owner} -> {Wallet, Owner, ID};
@@ -940,7 +940,7 @@ prepare(
         end
     end,
     {ok, #{authorize => Authorize, process => Process}};
-prepare(OperationID = 'GetW2WTransfer', #{w2wTransferID := W2WTransferId}, Context, _Opts) ->
+prepare(OperationID = 'GetW2WTransfer', #{'w2wTransferID' := W2WTransferId}, Context, _Opts) ->
     {ResultW2WTransfer, ResultW2WTransferOwner} =
         case wapi_w2w_backend:get_transfer(W2WTransferId, Context) of
             {ok, W2WTransfer, Owner} -> {W2WTransfer, Owner};
@@ -997,7 +997,7 @@ prepare(
         end
     end,
     {ok, #{authorize => Authorize, process => Process}};
-prepare(OperationID = 'GetWebhooks', #{identityID := IdentityID}, Context, _Opts) ->
+prepare(OperationID = 'GetWebhooks', #{'identityID' := IdentityID}, Context, _Opts) ->
     AuthContext = build_auth_context([{identity, IdentityID}], [], Context),
     Authorize = fun() ->
         Prototypes = [
@@ -1014,7 +1014,7 @@ prepare(OperationID = 'GetWebhooks', #{identityID := IdentityID}, Context, _Opts
         end
     end,
     {ok, #{authorize => Authorize, process => Process}};
-prepare(OperationID = 'GetWebhookByID', #{identityID := IdentityID, webhookID := WebhookID}, Context, _Opts) ->
+prepare(OperationID = 'GetWebhookByID', #{'identityID' := IdentityID, 'webhookID' := WebhookID}, Context, _Opts) ->
     AuthContext = build_auth_context(
         [
             {identity, IdentityID},
@@ -1042,7 +1042,7 @@ prepare(OperationID = 'GetWebhookByID', #{identityID := IdentityID, webhookID :=
     {ok, #{authorize => Authorize, process => Process}};
 prepare(
     OperationID = 'DeleteWebhookByID',
-    #{identityID := IdentityID, webhookID := WebhookID},
+    #{'identityID' := IdentityID, 'webhookID' := WebhookID},
     Context,
     _Opts
 ) ->
@@ -1072,7 +1072,7 @@ prepare(
     end,
     {ok, #{authorize => Authorize, process => Process}};
 %% Reports
-prepare(OperationID = 'CreateReport', Req = #{identityID := IdentityID}, Context, _Opts) ->
+prepare(OperationID = 'CreateReport', Req = #{'identityID' := IdentityID}, Context, _Opts) ->
     AuthContext = build_auth_context([{identity, IdentityID}], [], Context),
     Authorize = fun() ->
         Prototypes = [
@@ -1110,8 +1110,8 @@ prepare(OperationID = 'CreateReport', Req = #{identityID := IdentityID}, Context
 prepare(
     OperationID = 'GetReport',
     #{
-        identityID := IdentityID,
-        reportID := ReportId
+        'identityID' := IdentityID,
+        'reportID' := ReportId
     },
     Context,
     _Opts
@@ -1143,7 +1143,7 @@ prepare(
         wapi_handler_utils:reply_ok(200, ResultReport)
     end,
     {ok, #{authorize => Authorize, process => Process}};
-prepare(OperationID = 'GetReports', Req = #{identityID := IdentityID}, Context, _Opts) ->
+prepare(OperationID = 'GetReports', Req = #{'identityID' := IdentityID}, Context, _Opts) ->
     AuthContext = build_auth_context([{identity, IdentityID}], [], Context),
     Authorize = fun() ->
         Prototypes = [
@@ -1178,7 +1178,7 @@ prepare(OperationID = 'GetReports', Req = #{identityID := IdentityID}, Context, 
         end
     end,
     {ok, #{authorize => Authorize, process => Process}};
-prepare(OperationID = 'DownloadFile', #{fileID := FileId}, Context, _Opts) ->
+prepare(OperationID = 'DownloadFile', #{'fileID' := FileId}, Context, _Opts) ->
     Authorize = fun() ->
         Prototypes = [{operation, #{id => OperationID}}],
         Resolution = wapi_auth:authorize_operation(Prototypes, Context),

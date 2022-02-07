@@ -1,13 +1,13 @@
 -module(wapi_withdrawal_backend).
 
 -define(DOMAIN, <<"wallet-api">>).
--define(event(ID, Timestamp, Change), #wthd_Event{
+-define(EVENT(ID, Timestamp, Change), #wthd_Event{
     event_id = ID,
     occured_at = Timestamp,
     change = Change
 }).
 
--define(statusChange(Status), {status_changed, #wthd_StatusChange{status = Status}}).
+-define(STATUS_CHANGE(Status), {status_changed, #wthd_StatusChange{status = Status}}).
 
 -type req_data() :: wapi_handler:req_data().
 -type handler_context() :: wapi_handler:context().
@@ -238,11 +238,11 @@ collect_events(WithdrawalId, {Cursor, Limit}, HandlerContext, AccEvents) ->
         {ok, []} ->
             {ok, AccEvents};
         {ok, Events} ->
-            ?event(NewCursor, _, _) = lists:last(Events),
+            ?EVENT(NewCursor, _, _) = lists:last(Events),
             collect_events(WithdrawalId, {NewCursor, Limit - length(Events)}, HandlerContext, AccEvents ++ Events)
     end.
 
-event_filter(?event(_, _, ?statusChange(_))) ->
+event_filter(?EVENT(_, _, ?STATUS_CHANGE(_))) ->
     true;
 event_filter(_) ->
     false.
@@ -421,7 +421,7 @@ unmarshal(quote, #wthd_Quote{
         <<"createdAt">> => CreatedAt,
         <<"expiresOn">> => ExpiresOn
     };
-unmarshal(event, ?event(EventId, OccuredAt, ?statusChange(Status))) ->
+unmarshal(event, ?EVENT(EventId, OccuredAt, ?STATUS_CHANGE(Status))) ->
     genlib_map:compact(#{
         <<"eventID">> => EventId,
         <<"occuredAt">> => OccuredAt,

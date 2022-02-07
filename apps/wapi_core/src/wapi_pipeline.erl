@@ -33,7 +33,7 @@ do(Fun) ->
         R ->
             {ok, R}
     catch
-        Thrown -> {error, Thrown}
+        throw:Thrown -> {error, Thrown}
     end.
 
 -spec do(Tag, fun(() -> ok | T | thrown(E))) -> ok | result(T, {Tag, E}).

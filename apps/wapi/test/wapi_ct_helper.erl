@@ -100,10 +100,10 @@ init_suite(Module, Config) ->
             start_app(woody) ++
             start_app({wapi, Config}) ++
             wapi_ct_helper_token_keeper:mock_user_session_token(SupPid),
-    wapi_ct_helper_bouncer:mock_client(SupPid),
+    _ = wapi_ct_helper_bouncer:mock_client(SupPid),
     [{apps, lists:reverse(Apps1)}, {suite_test_sup, SupPid} | Config].
 
--spec start_app(app_name()) -> [app_name()].
+-spec start_app(app_name() | {app_name(), config()}) -> [app_name()].
 start_app(scoper = AppName) ->
     start_app_with(AppName, [
         {storage, scoper_storage_logger}
@@ -307,7 +307,7 @@ get_lifetime(YY, MM, DD) ->
         <<"days">> => DD
     }.
 
--spec create_auth_ctx(ff_party:id()) -> wapi_handler:context().
+-spec create_auth_ctx(binary()) -> #{swagger_context => wapi_handler:swagger_context()}.
 create_auth_ctx(PartyID) ->
     #{
         swagger_context => #{auth_context => {?STRING, PartyID, #{}}}

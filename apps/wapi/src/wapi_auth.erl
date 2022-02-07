@@ -24,8 +24,8 @@
     | forbidden
     | {forbidden, _Reason}.
 
--define(authorized(Ctx), {authorized, Ctx}).
--define(unauthorized(Ctx), {unauthorized, Ctx}).
+-define(AUTHORIZED(Ctx), {authorized, Ctx}).
+-define(UNAUTHORIZED(Ctx), {unauthorized, Ctx}).
 
 %%
 
@@ -39,15 +39,15 @@ get_subject_id(AuthContext) ->
     end.
 
 -spec get_party_id(auth_context()) -> binary() | undefined.
-get_party_id(?authorized(AuthData)) ->
+get_party_id(?AUTHORIZED(AuthData)) ->
     get_metadata(get_metadata_mapped_key(party_id), token_keeper_auth_data:get_metadata(AuthData)).
 
 -spec get_user_id(auth_context()) -> binary() | undefined.
-get_user_id(?authorized(AuthData)) ->
+get_user_id(?AUTHORIZED(AuthData)) ->
     get_metadata(get_metadata_mapped_key(user_id), token_keeper_auth_data:get_metadata(AuthData)).
 
 -spec get_user_email(auth_context()) -> binary() | undefined.
-get_user_email(?authorized(AuthData)) ->
+get_user_email(?AUTHORIZED(AuthData)) ->
     get_metadata(get_metadata_mapped_key(user_email), token_keeper_auth_data:get_metadata(AuthData)).
 
 %%
@@ -56,14 +56,14 @@ get_user_email(?authorized(AuthData)) ->
 preauthorize_api_key(ApiKey) ->
     case parse_api_key(ApiKey) of
         {ok, Token} ->
-            {ok, ?unauthorized(Token)};
+            {ok, ?UNAUTHORIZED(Token)};
         {error, Error} ->
             {error, Error}
     end.
 
 -spec authorize_api_key(preauth_context(), token_keeper_client:source_context(), woody_context:ctx()) ->
     {ok, auth_context()} | {error, _Reason}.
-authorize_api_key(?unauthorized({TokenType, Token}), TokenContext, WoodyContext) ->
+authorize_api_key(?UNAUTHORIZED({TokenType, Token}), TokenContext, WoodyContext) ->
     authorize_token_by_type(TokenType, Token, TokenContext, WoodyContext).
 
 authorize_token_by_type(bearer, Token, TokenContext, WoodyContext) ->
@@ -93,7 +93,7 @@ authorize_operation(Prototypes, Context) ->
 
 %%
 
-get_token_keeper_fragment(?authorized(AuthData)) ->
+get_token_keeper_fragment(?AUTHORIZED(AuthData)) ->
     token_keeper_auth_data:get_context_fragment(AuthData).
 
 extract_auth_context(#{swagger_context := #{auth_context := AuthContext}}) ->
