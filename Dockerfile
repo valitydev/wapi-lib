@@ -29,6 +29,9 @@ ARG SERVICE_NAME
 ENV CHARSET=UTF-8
 ENV LANG=C.UTF-8
 
+# Expose SERVICE_NAME as env so CMD expands properly on start
+ENV SERVICE_NAME=${SERVICE_NAME}
+
 # Set runtime
 WORKDIR /opt/${SERVICE_NAME}
 
