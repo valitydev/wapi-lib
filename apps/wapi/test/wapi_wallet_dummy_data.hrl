@@ -41,11 +41,6 @@
     }
 }).
 
--define(IDENTITY_CLASS, #'provider_IdentityClass'{
-    id = ?STRING,
-    name = ?STRING
-}).
-
 -define(PROVIDER, #provider_Provider{
     id = ?STRING,
     name = ?STRING,
@@ -149,7 +144,14 @@
     }}
 ).
 
+-define(DIGITAL_WALLET, #'DigitalWallet'{
+    id = ?STRING,
+    token = ?STRING,
+    payment_service = #'PaymentServiceRef'{id = <<"Webmoney">>}
+}).
+
 -define(RESOURCE, {bank_card, ?BANK_CARD}).
+-define(RESOURCE_DIGITAL_WALLET, {digital_wallet, ?DIGITAL_WALLET}).
 
 -define(BIN(CardNumber), string:slice(CardNumber, 0, 6)).
 
@@ -255,6 +257,17 @@
             resource = ?RESOURCE,
             external_id = ?STRING,
             status = {unauthorized, #fistfulstat_Unauthorized{}}
+        },
+        #fistfulstat_StatDestination{
+            id = ?STRING,
+            name = ?STRING,
+            created_at = ?TIMESTAMP,
+            is_blocked = ?BOOLEAN,
+            identity = ?STRING,
+            currency_symbolic_code = ?RUB,
+            resource = ?RESOURCE_DIGITAL_WALLET,
+            external_id = ?STRING,
+            status = {unauthorized, #fistfulstat_Unauthorized{}}
         }
     ]}
 ).
@@ -266,9 +279,6 @@
             name = ?STRING,
             created_at = ?TIMESTAMP,
             provider = ?STRING,
-            identity_class = ?STRING,
-            identity_level = ?STRING,
-            effective_challenge = ?STRING,
             is_blocked = ?BOOLEAN,
             external_id = ?STRING
         }

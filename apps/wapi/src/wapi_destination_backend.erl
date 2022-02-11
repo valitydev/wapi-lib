@@ -139,14 +139,15 @@ construct_resource(
 construct_resource(
     #{
         <<"type">> := <<"DigitalWalletDestinationResource">>,
-        <<"id">> := DigitalWalletID
-    } = Resource
+        <<"id">> := DigitalWalletID,
+        <<"provider">> := Provider
+    }
 ) ->
     ConstructedResource =
         {digital_wallet, #{
             digital_wallet => #{
-                id => DigitalWalletID,
-                data => marshal_digital_wallet_data(Resource)
+                id => marshal(string, DigitalWalletID),
+                payment_service => #{id => marshal(string, Provider)}
             }
         }},
     {ok, wapi_codec:marshal(resource, ConstructedResource)}.
@@ -263,14 +264,14 @@ unmarshal(
     {digital_wallet, #'ResourceDigitalWallet'{
         digital_wallet = #'DigitalWallet'{
             id = DigitalWalletID,
-            data = Data
+            payment_service = #'PaymentServiceRef'{id = Provider}
         }
     }}
 ) ->
     #{
         <<"type">> => <<"DigitalWalletDestinationResource">>,
         <<"id">> => unmarshal(string, DigitalWalletID),
-        <<"provider">> => unmarshal_digital_wallet_data(Data)
+        <<"provider">> => unmarshal(string, Provider)
     };
 unmarshal(context, Context) ->
     wapi_codec:unmarshal(context, Context);
@@ -323,14 +324,3 @@ unmarshal_crypto_currency_params(ripple, #'CryptoDataRipple'{tag = Tag}) ->
     });
 unmarshal_crypto_currency_params(_Other, _Params) ->
     #{}.
-
-marshal_digital_wallet_data(Resource) ->
-    #{
-        <<"provider">> := Provider
-    } = Resource,
-    marshal_digital_wallet_provider(Provider).
-
-unmarshal_digital_wallet_data({webmoney, #'DigitalDataWebmoney'{}}) ->
-    <<"Webmoney">>.
-
-marshal_digital_wallet_provider(<<"Webmoney">>) -> {webmoney, #{}}.

@@ -267,9 +267,6 @@ unmarshal_response(identities, Response) ->
         <<"name">> => Response#fistfulstat_StatIdentity.name,
         <<"createdAt">> => Response#fistfulstat_StatIdentity.created_at,
         <<"provider">> => Response#fistfulstat_StatIdentity.provider,
-        <<"class">> => Response#fistfulstat_StatIdentity.identity_class,
-        <<"level">> => Response#fistfulstat_StatIdentity.identity_level,
-        <<"effectiveChallenge">> => Response#fistfulstat_StatIdentity.effective_challenge,
         <<"isBlocked">> => Response#fistfulstat_StatIdentity.is_blocked,
         <<"externalID">> => Response#fistfulstat_StatIdentity.external_id
     });
@@ -411,13 +408,10 @@ unmarshal_crypto_currency_name({zcash, _}) -> <<"Zcash">>.
 
 unmarshal_digital_wallet(#'DigitalWallet'{
     id = DigitalWalletID,
-    data = Data
+    payment_service = #'PaymentServiceRef'{id = Provider}
 }) ->
     #{
         <<"type">> => <<"DigitalWalletDestinationResource">>,
         <<"id">> => DigitalWalletID,
-        <<"provider">> => unmarshal_digital_wallet_data(Data)
+        <<"provider">> => Provider
     }.
-
-unmarshal_digital_wallet_data({webmoney, #'DigitalDataWebmoney'{}}) ->
-    <<"Webmoney">>.

@@ -128,10 +128,11 @@ marshal(crypto_wallet, #{id := ID, data := Data}) ->
         data = marshal(crypto_data, Data),
         currency = marshal(crypto_currency, Data)
     };
-marshal(digital_wallet, #{id := ID, data := Data}) ->
+marshal(digital_wallet, Wallet = #{id := ID, payment_service := PaymentService}) ->
     #'DigitalWallet'{
         id = marshal(string, ID),
-        data = marshal(digital_data, Data)
+        token = maybe_marshal(string, maps:get(token, Wallet, undefined)),
+        payment_service = marshal(payment_service, PaymentService)
     };
 marshal(exp_date, {Month, Year}) ->
     #'BankCardExpDate'{
@@ -156,10 +157,12 @@ marshal(crypto_data, {ripple, Data}) ->
     {ripple, #'CryptoDataRipple'{
         tag = maybe_marshal(string, maps:get(tag, Data, undefined))
     }};
-marshal(digital_data, {webmoney, #{}}) ->
-    {webmoney, #'DigitalDataWebmoney'{}};
 marshal(payment_system, #{id := Ref}) when is_binary(Ref) ->
     #'PaymentSystemRef'{
+        id = Ref
+    };
+marshal(payment_service, #{id := Ref}) when is_binary(Ref) ->
+    #'PaymentServiceRef'{
         id = Ref
     };
 marshal(payment_system_deprecated, V) when is_atom(V) ->

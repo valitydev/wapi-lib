@@ -51,6 +51,7 @@ map_error_type(wrong_length) -> <<"WrongLength">>;
 map_error_type(wrong_size) -> <<"WrongSize">>;
 map_error_type(schema_violated) -> <<"SchemaViolated">>;
 map_error_type(wrong_type) -> <<"WrongType">>;
+map_error_type(wrong_body) -> <<"WrongBody">>;
 map_error_type(wrong_array) -> <<"WrongArray">>.
 
 mask_notfound(Resolution) ->
@@ -183,8 +184,6 @@ prepare(OperationID = 'CreateIdentity', #{'Identity' := Params}, Context, Opts) 
                 wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Party does not exist">>));
             {error, {provider, notfound}} ->
                 wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such provider">>));
-            {error, {identity_class, notfound}} ->
-                wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity class">>));
             {error, inaccessible} ->
                 wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Identity inaccessible">>));
             {error, {external_id_conflict, ID}} ->
