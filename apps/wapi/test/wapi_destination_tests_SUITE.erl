@@ -435,7 +435,7 @@ generate_identity(PartyID) ->
 
 generate_context(PartyID) ->
     #{
-        <<"dev.vality.wapi">> =>
+        ?CTX_NS =>
             {obj, #{
                 {str, <<"owner">>} => {str, PartyID},
                 {str, <<"name">>} => {str, uniq()},
