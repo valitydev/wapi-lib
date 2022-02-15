@@ -148,7 +148,7 @@
 -define(DIGITAL_WALLET, #'DigitalWallet'{
     id = ?STRING,
     token = ?STRING,
-    payment_service = #'PaymentServiceRef'{id = <<"Webmoney">>}
+    payment_service = #'PaymentServiceRef'{id = <<"nomoney">>}
 }).
 
 -define(RESOURCE, {bank_card, ?BANK_CARD}).
