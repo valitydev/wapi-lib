@@ -16,7 +16,6 @@
 -export([init_suite/2]).
 -export([start_app/1]).
 -export([start_app/2]).
--export([issue_token/4]).
 -export([get_context/1]).
 -export([get_keysource/2]).
 -export([start_mocked_service_sup/1]).
@@ -98,8 +97,7 @@ init_suite(Module, Config) ->
     Apps1 =
         start_app(scoper) ++
             start_app(woody) ++
-            start_app({wapi, Config}) ++
-            wapi_ct_helper_token_keeper:mock_user_session_token(SupPid),
+            start_app({wapi, Config}),
     _ = wapi_ct_helper_bouncer:mock_client(SupPid),
     [{apps, lists:reverse(Apps1)}, {suite_test_sup, SupPid} | Config].
 
@@ -178,24 +176,6 @@ set_app_env(AppName, Env) ->
 get_keysource(Key, Config) ->
     filename:join(?config(data_dir, Config), Key).
 
-% TODO: spec
--spec issue_token(_, _, _, _) ->
-    {ok, binary()}
-    | {error, nonexistent_signee}.
-issue_token(PartyID, ACL, LifeTime, Domain) ->
-    Claims = #{
-        <<"exp">> => LifeTime,
-        <<"resource_access">> => #{
-            Domain => uac_acl:from_list(ACL)
-        }
-    },
-    uac_authorizer_jwt:issue(
-        wapi_utils:get_unique_id(),
-        PartyID,
-        Claims,
-        ?SIGNEE
-    ).
-
 -spec get_context(binary()) -> wapi_client_lib:context().
 get_context(Token) ->
     wapi_client_lib:get_context(?WAPI_URL, Token, 10000, ipv4).
@@ -256,7 +236,7 @@ mock_services_(Services, SupPid) when is_pid(SupPid) ->
                     Acc#{ServiceName => make_url(ServiceName, Port)};
                 org_management ->
                     Acc#{ServiceName => make_url(ServiceName, Port)};
-                token_keeper ->
+                token_authenticator ->
                     Acc#{ServiceName => make_url(ServiceName, Port)};
                 bender_thrift ->
                     Acc#{ServiceName => #{'Bender' => make_url(ServiceName, Port)}};
@@ -276,8 +256,8 @@ get_service_name({ServiceName, _WoodyService, _Fun}) ->
 
 mock_service_handler({ServiceName = bender_thrift, Fun}) ->
     mock_service_handler(ServiceName, {bender_thrift, 'Bender'}, Fun);
-mock_service_handler({ServiceName = token_keeper, Fun}) ->
-    mock_service_handler(ServiceName, {tk_token_keeper_thrift, 'TokenKeeper'}, Fun);
+mock_service_handler({ServiceName = token_authenticator, Fun}) ->
+    mock_service_handler(ServiceName, {tk_token_keeper_thrift, 'TokenAuthenticator'}, Fun);
 mock_service_handler({ServiceName = bouncer, Fun}) ->
     mock_service_handler(ServiceName, {bouncer_decisions_thrift, 'Arbiter'}, Fun);
 mock_service_handler({ServiceName = org_management, Fun}) ->

@@ -10,7 +10,7 @@
 %%
 
 -spec gather_context_fragments(
-    TokenContextFragment :: token_keeper_auth_data:context_fragment(),
+    TokenContextFragment :: token_keeper_client:context_fragment(),
     UserID :: binary() | undefined,
     RequestContext :: swag_server_wallet:request_context(),
     WoodyContext :: woody_context:ctx()

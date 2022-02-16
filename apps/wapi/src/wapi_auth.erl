@@ -1,9 +1,10 @@
 -module(wapi_auth).
 
+-define(APP, wapi).
+
 -export([get_subject_id/1]).
 -export([get_party_id/1]).
 -export([get_user_id/1]).
--export([get_user_email/1]).
 
 -export([preauthorize_api_key/1]).
 -export([authorize_api_key/3]).
@@ -16,7 +17,7 @@
 %%
 
 -type token_type() :: bearer.
--type auth_context() :: {authorized, token_keeper_auth_data:auth_data()}.
+-type auth_context() :: {authorized, token_keeper_client:auth_data()}.
 -type preauth_context() :: {unauthorized, {token_type(), token_keeper_client:token()}}.
 
 -type resolution() ::
@@ -39,16 +40,12 @@ get_subject_id(AuthContext) ->
     end.
 
 -spec get_party_id(auth_context()) -> binary() | undefined.
-get_party_id(?AUTHORIZED(AuthData)) ->
-    get_metadata(get_metadata_mapped_key(party_id), token_keeper_auth_data:get_metadata(AuthData)).
+get_party_id(?AUTHORIZED(#{metadata := Metadata})) ->
+    get_metadata(get_metadata_mapped_key(party_id), Metadata).
 
 -spec get_user_id(auth_context()) -> binary() | undefined.
-get_user_id(?AUTHORIZED(AuthData)) ->
-    get_metadata(get_metadata_mapped_key(user_id), token_keeper_auth_data:get_metadata(AuthData)).
-
--spec get_user_email(auth_context()) -> binary() | undefined.
-get_user_email(?AUTHORIZED(AuthData)) ->
-    get_metadata(get_metadata_mapped_key(user_email), token_keeper_auth_data:get_metadata(AuthData)).
+get_user_id(?AUTHORIZED(#{metadata := Metadata})) ->
+    get_metadata(get_metadata_mapped_key(user_id), Metadata).
 
 %%
 
@@ -61,15 +58,16 @@ preauthorize_api_key(ApiKey) ->
             {error, Error}
     end.
 
--spec authorize_api_key(preauth_context(), token_keeper_client:source_context(), woody_context:ctx()) ->
+-spec authorize_api_key(preauth_context(), token_keeper_client:token_context(), woody_context:ctx()) ->
     {ok, auth_context()} | {error, _Reason}.
 authorize_api_key(?UNAUTHORIZED({TokenType, Token}), TokenContext, WoodyContext) ->
     authorize_token_by_type(TokenType, Token, TokenContext, WoodyContext).
 
 authorize_token_by_type(bearer, Token, TokenContext, WoodyContext) ->
-    case token_keeper_client:get_by_token(Token, TokenContext, WoodyContext) of
+    Authenticator = token_keeper_client:authenticator(WoodyContext),
+    case token_keeper_authenticator:authenticate(Token, TokenContext, Authenticator) of
         {ok, AuthData} ->
-            {ok, {authorized, AuthData}};
+            {ok, ?AUTHORIZED(AuthData)};
         {error, TokenKeeperError} ->
             _ = logger:warning("Token keeper authorization failed: ~p", [TokenKeeperError]),
             {error, {auth_failed, TokenKeeperError}}
@@ -93,8 +91,8 @@ authorize_operation(Prototypes, Context) ->
 
 %%
 
-get_token_keeper_fragment(?AUTHORIZED(AuthData)) ->
-    token_keeper_auth_data:get_context_fragment(AuthData).
+get_token_keeper_fragment(?AUTHORIZED(#{context := Context})) ->
+    Context.
 
 extract_auth_context(#{swagger_context := #{auth_context := AuthContext}}) ->
     AuthContext.
@@ -113,5 +111,5 @@ get_metadata_mapped_key(Key) ->
     maps:get(Key, get_meta_mappings()).
 
 get_meta_mappings() ->
-    AuthConfig = genlib_app:env(wapi, auth_config),
+    AuthConfig = genlib_app:env(?APP, auth_config),
     maps:get(metadata_mappings, AuthConfig).

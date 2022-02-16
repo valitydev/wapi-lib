@@ -66,9 +66,8 @@ end_per_suite(C) ->
 -spec init_per_group(group_name(), config()) -> config().
 init_per_group(Group, Config) when Group =:= base ->
     Party = genlib:bsuuid(),
-    {ok, Token} = wapi_ct_helper:issue_token(Party, [{[party], write}], unlimited, ?DOMAIN),
     Config1 = [{party, Party} | Config],
-    [{context, wapi_ct_helper:get_context(Token)} | Config1];
+    [{context, wapi_ct_helper:get_context(?API_TOKEN)} | Config1];
 init_per_group(_, Config) ->
     Config.
 
