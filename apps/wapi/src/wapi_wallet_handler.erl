@@ -458,6 +458,12 @@ prepare(
                     <<"errorType">> => <<"InvalidResourceToken">>,
                     <<"name">> => Type,
                     <<"description">> => <<"Specified resource token is invalid">>
+                });
+            {error, {invalid_generic_resource, {Type, unknown_resource}}} ->
+                wapi_handler_utils:reply_ok(400, #{
+                    <<"errorType">> => <<"SchemaViolated">>,
+                    <<"name">> => Type,
+                    <<"description">> => <<"Unknown resource">>
                 })
         end
     end,

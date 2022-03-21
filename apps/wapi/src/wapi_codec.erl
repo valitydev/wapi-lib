@@ -90,6 +90,10 @@ marshal(resource, {digital_wallet, #{digital_wallet := DigitalWallet}}) ->
     {digital_wallet, #'ResourceDigitalWallet'{
         digital_wallet = marshal(digital_wallet, DigitalWallet)
     }};
+marshal(resource, {generic, #{generic := GenericResource}}) ->
+    {generic, #'ResourceGeneric'{
+        generic = marshal(generic_resource, GenericResource)
+    }};
 marshal(resource_descriptor, {bank_card, BinDataID}) ->
     {bank_card, #'ResourceDescriptorBankCard'{
         bin_data_id = marshal(msgpack, BinDataID)
@@ -133,6 +137,17 @@ marshal(digital_wallet, Wallet = #{id := ID, payment_service := PaymentService})
         id = marshal(string, ID),
         token = maybe_marshal(string, maps:get(token, Wallet, undefined)),
         payment_service = marshal(payment_service, PaymentService)
+    };
+marshal(generic_resource, Resource = #{payment_service := PaymentService}) ->
+    Data = maybe_marshal(content, maps:get(data, Resource, undefined)),
+    #'ResourceGenericData'{
+        provider = marshal(payment_service, PaymentService),
+        data = Data
+    };
+marshal(content, #{type := Type, data := Data}) ->
+    #'Content'{
+        type = marshal(string, Type),
+        data = Data
     };
 marshal(exp_date, {Month, Year}) ->
     #'BankCardExpDate'{
@@ -265,6 +280,14 @@ unmarshal(resource, {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = Cryp
     {crypto_wallet, #{
         crypto_wallet => unmarshal(crypto_wallet, CryptoWallet)
     }};
+unmarshal(resource, {digital_wallet, #'ResourceDigitalWallet'{digital_wallet = DigitalWallet}}) ->
+    {digital_wallet, #{
+        digital_wallet => unmarshal(digital_wallet, DigitalWallet)
+    }};
+unmarshal(resource, {generic, #'ResourceGeneric'{generic = GenericResource}}) ->
+    {generic, #{
+        generic => unmarshal(generic_resource, GenericResource)
+    }};
 unmarshal(resource_descriptor, {bank_card, BankCard}) ->
     {bank_card, unmarshal(msgpack, BankCard#'ResourceDescriptorBankCard'.bin_data_id)};
 unmarshal(bank_card_auth_data, {session_data, #'SessionAuthData'{id = ID}}) ->
@@ -336,6 +359,32 @@ unmarshal(currency_ref, #'CurrencyRef'{
     symbolic_code = SymbolicCode
 }) ->
     unmarshal(string, SymbolicCode);
+unmarshal(digital_wallet, #'DigitalWallet'{
+    id = ID,
+    token = Token,
+    payment_service = PaymentService
+}) ->
+    genlib_map:compact(#{
+        id => unmarshal(string, ID),
+        token => maybe_marshal(string, Token),
+        payment_service => unmarshal(payment_service, PaymentService)
+    });
+unmarshal(generic_resource, #'ResourceGenericData'{
+    provider = PaymentService,
+    data = Data
+}) ->
+    genlib_map:compact(#{
+        data => maybe_marshal(content, Data),
+        payment_service => unmarshal(payment_service, PaymentService)
+    });
+unmarshal(content, #'Content'{
+    type = Type,
+    data = Data
+}) ->
+    #{
+        type => unmarshal(string, Type),
+        data => Data
+    };
 unmarshal(amount, V) ->
     unmarshal(integer, V);
 unmarshal(failure, Failure) ->

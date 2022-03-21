@@ -19,6 +19,8 @@
 
 -export([init/1]).
 
+-export([create_extension_destination_ok_test/1]).
+-export([create_extension_destination_fail_unknown_resource_test/1]).
 -export([create_destination_ok_test/1]).
 -export([create_destination_fail_resource_token_invalid_test/1]).
 -export([create_destination_fail_resource_token_expire_test/1]).
@@ -40,6 +42,8 @@
 % common-api is used since it is the domain used in production RN
 % TODO: change to wallet-api (or just omit since it is the default one) when new tokens will be a thing
 -define(DOMAIN, <<"common-api">>).
+-define(GENERIC_RESOURCE_TYPE, <<"BankTransferGeneric">>).
+-define(GENERIC_RESOURCE_NAME, <<"GenericBankAccount">>).
 
 -type test_case_name() :: atom().
 -type config() :: [{atom(), any()}].
@@ -61,6 +65,8 @@ all() ->
 groups() ->
     [
         {base, [], [
+            create_extension_destination_ok_test,
+            create_extension_destination_fail_unknown_resource_test,
             create_destination_ok_test,
             create_destination_fail_resource_token_invalid_test,
             create_destination_fail_resource_token_expire_test,
@@ -110,16 +116,96 @@ end_per_group(_Group, C) ->
     ok.
 
 -spec init_per_testcase(test_case_name(), config()) -> config().
+init_per_testcase(Name, C) when
+    Name =:= create_extension_destination_ok_test orelse
+        Name =:= create_extension_destination_fail_unknown_resource_test
+->
+    meck:new(swag_server_wallet_schema, [no_link, passthrough]),
+    meck:new(swag_client_wallet_schema, [no_link, passthrough]),
+    makeup_and_start_mock_per_testcase(Name, C);
 init_per_testcase(Name, C) ->
+    makeup_and_start_mock_per_testcase(Name, C).
+
+-spec end_per_testcase(test_case_name(), config()) -> ok.
+end_per_testcase(Name, C) when
+    Name =:= create_extension_destination_ok_test orelse
+        Name =:= create_extension_destination_fail_unknown_resource_test
+->
+    meck:unload(swag_server_wallet_schema),
+    meck:unload(swag_client_wallet_schema),
+    end_mock_per_testcase(C);
+end_per_testcase(_Name, C) ->
+    end_mock_per_testcase(C).
+
+makeup_and_start_mock_per_testcase(Name, C) ->
     C1 = wapi_ct_helper:makeup_cfg([wapi_ct_helper:test_case_name(Name), wapi_ct_helper:woody_ctx()], C),
     [{test_sup, wapi_ct_helper:start_mocked_service_sup(?MODULE)} | C1].
 
--spec end_per_testcase(test_case_name(), config()) -> ok.
-end_per_testcase(_Name, C) ->
+end_mock_per_testcase(C) ->
     wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),
     ok.
 
 %%% Tests
+
+-spec create_extension_destination_ok_test(config()) -> _.
+create_extension_destination_ok_test(C) ->
+    Ref = <<"#/definitions/", ?GENERIC_RESOURCE_NAME/binary>>,
+    ResourceSchema = #{
+        <<"allOf">> =>
+            [
+                #{
+                    <<"$ref">> => <<"#/definitions/DestinationResource">>
+                },
+                #{
+                    <<"$ref">> => Ref
+                }
+            ],
+        <<"x-vality-genericMethod">> =>
+            #{
+                <<"schema">> =>
+                    #{
+                        <<"id">> => <<"https://some.link">>,
+                        <<"allOf">> =>
+                            [
+                                #{
+                                    <<"$ref">> => Ref
+                                }
+                            ]
+                    }
+            }
+    },
+    mock_generic_schema(ResourceSchema),
+    Destination = make_destination(C, generic),
+    _ = create_destination_start_mocks(C, {ok, Destination}),
+    ?assertMatch(
+        {ok, _},
+        create_destination_call_api(C, Destination)
+    ).
+
+-spec create_extension_destination_fail_unknown_resource_test(config()) -> _.
+create_extension_destination_fail_unknown_resource_test(C) ->
+    Ref = <<"#/definitions/", ?GENERIC_RESOURCE_NAME/binary>>,
+    ResourceSchema = #{
+        <<"allOf">> => [
+            #{
+                <<"$ref">> => <<"#/definitions/DestinationResource">>
+            },
+            #{
+                <<"$ref">> => Ref
+            }
+        ]
+    },
+    mock_generic_schema(ResourceSchema),
+    Destination = make_destination(C, generic),
+    _ = create_destination_start_mocks(C, {ok, Destination}),
+    ?assertMatch(
+        {error,
+            {400, #{
+                <<"errorType">> := <<"SchemaViolated">>,
+                <<"description">> := <<"Unknown resource">>
+            }}},
+        create_destination_call_api(C, Destination)
+    ).
 
 -spec create_destination_ok_test(config()) -> _.
 create_destination_ok_test(C) ->
@@ -399,6 +485,9 @@ build_resource_spec({digital_wallet, R}) ->
         <<"provider">> =>
             ((R#'ResourceDigitalWallet'.digital_wallet)#'DigitalWallet'.payment_service)#'PaymentServiceRef'.id
     };
+build_resource_spec({generic, #'ResourceGeneric'{generic = #'ResourceGenericData'{data = Data}}}) ->
+    #'Content'{data = Params} = Data,
+    jsx:decode(Params);
 build_resource_spec(Token) ->
     #{
         <<"type">> => <<"BankCardDestinationResource">>,
@@ -467,6 +556,19 @@ generate_destination(IdentityID, Resource, Context) ->
         context = Context
     }.
 
+generate_resource(generic) ->
+    Data = jsx:encode(#{
+        <<"type">> => ?GENERIC_RESOURCE_TYPE,
+        <<"accountNumber">> => <<"1233123">>
+    }),
+    ID = <<"https://some.link">>,
+    Type = <<"application/schema-instance+json; schema=", ID/binary>>,
+    {generic, #'ResourceGeneric'{
+        generic = #'ResourceGenericData'{
+            data = #'Content'{type = Type, data = Data},
+            provider = #'PaymentServiceRef'{id = ?GENERIC_RESOURCE_TYPE}
+        }
+    }};
 generate_resource(bank_card) ->
     {bank_card, #'ResourceBankCard'{
         bank_card = #'BankCard'{
@@ -586,3 +688,38 @@ get_destination_call_api(C) ->
         },
         wapi_ct_helper:cfg(context, C)
     ).
+
+mock_generic_schema(ResourceSchema) ->
+    Raw = swag_server_wallet_schema:get(),
+    Definitions = maps:get(<<"definitions">>, Raw),
+    Get = fun() ->
+        Raw#{
+            <<"definitions">> => Definitions#{
+                ?GENERIC_RESOURCE_TYPE => ResourceSchema,
+                ?GENERIC_RESOURCE_NAME => #{
+                    <<"type">> => <<"object">>,
+                    <<"required">> => [<<"accountNumber">>],
+                    <<"properties">> => #{
+                        <<"accountNumber">> => #{
+                            <<"type">> => <<"string">>,
+                            <<"example">> => <<"0071717">>,
+                            <<"pattern">> => <<"^\\d{7,8}$">>
+                        }
+                    }
+                },
+                <<"DestinationResource">> => #{
+                    <<"type">> => <<"object">>,
+                    <<"required">> => [<<"type">>],
+                    <<"discriminator">> => <<"type">>,
+                    <<"properties">> => #{
+                        <<"type">> => #{
+                            <<"type">> => <<"string">>,
+                            <<"enum">> => [?GENERIC_RESOURCE_TYPE]
+                        }
+                    }
+                }
+            }
+        }
+    end,
+    meck:expect(swag_server_wallet_schema, get, Get),
+    meck:expect(swag_client_wallet_schema, get, Get).

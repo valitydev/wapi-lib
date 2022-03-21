@@ -19,6 +19,7 @@
 -spec create(req_data(), handler_context()) -> {ok, response_data()} | {error, DestinationError} when
     DestinationError ::
         {invalid_resource_token, binary()}
+        | {invalid_generic_resource, {binary(), unknown_resource}}
         | {identity, notfound}
         | {currency, notfound}
         | inaccessible
@@ -150,12 +151,48 @@ construct_resource(
                 payment_service => #{id => marshal(string, Provider)}
             }
         }},
-    {ok, wapi_codec:marshal(resource, ConstructedResource)}.
+    {ok, wapi_codec:marshal(resource, ConstructedResource)};
+construct_resource(
+    Resource = #{
+        <<"type">> := GenericResourceType
+    }
+) ->
+    case prepare_generic_resource_data(GenericResourceType, Resource) of
+        {ok, Data} ->
+            ConstructedResource =
+                {generic, #{
+                    generic => #{
+                        payment_service => #{id => marshal(string, GenericResourceType)},
+                        data => Data
+                    }
+                }},
+            {ok, wapi_codec:marshal(resource, ConstructedResource)};
+        {error, Error} ->
+            {error, {invalid_generic_resource, {GenericResourceType, Error}}}
+    end.
 
 tokenize_resource({bank_card, #'ResourceBankCard'{bank_card = BankCard}}) ->
     wapi_backend_utils:tokenize_resource({bank_card, BankCard});
 tokenize_resource(Value) ->
     wapi_backend_utils:tokenize_resource(Value).
+
+prepare_generic_resource_data(ResourceType, Resource) ->
+    Schema = swag_server_wallet_schema:get(),
+    Definitions = maps:get(<<"definitions">>, Schema),
+    ResourceSchema = maps:get(ResourceType, Definitions),
+    case maps:get(<<"x-vality-genericMethod">>, ResourceSchema, undefined) of
+        GenericMethodSchema when GenericMethodSchema =/= undefined ->
+            SchemaID =
+                case maps:get(<<"schema">>, GenericMethodSchema, #{}) of
+                    #{<<"id">> := ID} ->
+                        <<"application/schema-instance+json; schema=", ID/binary>>;
+                    _Empty ->
+                        <<"application/json">>
+                end,
+            {ok, #{type => SchemaID, data => jsx:encode(Resource)}};
+        undefined ->
+            {error, unknown_resource}
+    end.
 
 service_call(Params, Context) ->
     wapi_handler_utils:service_call(Params, Context).
@@ -273,6 +310,17 @@ unmarshal(
         <<"id">> => unmarshal(string, DigitalWalletID),
         <<"provider">> => unmarshal(string, Provider)
     };
+unmarshal(
+    resource,
+    {generic, #'ResourceGeneric'{
+        generic = #'ResourceGenericData'{
+            provider = #'PaymentServiceRef'{id = Provider},
+            data = #'Content'{data = Data}
+        }
+    }}
+) ->
+    Resource = jsx:decode(Data),
+    Resource#{<<"type">> => Provider};
 unmarshal(context, Context) ->
     wapi_codec:unmarshal(context, Context);
 unmarshal(T, V) ->
