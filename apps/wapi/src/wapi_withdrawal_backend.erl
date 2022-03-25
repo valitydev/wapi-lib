@@ -16,7 +16,7 @@
 -type external_id() :: binary().
 
 -type create_error() ::
-    {destination, notfound | unauthorized}
+    {destination, notfound | unauthorized | forbidden_withdrawal_method}
     | {wallet, notfound}
     | {external_id_conflict, id()}
     | {quote_invalid_party, _}
@@ -32,7 +32,7 @@
     | {destination_resource, {bin_data, not_found}}.
 
 -type create_quote_error() ::
-    {destination, notfound | unauthorized}
+    {destination, notfound | unauthorized | forbidden_withdrawal_method}
     | {wallet, notfound}
     | {forbidden_currency, _}
     | {forbidden_amount, _}
@@ -102,14 +102,16 @@ create(Params, Context, HandlerContext) ->
         {exception, #wthd_NoDestinationResourceInfo{}} ->
             {error, {destination_resource, {bin_data, not_found}}};
         {exception, #fistful_WalletInaccessible{id = WalletID}} ->
-            {error, {wallet, {inaccessible, WalletID}}}
+            {error, {wallet, {inaccessible, WalletID}}};
+        {exception, #fistful_ForbiddenWithdrawalMethod{}} ->
+            {error, {destination, forbidden_withdrawal_method}}
     end.
 
 -spec get(id(), handler_context()) ->
     {ok, response_data(), id()}
     | {error, {withdrawal, notfound}}.
 get(WithdrawalID, HandlerContext) ->
-    Request = {fistful_withdrawal, 'Get', {WithdrawalID, #'EventRange'{}}},
+    Request = {fistful_withdrawal, 'Get', {WithdrawalID, #'fistful_base_EventRange'{}}},
     case service_call(Request, HandlerContext) of
         {ok, WithdrawalThrift} ->
             {ok, Owner} = wapi_backend_utils:get_entity_owner(withdrawal, WithdrawalThrift),
@@ -175,7 +177,9 @@ create_quote(#{'WithdrawalQuoteParams' := Params}, HandlerContext) ->
         }} ->
             {error, {identity_providers_mismatch, {WalletProvider, DestinationProvider}}};
         {exception, #wthd_NoDestinationResourceInfo{}} ->
-            {error, {destination_resource, {bin_data, not_found}}}
+            {error, {destination_resource, {bin_data, not_found}}};
+        {exception, #fistful_ForbiddenWithdrawalMethod{}} ->
+            {error, {destination, forbidden_withdrawal_method}}
     end.
 
 -spec get_events(req_data(), handler_context()) ->
@@ -366,19 +370,19 @@ marshal_event_range(Cursor, Limit) when
     (is_integer(Cursor) orelse Cursor =:= undefined) andalso
         (is_integer(Limit) orelse Limit =:= undefined)
 ->
-    #'EventRange'{
+    #'fistful_base_EventRange'{
         'after' = Cursor,
         'limit' = Limit
     }.
 
 marshal_body(Body) ->
-    #'Cash'{
+    #'fistful_base_Cash'{
         amount = genlib:to_int(maps:get(<<"amount">>, Body)),
         currency = marshal_currency_ref(maps:get(<<"currency">>, Body))
     }.
 
 marshal_currency_ref(Currency) ->
-    #'CurrencyRef'{
+    #'fistful_base_CurrencyRef'{
         symbolic_code = Currency
     }.
 
@@ -440,7 +444,7 @@ maybe_unmarshal(_, undefined) ->
 maybe_unmarshal(T, V) ->
     unmarshal(T, V).
 
-unmarshal_body(#'Cash'{
+unmarshal_body(#'fistful_base_Cash'{
     amount = Amount,
     currency = Currency
 }) ->
@@ -449,7 +453,7 @@ unmarshal_body(#'Cash'{
         <<"currency">> => unmarshal_currency_ref(Currency)
     }.
 
-unmarshal_currency_ref(#'CurrencyRef'{
+unmarshal_currency_ref(#'fistful_base_CurrencyRef'{
     symbolic_code = Currency
 }) ->
     Currency.
@@ -458,7 +462,7 @@ unmarshal_status({pending, _}) ->
     #{<<"status">> => <<"Pending">>};
 unmarshal_status({succeeded, _}) ->
     #{<<"status">> => <<"Succeeded">>};
-unmarshal_status({failed, #wthd_status_Failed{failure = #'Failure'{code = Code, sub = Sub}}}) ->
+unmarshal_status({failed, #wthd_status_Failed{failure = #'fistful_base_Failure'{code = Code, sub = Sub}}}) ->
     #{
         <<"status">> => <<"Failed">>,
         <<"failure">> => genlib_map:compact(#{
@@ -469,7 +473,7 @@ unmarshal_status({failed, #wthd_status_Failed{failure = #'Failure'{code = Code, 
 
 unmarshal_subfailure(undefined) ->
     undefined;
-unmarshal_subfailure(#'SubFailure'{code = Code, sub = Sub}) ->
+unmarshal_subfailure(#'fistful_base_SubFailure'{code = Code, sub = Sub}) ->
     genlib_map:compact(#{
         <<"code">> => Code,
         <<"subError">> => unmarshal_subfailure(Sub)

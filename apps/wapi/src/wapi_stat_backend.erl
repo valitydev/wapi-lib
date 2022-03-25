@@ -346,8 +346,8 @@ unmarshal_destination_stat_status({authorized, _}) ->
 unmarshal_cash(Amount, Currency) when is_bitstring(Currency) ->
     #{<<"amount">> => Amount, <<"currency">> => Currency}.
 
-unmarshal_cash(#'Cash'{amount = Amount, currency = Currency}) ->
-    unmarshal_cash(Amount, Currency#'CurrencyRef'.symbolic_code).
+unmarshal_cash(#'fistful_base_Cash'{amount = Amount, currency = Currency}) ->
+    unmarshal_cash(Amount, Currency#'fistful_base_CurrencyRef'.symbolic_code).
 
 unmarshal_withdrawal_stat_status({pending, #fistfulstat_WithdrawalPending{}}) ->
     #{<<"status">> => <<"Pending">>};
@@ -376,7 +376,7 @@ unmarshal_resource({crypto_wallet, CryptoWallet}) ->
 unmarshal_resource({digital_wallet, DigitalWallet}) ->
     unmarshal_digital_wallet(DigitalWallet).
 
-unmarshal_bank_card(#'BankCard'{
+unmarshal_bank_card(#'fistful_base_BankCard'{
     token = Token,
     bin = Bin,
     masked_pan = MaskedPan
@@ -388,7 +388,7 @@ unmarshal_bank_card(#'BankCard'{
         <<"lastDigits">> => wapi_utils:get_last_pan_digits(MaskedPan)
     }).
 
-unmarshal_crypto_wallet(#'CryptoWallet'{
+unmarshal_crypto_wallet(#'fistful_base_CryptoWallet'{
     id = CryptoWalletID,
     data = Data
 }) ->
@@ -406,9 +406,9 @@ unmarshal_crypto_currency_name({ethereum, _}) -> <<"Ethereum">>;
 unmarshal_crypto_currency_name({usdt, _}) -> <<"USDT">>;
 unmarshal_crypto_currency_name({zcash, _}) -> <<"Zcash">>.
 
-unmarshal_digital_wallet(#'DigitalWallet'{
+unmarshal_digital_wallet(#'fistful_base_DigitalWallet'{
     id = DigitalWalletID,
-    payment_service = #'PaymentServiceRef'{id = Provider}
+    payment_service = #'fistful_base_PaymentServiceRef'{id = Provider}
 }) ->
     #{
         <<"type">> => <<"DigitalWalletDestinationResource">>,

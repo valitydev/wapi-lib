@@ -175,16 +175,16 @@ decode_resource(Token) ->
 -spec tokenize_resource(wapi_crypto:resource() | term()) -> integer().
 tokenize_resource({bank_card, BankCard}) ->
     Map = genlib_map:compact(#{
-        token => BankCard#'BankCard'.token,
-        bin => BankCard#'BankCard'.bin,
-        masked_pan => BankCard#'BankCard'.masked_pan,
-        cardholder_name => BankCard#'BankCard'.cardholder_name,
+        token => BankCard#'fistful_base_BankCard'.token,
+        bin => BankCard#'fistful_base_BankCard'.bin,
+        masked_pan => BankCard#'fistful_base_BankCard'.masked_pan,
+        cardholder_name => BankCard#'fistful_base_BankCard'.cardholder_name,
         %% ExpDate is optional in swag_wallets 'StoreBankCard'. But some adapters waiting exp_date.
         %% Add error, somethink like BankCardReject.exp_date_required
         exp_date =>
-            case BankCard#'BankCard'.exp_date of
+            case BankCard#'fistful_base_BankCard'.exp_date of
                 undefined -> undefined;
-                #'BankCardExpDate'{month = Month, year = Year} -> {Month, Year}
+                #'fistful_base_BankCardExpDate'{month = Month, year = Year} -> {Month, Year}
             end
     }),
     create_params_hash(Map);

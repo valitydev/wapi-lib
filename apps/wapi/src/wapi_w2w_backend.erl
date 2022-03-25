@@ -49,7 +49,7 @@ create_transfer(ID, Params, Context, HandlerContext) ->
 -spec get_transfer(id(), handler_context()) -> {ok, response_data(), id()} | {error, GetError} when
     GetError :: {w2w_transfer, {unknown_w2w_transfer, id()}}.
 get_transfer(ID, HandlerContext) ->
-    EventRange = #'EventRange'{},
+    EventRange = #'fistful_base_EventRange'{},
     Request = {fistful_w2w_transfer, 'Get', {ID, EventRange}},
     case service_call(Request, HandlerContext) of
         {ok, TransferThrift} ->
@@ -98,7 +98,7 @@ marshal(body, #{
     <<"amount">> := Amount,
     <<"currency">> := Currency
 }) ->
-    #'Cash'{
+    #'fistful_base_Cash'{
         amount = marshal(amount, Amount),
         currency = marshal(currency_ref, Currency)
     };
@@ -125,7 +125,7 @@ unmarshal(transfer, #w2w_transfer_W2WTransferState{
         <<"status">> => unmarshal(transfer_status, Status),
         <<"externalID">> => maybe_unmarshal(id, ExternalID)
     });
-unmarshal(body, #'Cash'{
+unmarshal(body, #'fistful_base_Cash'{
     amount = Amount,
     currency = Currency
 }) ->

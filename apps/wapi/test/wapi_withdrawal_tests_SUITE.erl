@@ -26,6 +26,7 @@
     create_fail_wallet_notfound/1,
     create_fail_destination_notfound/1,
     create_fail_destination_unauthorized/1,
+    create_fail_destination_withdrawal_method/1,
     create_fail_forbidden_operation_currency/1,
     create_fail_forbidden_operation_amount/1,
     create_fail_invalid_operation_amount/1,
@@ -40,6 +41,7 @@
     get_quote_fail_wallet_notfound/1,
     get_quote_fail_destination_notfound/1,
     get_quote_fail_destination_unauthorized/1,
+    get_quote_fail_destination_withdrawal_method/1,
     get_quote_fail_forbidden_operation_currency/1,
     get_quote_fail_forbidden_operation_amount/1,
     get_quote_fail_invalid_operation_amount/1,
@@ -78,6 +80,7 @@ groups() ->
             create_fail_wallet_notfound,
             create_fail_destination_notfound,
             create_fail_destination_unauthorized,
+            create_fail_destination_withdrawal_method,
             create_fail_forbidden_operation_currency,
             create_fail_forbidden_operation_amount,
             create_fail_invalid_operation_amount,
@@ -92,6 +95,7 @@ groups() ->
             get_quote_fail_wallet_notfound,
             get_quote_fail_destination_notfound,
             get_quote_fail_destination_unauthorized,
+            get_quote_fail_destination_withdrawal_method,
             get_quote_fail_forbidden_operation_currency,
             get_quote_fail_forbidden_operation_amount,
             get_quote_fail_invalid_operation_amount,
@@ -173,12 +177,20 @@ create_fail_destination_unauthorized(C) ->
         create_withdrawal_call_api(C)
     ).
 
+-spec create_fail_destination_withdrawal_method(config()) -> _.
+create_fail_destination_withdrawal_method(C) ->
+    _ = create_withdrawal_start_mocks(C, fun() -> {throwing, #fistful_ForbiddenWithdrawalMethod{}} end),
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"Destination uses resource no longer allowed">>}}},
+        create_withdrawal_call_api(C)
+    ).
+
 -spec create_fail_forbidden_operation_currency(config()) -> _.
 create_fail_forbidden_operation_currency(C) ->
     ForbiddenOperationCurrencyException = #fistful_ForbiddenOperationCurrency{
-        currency = #'CurrencyRef'{symbolic_code = ?USD},
+        currency = #'fistful_base_CurrencyRef'{symbolic_code = ?USD},
         allowed_currencies = [
-            #'CurrencyRef'{symbolic_code = ?RUB}
+            #'fistful_base_CurrencyRef'{symbolic_code = ?RUB}
         ]
     },
     _ = create_withdrawal_start_mocks(C, fun() -> {throwing, ForbiddenOperationCurrencyException} end),
@@ -191,7 +203,7 @@ create_fail_forbidden_operation_currency(C) ->
 create_fail_forbidden_operation_amount(C) ->
     ForbiddenOperationAmountException = #fistful_ForbiddenOperationAmount{
         amount = ?CASH,
-        allowed_range = #'CashRange'{
+        allowed_range = #'fistful_base_CashRange'{
             upper = {inclusive, ?CASH},
             lower = {inclusive, ?CASH}
         }
@@ -216,13 +228,13 @@ create_fail_invalid_operation_amount(C) ->
 -spec create_fail_inconsistent_withdrawal_currency(config()) -> _.
 create_fail_inconsistent_withdrawal_currency(C) ->
     InconsistentWithdrawalCurrencyException = #wthd_InconsistentWithdrawalCurrency{
-        withdrawal_currency = #'CurrencyRef'{
+        withdrawal_currency = #'fistful_base_CurrencyRef'{
             symbolic_code = ?USD
         },
-        destination_currency = #'CurrencyRef'{
+        destination_currency = #'fistful_base_CurrencyRef'{
             symbolic_code = ?RUB
         },
-        wallet_currency = #'CurrencyRef'{
+        wallet_currency = #'fistful_base_CurrencyRef'{
             symbolic_code = ?RUB
         }
     },
@@ -364,12 +376,20 @@ get_quote_fail_destination_unauthorized(C) ->
         create_qoute_call_api(C)
     ).
 
+-spec get_quote_fail_destination_withdrawal_method(config()) -> _.
+get_quote_fail_destination_withdrawal_method(C) ->
+    _ = get_quote_start_mocks(C, fun() -> {throwing, #fistful_ForbiddenWithdrawalMethod{}} end),
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"Destination uses resource no longer allowed">>}}},
+        create_qoute_call_api(C)
+    ).
+
 -spec get_quote_fail_forbidden_operation_currency(config()) -> _.
 get_quote_fail_forbidden_operation_currency(C) ->
     ForbiddenOperationCurrencyException = #fistful_ForbiddenOperationCurrency{
-        currency = #'CurrencyRef'{symbolic_code = ?USD},
+        currency = #'fistful_base_CurrencyRef'{symbolic_code = ?USD},
         allowed_currencies = [
-            #'CurrencyRef'{symbolic_code = ?RUB}
+            #'fistful_base_CurrencyRef'{symbolic_code = ?RUB}
         ]
     },
     _ = get_quote_start_mocks(C, fun() -> {throwing, ForbiddenOperationCurrencyException} end),
@@ -382,7 +402,7 @@ get_quote_fail_forbidden_operation_currency(C) ->
 get_quote_fail_forbidden_operation_amount(C) ->
     ForbiddenOperationAmountException = #fistful_ForbiddenOperationAmount{
         amount = ?CASH,
-        allowed_range = #'CashRange'{
+        allowed_range = #'fistful_base_CashRange'{
             upper = {inclusive, ?CASH},
             lower = {inclusive, ?CASH}
         }
@@ -407,13 +427,13 @@ get_quote_fail_invalid_operation_amount(C) ->
 -spec get_quote_fail_inconsistent_withdrawal_currency(config()) -> _.
 get_quote_fail_inconsistent_withdrawal_currency(C) ->
     InconsistentWithdrawalCurrencyException = #wthd_InconsistentWithdrawalCurrency{
-        withdrawal_currency = #'CurrencyRef'{
+        withdrawal_currency = #'fistful_base_CurrencyRef'{
             symbolic_code = ?USD
         },
-        destination_currency = #'CurrencyRef'{
+        destination_currency = #'fistful_base_CurrencyRef'{
             symbolic_code = ?RUB
         },
-        wallet_currency = #'CurrencyRef'{
+        wallet_currency = #'fistful_base_CurrencyRef'{
             symbolic_code = ?RUB
         }
     },
@@ -564,7 +584,7 @@ get_events_start_mocks(Op, C, GetEventRangeResultFun) ->
             {fistful_withdrawal, fun
                 ('Get', _) -> {ok, ?WITHDRAWAL(PartyID)};
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-                ('GetEvents', {_, #'EventRange'{limit = 0}}) -> GetEventRangeResultFun();
+                ('GetEvents', {_, #'fistful_base_EventRange'{limit = 0}}) -> GetEventRangeResultFun();
                 ('GetEvents', _) -> {ok, [?WITHDRAWAL_EVENT(?WITHDRAWAL_STATUS_CHANGE)]}
             end}
         ],

@@ -27,6 +27,7 @@
 -export([create_destination_fail_identity_notfound_test/1]).
 -export([create_destination_fail_currency_notfound_test/1]).
 -export([create_destination_fail_party_inaccessible_test/1]).
+-export([create_destination_fail_withdrawal_method_test/1]).
 -export([get_destination_ok_test/1]).
 -export([get_destination_fail_notfound_test/1]).
 -export([bank_card_resource_test/1]).
@@ -73,6 +74,7 @@ groups() ->
             create_destination_fail_identity_notfound_test,
             create_destination_fail_currency_notfound_test,
             create_destination_fail_party_inaccessible_test,
+            create_destination_fail_withdrawal_method_test,
             get_destination_ok_test,
             get_destination_fail_notfound_test,
             bank_card_resource_test,
@@ -270,6 +272,15 @@ create_destination_fail_party_inaccessible_test(C) ->
         create_destination_call_api(C, Destination)
     ).
 
+-spec create_destination_fail_withdrawal_method_test(config()) -> _.
+create_destination_fail_withdrawal_method_test(C) ->
+    Destination = make_destination(C, bank_card),
+    _ = create_destination_start_mocks(C, {throwing, #fistful_ForbiddenWithdrawalMethod{}}),
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"Resource type no longer allowed">>}}},
+        create_destination_call_api(C, Destination)
+    ).
+
 -spec get_destination_ok_test(config()) -> _.
 get_destination_ok_test(C) ->
     Destination = make_destination(C, bank_card),
@@ -293,18 +304,19 @@ get_destination_fail_notfound_test(C) ->
 -spec bank_card_resource_test(config()) -> _.
 bank_card_resource_test(C) ->
     {ok, Resource, SwagResource} = do_destination_lifecycle(bank_card, C),
-    {bank_card, #'ResourceBankCard'{bank_card = R}} = Resource,
+    {bank_card, #'fistful_base_ResourceBankCard'{bank_card = R}} = Resource,
     ?assertEqual(<<"BankCardDestinationResource">>, maps:get(<<"type">>, SwagResource)),
-    ?assertEqual(R#'BankCard'.token, maps:get(<<"token">>, SwagResource)),
-    ?assertEqual(R#'BankCard'.bin, maps:get(<<"bin">>, SwagResource)),
-    ?assertEqual(R#'BankCard'.masked_pan, maps:get(<<"lastDigits">>, SwagResource)).
+    ?assertEqual(R#'fistful_base_BankCard'.token, maps:get(<<"token">>, SwagResource)),
+    ?assertEqual(R#'fistful_base_BankCard'.bin, maps:get(<<"bin">>, SwagResource)),
+    ?assertEqual(R#'fistful_base_BankCard'.masked_pan, maps:get(<<"lastDigits">>, SwagResource)).
 
 -spec bitcoin_resource_test(config()) -> _.
 bitcoin_resource_test(C) ->
     {ok, Resource, SwagResource} = do_destination_lifecycle(bitcoin, C),
     ?assertEqual(<<"CryptoWalletDestinationResource">>, maps:get(<<"type">>, SwagResource)),
     ?assertEqual(<<"Bitcoin">>, maps:get(<<"currency">>, SwagResource)),
-    {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = #'CryptoWallet'{id = ID}}} = Resource,
+    {crypto_wallet, #'fistful_base_ResourceCryptoWallet'{crypto_wallet = #'fistful_base_CryptoWallet'{id = ID}}} =
+        Resource,
     ?assertEqual(ID, maps:get(<<"id">>, SwagResource)).
 
 -spec litecoin_resource_test(config()) -> _.
@@ -312,7 +324,8 @@ litecoin_resource_test(C) ->
     {ok, Resource, SwagResource} = do_destination_lifecycle(litecoin, C),
     ?assertEqual(<<"CryptoWalletDestinationResource">>, maps:get(<<"type">>, SwagResource)),
     ?assertEqual(<<"Litecoin">>, maps:get(<<"currency">>, SwagResource)),
-    {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = #'CryptoWallet'{id = ID}}} = Resource,
+    {crypto_wallet, #'fistful_base_ResourceCryptoWallet'{crypto_wallet = #'fistful_base_CryptoWallet'{id = ID}}} =
+        Resource,
     ?assertEqual(ID, maps:get(<<"id">>, SwagResource)).
 
 -spec bitcoin_cash_resource_test(config()) -> _.
@@ -320,7 +333,8 @@ bitcoin_cash_resource_test(C) ->
     {ok, Resource, SwagResource} = do_destination_lifecycle(bitcoin_cash, C),
     ?assertEqual(<<"CryptoWalletDestinationResource">>, maps:get(<<"type">>, SwagResource)),
     ?assertEqual(<<"BitcoinCash">>, maps:get(<<"currency">>, SwagResource)),
-    {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = #'CryptoWallet'{id = ID}}} = Resource,
+    {crypto_wallet, #'fistful_base_ResourceCryptoWallet'{crypto_wallet = #'fistful_base_CryptoWallet'{id = ID}}} =
+        Resource,
     ?assertEqual(ID, maps:get(<<"id">>, SwagResource)).
 
 -spec ripple_resource_test(config()) -> _.
@@ -328,11 +342,11 @@ ripple_resource_test(C) ->
     {ok, Resource, SwagResource} = do_destination_lifecycle(ripple, C),
     ?assertEqual(<<"CryptoWalletDestinationResource">>, maps:get(<<"type">>, SwagResource)),
     ?assertEqual(<<"Ripple">>, maps:get(<<"currency">>, SwagResource)),
-    {crypto_wallet, #'ResourceCryptoWallet'{
-        crypto_wallet = #'CryptoWallet'{
+    {crypto_wallet, #'fistful_base_ResourceCryptoWallet'{
+        crypto_wallet = #'fistful_base_CryptoWallet'{
             id = ID,
             data =
-                {ripple, #'CryptoDataRipple'{
+                {ripple, #'fistful_base_CryptoDataRipple'{
                     tag = Tag
                 }}
         }
@@ -345,7 +359,8 @@ ethereum_resource_test(C) ->
     {ok, Resource, SwagResource} = do_destination_lifecycle(ethereum, C),
     ?assertEqual(<<"CryptoWalletDestinationResource">>, maps:get(<<"type">>, SwagResource)),
     ?assertEqual(<<"Ethereum">>, maps:get(<<"currency">>, SwagResource)),
-    {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = #'CryptoWallet'{id = ID}}} = Resource,
+    {crypto_wallet, #'fistful_base_ResourceCryptoWallet'{crypto_wallet = #'fistful_base_CryptoWallet'{id = ID}}} =
+        Resource,
     ?assertEqual(ID, maps:get(<<"id">>, SwagResource)).
 
 -spec usdt_resource_test(config()) -> _.
@@ -353,7 +368,8 @@ usdt_resource_test(C) ->
     {ok, Resource, SwagResource} = do_destination_lifecycle(usdt, C),
     ?assertEqual(<<"CryptoWalletDestinationResource">>, maps:get(<<"type">>, SwagResource)),
     ?assertEqual(<<"USDT">>, maps:get(<<"currency">>, SwagResource)),
-    {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = #'CryptoWallet'{id = ID}}} = Resource,
+    {crypto_wallet, #'fistful_base_ResourceCryptoWallet'{crypto_wallet = #'fistful_base_CryptoWallet'{id = ID}}} =
+        Resource,
     ?assertEqual(ID, maps:get(<<"id">>, SwagResource)).
 
 -spec zcash_resource_test(config()) -> _.
@@ -361,7 +377,8 @@ zcash_resource_test(C) ->
     {ok, Resource, SwagResource} = do_destination_lifecycle(zcash, C),
     ?assertEqual(<<"CryptoWalletDestinationResource">>, maps:get(<<"type">>, SwagResource)),
     ?assertEqual(<<"Zcash">>, maps:get(<<"currency">>, SwagResource)),
-    {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = #'CryptoWallet'{id = ID}}} = Resource,
+    {crypto_wallet, #'fistful_base_ResourceCryptoWallet'{crypto_wallet = #'fistful_base_CryptoWallet'{id = ID}}} =
+        Resource,
     ?assertEqual(ID, maps:get(<<"id">>, SwagResource)).
 
 -spec digital_wallet_resource_test(config()) -> _.
@@ -369,7 +386,8 @@ digital_wallet_resource_test(C) ->
     {ok, Resource, SwagResource} = do_destination_lifecycle(digital_wallet, C),
     ?assertEqual(<<"DigitalWalletDestinationResource">>, maps:get(<<"type">>, SwagResource)),
     ?assertEqual(<<"nomoney">>, maps:get(<<"provider">>, SwagResource)),
-    {digital_wallet, #'ResourceDigitalWallet'{digital_wallet = #'DigitalWallet'{id = ID}}} = Resource,
+    {digital_wallet, #'fistful_base_ResourceDigitalWallet'{digital_wallet = #'fistful_base_DigitalWallet'{id = ID}}} =
+        Resource,
     ?assertEqual(ID, maps:get(<<"id">>, SwagResource)).
 
 %%
@@ -441,7 +459,7 @@ do_destination_lifecycle(ResourceType, C) ->
     ?assertEqual(Destination#dst_DestinationState.external_id, maps:get(<<"externalID">>, CreateResult)),
     ?assertEqual(Identity#idnt_IdentityState.id, maps:get(<<"identity">>, CreateResult)),
     ?assertEqual(
-        ((Destination#dst_DestinationState.account)#account_Account.currency)#'CurrencyRef'.symbolic_code,
+        ((Destination#dst_DestinationState.account)#account_Account.currency)#'fistful_base_CurrencyRef'.symbolic_code,
         maps:get(<<"currency">>, CreateResult)
     ),
     ?assertEqual(<<"Authorized">>, maps:get(<<"status">>, CreateResult)),
@@ -462,7 +480,8 @@ build_destination_spec(D, Resource) ->
     #{
         <<"name">> => D#dst_DestinationState.name,
         <<"identity">> => (D#dst_DestinationState.account)#account_Account.identity,
-        <<"currency">> => ((D#dst_DestinationState.account)#account_Account.currency)#'CurrencyRef'.symbolic_code,
+        <<"currency">> =>
+            ((D#dst_DestinationState.account)#account_Account.currency)#'fistful_base_CurrencyRef'.symbolic_code,
         <<"externalID">> => D#dst_DestinationState.external_id,
         <<"resource">> => build_resource_spec(Resource)
     }.
@@ -470,23 +489,29 @@ build_destination_spec(D, Resource) ->
 build_resource_spec({bank_card, R}) ->
     #{
         <<"type">> => <<"BankCardDestinationResource">>,
-        <<"token">> => wapi_crypto:create_resource_token({bank_card, R#'ResourceBankCard'.bank_card}, undefined)
+        <<"token">> => wapi_crypto:create_resource_token(
+            {bank_card, R#'fistful_base_ResourceBankCard'.bank_card}, undefined
+        )
     };
 build_resource_spec({crypto_wallet, R}) ->
-    Spec = build_crypto_cyrrency_spec((R#'ResourceCryptoWallet'.crypto_wallet)#'CryptoWallet'.data),
+    Spec = build_crypto_cyrrency_spec(
+        (R#'fistful_base_ResourceCryptoWallet'.crypto_wallet)#'fistful_base_CryptoWallet'.data
+    ),
     Spec#{
         <<"type">> => <<"CryptoWalletDestinationResource">>,
-        <<"id">> => (R#'ResourceCryptoWallet'.crypto_wallet)#'CryptoWallet'.id
+        <<"id">> => (R#'fistful_base_ResourceCryptoWallet'.crypto_wallet)#'fistful_base_CryptoWallet'.id
     };
 build_resource_spec({digital_wallet, R}) ->
+    Ref = (R#'fistful_base_ResourceDigitalWallet'.digital_wallet)#'fistful_base_DigitalWallet'.payment_service,
     #{
         <<"type">> => <<"DigitalWalletDestinationResource">>,
-        <<"id">> => (R#'ResourceDigitalWallet'.digital_wallet)#'DigitalWallet'.id,
-        <<"provider">> =>
-            ((R#'ResourceDigitalWallet'.digital_wallet)#'DigitalWallet'.payment_service)#'PaymentServiceRef'.id
+        <<"id">> => (R#'fistful_base_ResourceDigitalWallet'.digital_wallet)#'fistful_base_DigitalWallet'.id,
+        <<"provider">> => Ref#'fistful_base_PaymentServiceRef'.id
     };
-build_resource_spec({generic, #'ResourceGeneric'{generic = #'ResourceGenericData'{data = Data}}}) ->
-    #'Content'{data = Params} = Data,
+build_resource_spec(
+    {generic, #'fistful_base_ResourceGeneric'{generic = #'fistful_base_ResourceGenericData'{data = Data}}}
+) ->
+    #'fistful_base_Content'{data = Params} = Data,
     jsx:decode(Params);
 build_resource_spec(Token) ->
     #{
@@ -494,22 +519,22 @@ build_resource_spec(Token) ->
         <<"token">> => Token
     }.
 
-build_crypto_cyrrency_spec({bitcoin, #'CryptoDataBitcoin'{}}) ->
+build_crypto_cyrrency_spec({bitcoin, #'fistful_base_CryptoDataBitcoin'{}}) ->
     #{<<"currency">> => <<"Bitcoin">>};
-build_crypto_cyrrency_spec({litecoin, #'CryptoDataLitecoin'{}}) ->
+build_crypto_cyrrency_spec({litecoin, #'fistful_base_CryptoDataLitecoin'{}}) ->
     #{<<"currency">> => <<"Litecoin">>};
-build_crypto_cyrrency_spec({bitcoin_cash, #'CryptoDataBitcoinCash'{}}) ->
+build_crypto_cyrrency_spec({bitcoin_cash, #'fistful_base_CryptoDataBitcoinCash'{}}) ->
     #{<<"currency">> => <<"BitcoinCash">>};
-build_crypto_cyrrency_spec({ripple, #'CryptoDataRipple'{tag = Tag}}) ->
+build_crypto_cyrrency_spec({ripple, #'fistful_base_CryptoDataRipple'{tag = Tag}}) ->
     #{
         <<"currency">> => <<"Ripple">>,
         <<"tag">> => Tag
     };
-build_crypto_cyrrency_spec({ethereum, #'CryptoDataEthereum'{}}) ->
+build_crypto_cyrrency_spec({ethereum, #'fistful_base_CryptoDataEthereum'{}}) ->
     #{<<"currency">> => <<"Ethereum">>};
-build_crypto_cyrrency_spec({usdt, #'CryptoDataUSDT'{}}) ->
+build_crypto_cyrrency_spec({usdt, #'fistful_base_CryptoDataUSDT'{}}) ->
     #{<<"currency">> => <<"USDT">>};
-build_crypto_cyrrency_spec({zcash, #'CryptoDataZcash'{}}) ->
+build_crypto_cyrrency_spec({zcash, #'fistful_base_CryptoDataZcash'{}}) ->
     #{<<"currency">> => <<"Zcash">>}.
 
 uniq() ->
@@ -543,7 +568,7 @@ generate_destination(IdentityID, Resource, Context) ->
         account = #account_Account{
             id = ID,
             identity = IdentityID,
-            currency = #'CurrencyRef'{
+            currency = #'fistful_base_CurrencyRef'{
                 symbolic_code = <<"RUB">>
             },
             accounter_account_id = 123
@@ -563,24 +588,24 @@ generate_resource(generic) ->
     }),
     ID = <<"https://some.link">>,
     Type = <<"application/schema-instance+json; schema=", ID/binary>>,
-    {generic, #'ResourceGeneric'{
-        generic = #'ResourceGenericData'{
-            data = #'Content'{type = Type, data = Data},
-            provider = #'PaymentServiceRef'{id = ?GENERIC_RESOURCE_TYPE}
+    {generic, #'fistful_base_ResourceGeneric'{
+        generic = #'fistful_base_ResourceGenericData'{
+            data = #'fistful_base_Content'{type = Type, data = Data},
+            provider = #'fistful_base_PaymentServiceRef'{id = ?GENERIC_RESOURCE_TYPE}
         }
     }};
 generate_resource(bank_card) ->
-    {bank_card, #'ResourceBankCard'{
-        bank_card = #'BankCard'{
+    {bank_card, #'fistful_base_ResourceBankCard'{
+        bank_card = #'fistful_base_BankCard'{
             token = uniq(),
             bin = <<"424242">>,
             masked_pan = <<"4242">>,
             bank_name = uniq(),
-            payment_system = #'PaymentSystemRef'{id = <<"foo">>},
+            payment_system = #'fistful_base_PaymentSystemRef'{id = <<"foo">>},
             payment_system_deprecated = visa,
             issuer_country = rus,
             card_type = debit,
-            exp_date = #'BankCardExpDate'{
+            exp_date = #'fistful_base_BankCardExpDate'{
                 month = 12,
                 year = 2200
             }
@@ -596,37 +621,37 @@ generate_resource(ResourceType) when
     ResourceType =:= zcash
 ->
     {Currency, Params} = generate_crypto_wallet_data(ResourceType),
-    {crypto_wallet, #'ResourceCryptoWallet'{
-        crypto_wallet = #'CryptoWallet'{
+    {crypto_wallet, #'fistful_base_ResourceCryptoWallet'{
+        crypto_wallet = #'fistful_base_CryptoWallet'{
             id = uniq(),
             data = {Currency, Params},
             currency = Currency
         }
     }};
 generate_resource(ResourceType) when ResourceType =:= digital_wallet ->
-    {digital_wallet, #'ResourceDigitalWallet'{
-        digital_wallet = #'DigitalWallet'{
+    {digital_wallet, #'fistful_base_ResourceDigitalWallet'{
+        digital_wallet = #'fistful_base_DigitalWallet'{
             id = uniq(),
-            payment_service = #'PaymentServiceRef'{id = generate_digital_wallet_provider()}
+            payment_service = #'fistful_base_PaymentServiceRef'{id = generate_digital_wallet_provider()}
         }
     }}.
 
 generate_crypto_wallet_data(bitcoin) ->
-    {bitcoin, #'CryptoDataBitcoin'{}};
+    {bitcoin, #'fistful_base_CryptoDataBitcoin'{}};
 generate_crypto_wallet_data(litecoin) ->
-    {litecoin, #'CryptoDataLitecoin'{}};
+    {litecoin, #'fistful_base_CryptoDataLitecoin'{}};
 generate_crypto_wallet_data(bitcoin_cash) ->
-    {bitcoin_cash, #'CryptoDataBitcoinCash'{}};
+    {bitcoin_cash, #'fistful_base_CryptoDataBitcoinCash'{}};
 generate_crypto_wallet_data(ripple) ->
-    {ripple, #'CryptoDataRipple'{
+    {ripple, #'fistful_base_CryptoDataRipple'{
         tag = <<"191919192">>
     }};
 generate_crypto_wallet_data(ethereum) ->
-    {ethereum, #'CryptoDataEthereum'{}};
+    {ethereum, #'fistful_base_CryptoDataEthereum'{}};
 generate_crypto_wallet_data(usdt) ->
-    {usdt, #'CryptoDataUSDT'{}};
+    {usdt, #'fistful_base_CryptoDataUSDT'{}};
 generate_crypto_wallet_data(zcash) ->
-    {zcash, #'CryptoDataZcash'{}}.
+    {zcash, #'fistful_base_CryptoDataZcash'{}}.
 
 generate_digital_wallet_provider() ->
     <<"nomoney">>.

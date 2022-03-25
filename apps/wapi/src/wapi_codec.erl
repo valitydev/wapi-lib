@@ -78,24 +78,24 @@ marshal(account, #{
         accounter_account_id = marshal(event_id, AAID)
     };
 marshal(resource, {bank_card, #{bank_card := BankCard} = ResourceBankCard}) ->
-    {bank_card, #'ResourceBankCard'{
+    {bank_card, #'fistful_base_ResourceBankCard'{
         bank_card = marshal(bank_card, BankCard),
         auth_data = maybe_marshal(bank_card_auth_data, maps:get(auth_data, ResourceBankCard, undefined))
     }};
 marshal(resource, {crypto_wallet, #{crypto_wallet := CryptoWallet}}) ->
-    {crypto_wallet, #'ResourceCryptoWallet'{
+    {crypto_wallet, #'fistful_base_ResourceCryptoWallet'{
         crypto_wallet = marshal(crypto_wallet, CryptoWallet)
     }};
 marshal(resource, {digital_wallet, #{digital_wallet := DigitalWallet}}) ->
-    {digital_wallet, #'ResourceDigitalWallet'{
+    {digital_wallet, #'fistful_base_ResourceDigitalWallet'{
         digital_wallet = marshal(digital_wallet, DigitalWallet)
     }};
 marshal(resource, {generic, #{generic := GenericResource}}) ->
-    {generic, #'ResourceGeneric'{
+    {generic, #'fistful_base_ResourceGeneric'{
         generic = marshal(generic_resource, GenericResource)
     }};
 marshal(resource_descriptor, {bank_card, BinDataID}) ->
-    {bank_card, #'ResourceDescriptorBankCard'{
+    {bank_card, #'fistful_base_ResourceDescriptorBankCard'{
         bin_data_id = marshal(msgpack, BinDataID)
     }};
 marshal(bank_card, BankCard = #{token := Token}) ->
@@ -109,7 +109,7 @@ marshal(bank_card, BankCard = #{token := Token}) ->
     ExpDate = maps:get(exp_date, BankCard, undefined),
     CardholderName = maps:get(cardholder_name, BankCard, undefined),
     BinDataID = maps:get(bin_data_id, BankCard, undefined),
-    #'BankCard'{
+    #'fistful_base_BankCard'{
         token = marshal(string, Token),
         bin = marshal(string, Bin),
         masked_pan = marshal(string, MaskedPan),
@@ -123,61 +123,61 @@ marshal(bank_card, BankCard = #{token := Token}) ->
         bin_data_id = maybe_marshal(msgpack, BinDataID)
     };
 marshal(bank_card_auth_data, {session, #{session_id := ID}}) ->
-    {session_data, #'SessionAuthData'{
+    {session_data, #'fistful_base_SessionAuthData'{
         id = marshal(string, ID)
     }};
 marshal(crypto_wallet, #{id := ID, data := Data}) ->
-    #'CryptoWallet'{
+    #'fistful_base_CryptoWallet'{
         id = marshal(string, ID),
         data = marshal(crypto_data, Data),
         currency = marshal(crypto_currency, Data)
     };
 marshal(digital_wallet, Wallet = #{id := ID, payment_service := PaymentService}) ->
-    #'DigitalWallet'{
+    #'fistful_base_DigitalWallet'{
         id = marshal(string, ID),
         token = maybe_marshal(string, maps:get(token, Wallet, undefined)),
         payment_service = marshal(payment_service, PaymentService)
     };
 marshal(generic_resource, Resource = #{payment_service := PaymentService}) ->
     Data = maybe_marshal(content, maps:get(data, Resource, undefined)),
-    #'ResourceGenericData'{
+    #'fistful_base_ResourceGenericData'{
         provider = marshal(payment_service, PaymentService),
         data = Data
     };
 marshal(content, #{type := Type, data := Data}) ->
-    #'Content'{
+    #'fistful_base_Content'{
         type = marshal(string, Type),
         data = Data
     };
 marshal(exp_date, {Month, Year}) ->
-    #'BankCardExpDate'{
+    #'fistful_base_BankCardExpDate'{
         month = marshal(integer, Month),
         year = marshal(integer, Year)
     };
 marshal(crypto_currency, {Currency, _}) ->
     Currency;
 marshal(crypto_data, {bitcoin, #{}}) ->
-    {bitcoin, #'CryptoDataBitcoin'{}};
+    {bitcoin, #'fistful_base_CryptoDataBitcoin'{}};
 marshal(crypto_data, {litecoin, #{}}) ->
-    {litecoin, #'CryptoDataLitecoin'{}};
+    {litecoin, #'fistful_base_CryptoDataLitecoin'{}};
 marshal(crypto_data, {bitcoin_cash, #{}}) ->
-    {bitcoin_cash, #'CryptoDataBitcoinCash'{}};
+    {bitcoin_cash, #'fistful_base_CryptoDataBitcoinCash'{}};
 marshal(crypto_data, {ethereum, #{}}) ->
-    {ethereum, #'CryptoDataEthereum'{}};
+    {ethereum, #'fistful_base_CryptoDataEthereum'{}};
 marshal(crypto_data, {zcash, #{}}) ->
-    {zcash, #'CryptoDataZcash'{}};
+    {zcash, #'fistful_base_CryptoDataZcash'{}};
 marshal(crypto_data, {usdt, #{}}) ->
-    {usdt, #'CryptoDataUSDT'{}};
+    {usdt, #'fistful_base_CryptoDataUSDT'{}};
 marshal(crypto_data, {ripple, Data}) ->
-    {ripple, #'CryptoDataRipple'{
+    {ripple, #'fistful_base_CryptoDataRipple'{
         tag = maybe_marshal(string, maps:get(tag, Data, undefined))
     }};
 marshal(payment_system, #{id := Ref}) when is_binary(Ref) ->
-    #'PaymentSystemRef'{
+    #'fistful_base_PaymentSystemRef'{
         id = Ref
     };
 marshal(payment_service, #{id := Ref}) when is_binary(Ref) ->
-    #'PaymentServiceRef'{
+    #'fistful_base_PaymentServiceRef'{
         id = Ref
     };
 marshal(payment_system_deprecated, V) when is_atom(V) ->
@@ -187,29 +187,29 @@ marshal(issuer_country, V) when is_atom(V) ->
 marshal(card_type, V) when is_atom(V) ->
     V;
 marshal(cash, {Amount, CurrencyRef}) ->
-    #'Cash'{
+    #'fistful_base_Cash'{
         amount = marshal(amount, Amount),
         currency = marshal(currency_ref, CurrencyRef)
     };
 marshal(currency_ref, CurrencyID) when is_binary(CurrencyID) ->
-    #'CurrencyRef'{
+    #'fistful_base_CurrencyRef'{
         symbolic_code = CurrencyID
     };
 marshal(amount, V) ->
     marshal(integer, V);
 marshal(event_range, {After, Limit}) ->
-    #'EventRange'{
+    #'fistful_base_EventRange'{
         'after' = maybe_marshal(integer, After),
         limit = maybe_marshal(integer, Limit)
     };
 marshal(failure, Failure) ->
-    #'Failure'{
+    #'fistful_base_Failure'{
         code = marshal(string, wapi_failure:code(Failure)),
         reason = maybe_marshal(string, wapi_failure:reason(Failure)),
         sub = maybe_marshal(sub_failure, wapi_failure:sub_failure(Failure))
     };
 marshal(sub_failure, Failure) ->
-    #'SubFailure'{
+    #'fistful_base_SubFailure'{
         code = marshal(string, wapi_failure:code(Failure)),
         sub = maybe_marshal(sub_failure, wapi_failure:sub_failure(Failure))
     };
@@ -233,7 +233,7 @@ marshal(_, Other) ->
 
 -spec unmarshal(type_name(), encoded_value()) -> decoded_value().
 unmarshal({list, T}, V) ->
-    [marshal(T, E) || E <- V];
+    [unmarshal(T, E) || E <- V];
 unmarshal({set, T}, V) ->
     ordsets:from_list([unmarshal(T, E) || E <- ordsets:to_list(V)]);
 unmarshal(id, V) ->
@@ -266,7 +266,7 @@ unmarshal(accounter_account_id, V) ->
     unmarshal(integer, V);
 unmarshal(
     resource,
-    {bank_card, #'ResourceBankCard'{
+    {bank_card, #'fistful_base_ResourceBankCard'{
         bank_card = BankCard,
         auth_data = AuthData
     }}
@@ -276,25 +276,25 @@ unmarshal(
             bank_card => unmarshal(bank_card, BankCard),
             auth_data => maybe_unmarshal(bank_card_auth_data, AuthData)
         })};
-unmarshal(resource, {crypto_wallet, #'ResourceCryptoWallet'{crypto_wallet = CryptoWallet}}) ->
+unmarshal(resource, {crypto_wallet, #'fistful_base_ResourceCryptoWallet'{crypto_wallet = CryptoWallet}}) ->
     {crypto_wallet, #{
         crypto_wallet => unmarshal(crypto_wallet, CryptoWallet)
     }};
-unmarshal(resource, {digital_wallet, #'ResourceDigitalWallet'{digital_wallet = DigitalWallet}}) ->
+unmarshal(resource, {digital_wallet, #'fistful_base_ResourceDigitalWallet'{digital_wallet = DigitalWallet}}) ->
     {digital_wallet, #{
         digital_wallet => unmarshal(digital_wallet, DigitalWallet)
     }};
-unmarshal(resource, {generic, #'ResourceGeneric'{generic = GenericResource}}) ->
+unmarshal(resource, {generic, #'fistful_base_ResourceGeneric'{generic = GenericResource}}) ->
     {generic, #{
         generic => unmarshal(generic_resource, GenericResource)
     }};
 unmarshal(resource_descriptor, {bank_card, BankCard}) ->
-    {bank_card, unmarshal(msgpack, BankCard#'ResourceDescriptorBankCard'.bin_data_id)};
-unmarshal(bank_card_auth_data, {session_data, #'SessionAuthData'{id = ID}}) ->
+    {bank_card, unmarshal(msgpack, BankCard#'fistful_base_ResourceDescriptorBankCard'.bin_data_id)};
+unmarshal(bank_card_auth_data, {session_data, #'fistful_base_SessionAuthData'{id = ID}}) ->
     {session, #{
         session_id => unmarshal(string, ID)
     }};
-unmarshal(bank_card, #'BankCard'{
+unmarshal(bank_card, #'fistful_base_BankCard'{
     token = Token,
     bin = Bin,
     masked_pan = MaskedPan,
@@ -320,12 +320,12 @@ unmarshal(bank_card, #'BankCard'{
         cardholder_name => maybe_unmarshal(string, CardholderName),
         bin_data_id => maybe_unmarshal(msgpack, BinDataID)
     });
-unmarshal(exp_date, #'BankCardExpDate'{
+unmarshal(exp_date, #'fistful_base_BankCardExpDate'{
     month = Month,
     year = Year
 }) ->
     {unmarshal(integer, Month), unmarshal(integer, Year)};
-unmarshal(payment_system, #'PaymentSystemRef'{id = Ref}) ->
+unmarshal(payment_system, #'fistful_base_PaymentSystemRef'{id = Ref}) ->
     #{
         id => unmarshal(string, Ref)
     };
@@ -335,7 +335,7 @@ unmarshal(issuer_country, V) when is_atom(V) ->
     V;
 unmarshal(card_type, V) when is_atom(V) ->
     V;
-unmarshal(crypto_wallet, #'CryptoWallet'{
+unmarshal(crypto_wallet, #'fistful_base_CryptoWallet'{
     id = CryptoWalletID,
     currency = CryptoWalletCurrency,
     data = Data
@@ -344,22 +344,26 @@ unmarshal(crypto_wallet, #'CryptoWallet'{
         id => unmarshal(string, CryptoWalletID),
         currency => {CryptoWalletCurrency, unmarshal(crypto_data, Data)}
     });
-unmarshal(crypto_data, {ripple, #'CryptoDataRipple'{tag = Tag}}) ->
+unmarshal(crypto_data, {ripple, #'fistful_base_CryptoDataRipple'{tag = Tag}}) ->
     genlib_map:compact(#{
         tag => maybe_unmarshal(string, Tag)
     });
 unmarshal(crypto_data, _) ->
     #{};
-unmarshal(cash, #'Cash'{
+unmarshal(cash, #'fistful_base_Cash'{
     amount = Amount,
     currency = CurrencyRef
 }) ->
     {unmarshal(amount, Amount), unmarshal(currency_ref, CurrencyRef)};
-unmarshal(currency_ref, #'CurrencyRef'{
+unmarshal(currency_ref, #'fistful_base_CurrencyRef'{
     symbolic_code = SymbolicCode
 }) ->
     unmarshal(string, SymbolicCode);
-unmarshal(digital_wallet, #'DigitalWallet'{
+unmarshal(crypto_currency, #'fistful_base_CryptoCurrencyRef'{id = Ref}) ->
+    #{
+        id => unmarshal(string, Ref)
+    };
+unmarshal(digital_wallet, #'fistful_base_DigitalWallet'{
     id = ID,
     token = Token,
     payment_service = PaymentService
@@ -369,7 +373,7 @@ unmarshal(digital_wallet, #'DigitalWallet'{
         token => maybe_marshal(string, Token),
         payment_service => unmarshal(payment_service, PaymentService)
     });
-unmarshal(generic_resource, #'ResourceGenericData'{
+unmarshal(generic_resource, #'fistful_base_ResourceGenericData'{
     provider = PaymentService,
     data = Data
 }) ->
@@ -377,7 +381,11 @@ unmarshal(generic_resource, #'ResourceGenericData'{
         data => maybe_marshal(content, Data),
         payment_service => unmarshal(payment_service, PaymentService)
     });
-unmarshal(content, #'Content'{
+unmarshal(payment_service, #'fistful_base_PaymentServiceRef'{id = Ref}) ->
+    #{
+        id => unmarshal(string, Ref)
+    };
+unmarshal(content, #'fistful_base_Content'{
     type = Type,
     data = Data
 }) ->
@@ -389,14 +397,14 @@ unmarshal(amount, V) ->
     unmarshal(integer, V);
 unmarshal(failure, Failure) ->
     genlib_map:compact(#{
-        code => unmarshal(string, Failure#'Failure'.code),
-        reason => maybe_unmarshal(string, Failure#'Failure'.reason),
-        sub => maybe_unmarshal(sub_failure, Failure#'Failure'.sub)
+        code => unmarshal(string, Failure#'fistful_base_Failure'.code),
+        reason => maybe_unmarshal(string, Failure#'fistful_base_Failure'.reason),
+        sub => maybe_unmarshal(sub_failure, Failure#'fistful_base_Failure'.sub)
     });
 unmarshal(sub_failure, Failure) ->
     genlib_map:compact(#{
-        code => unmarshal(string, Failure#'SubFailure'.code),
-        sub => maybe_unmarshal(sub_failure, Failure#'SubFailure'.sub)
+        code => unmarshal(string, Failure#'fistful_base_SubFailure'.code),
+        sub => maybe_unmarshal(sub_failure, Failure#'fistful_base_SubFailure'.sub)
     });
 unmarshal(domain_revision, V) when is_integer(V) ->
     V;
@@ -449,16 +457,16 @@ bank_card_codec_test() ->
     Decoded = wapi_thrift_utils:deserialize(Type, Binary),
     ?assertEqual(
         Decoded,
-        #'BankCard'{
+        #'fistful_base_BankCard'{
             token = <<"token">>,
-            payment_system = #'PaymentSystemRef'{id = <<"foo">>},
+            payment_system = #'fistful_base_PaymentSystemRef'{id = <<"foo">>},
             payment_system_deprecated = visa,
             bin = <<"12345">>,
             masked_pan = <<"7890">>,
             bank_name = <<"bank">>,
             issuer_country = zmb,
             card_type = credit_or_debit,
-            exp_date = #'BankCardExpDate'{month = 12, year = 3456},
+            exp_date = #'fistful_base_BankCardExpDate'{month = 12, year = 3456},
             cardholder_name = <<"name">>,
             bin_data_id = {obj, #{{str, <<"foo">>} => {i, 1}}}
         }

@@ -159,9 +159,9 @@ create_fail_invalid_operation_amount_test(C) ->
 -spec create_fail_forbidden_operation_currency_test(config()) -> _.
 create_fail_forbidden_operation_currency_test(C) ->
     ForbiddenOperationCurrencyException = #fistful_ForbiddenOperationCurrency{
-        currency = #'CurrencyRef'{symbolic_code = ?USD},
+        currency = #'fistful_base_CurrencyRef'{symbolic_code = ?USD},
         allowed_currencies = [
-            #'CurrencyRef'{symbolic_code = ?RUB}
+            #'fistful_base_CurrencyRef'{symbolic_code = ?RUB}
         ]
     },
     _ = create_w2_w_transfer_start_mocks(C, fun() -> {throwing, ForbiddenOperationCurrencyException} end),
@@ -173,13 +173,13 @@ create_fail_forbidden_operation_currency_test(C) ->
 -spec create_fail_inconsistent_w2w_transfer_currency_test(config()) -> _.
 create_fail_inconsistent_w2w_transfer_currency_test(C) ->
     InconsistentW2WCurrencyException = #w2w_transfer_InconsistentW2WTransferCurrency{
-        w2w_transfer_currency = #'CurrencyRef'{
+        w2w_transfer_currency = #'fistful_base_CurrencyRef'{
             symbolic_code = ?USD
         },
-        wallet_from_currency = #'CurrencyRef'{
+        wallet_from_currency = #'fistful_base_CurrencyRef'{
             symbolic_code = ?RUB
         },
-        wallet_to_currency = #'CurrencyRef'{
+        wallet_to_currency = #'fistful_base_CurrencyRef'{
             symbolic_code = ?RUB
         }
     },

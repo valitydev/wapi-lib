@@ -36,9 +36,13 @@
 
 -define(DEFAULT_METADATA(), #{<<"somedata">> => {str, ?STRING}}).
 
--define(CASH, #'Cash'{
+-define(PAYMENT_SYSTEM_REF(ID), #'fistful_base_PaymentSystemRef'{id = ID}).
+-define(PAYMENT_SERVICE_REF(ID), #'fistful_base_PaymentServiceRef'{id = ID}).
+-define(CRYPTO_CURRENCY_REF(ID), #'fistful_base_CryptoCurrencyRef'{id = ID}).
+
+-define(CASH, #'fistful_base_Cash'{
     amount = ?INTEGER,
-    currency = #'CurrencyRef'{
+    currency = #'fistful_base_CurrencyRef'{
         symbolic_code = ?RUB
     }
 }).
@@ -108,7 +112,7 @@
 -define(ACCOUNT, #account_Account{
     id = ?STRING,
     identity = ?STRING,
-    currency = #'CurrencyRef'{
+    currency = #'fistful_base_CurrencyRef'{
         symbolic_code = ?RUB
     },
     accounter_account_id = ?INTEGER
@@ -116,7 +120,7 @@
 
 -define(ACCOUNT_BALANCE, #account_AccountBalance{
     id = ?STRING,
-    currency = #'CurrencyRef'{
+    currency = #'fistful_base_CurrencyRef'{
         symbolic_code = ?RUB
     },
     expected_min = ?INTEGER,
@@ -124,7 +128,7 @@
     expected_max = ?INTEGER
 }).
 
--define(BANK_CARD, #'BankCard'{
+-define(BANK_CARD, #'fistful_base_BankCard'{
     bin_data_id = {i, ?INTEGER},
     token = ?STRING,
     bin = <<"424242">>,
@@ -135,21 +139,21 @@
     card_type = debit
 }).
 
--define(BANK_CARD_PAN(Pan), ?BANK_CARD#'BankCard'{
+-define(BANK_CARD_PAN(Pan), ?BANK_CARD#'fistful_base_BankCard'{
     bin = ?BIN(Pan),
     masked_pan = ?LAST_DIGITS(Pan)
 }).
 
 -define(RESOURCE_BANK_CARD,
-    {bank_card, #'ResourceBankCard'{
+    {bank_card, #'fistful_base_ResourceBankCard'{
         bank_card = ?BANK_CARD
     }}
 ).
 
--define(DIGITAL_WALLET, #'DigitalWallet'{
+-define(DIGITAL_WALLET, #'fistful_base_DigitalWallet'{
     id = ?STRING,
     token = ?STRING,
-    payment_service = #'PaymentServiceRef'{id = <<"nomoney">>}
+    payment_service = #'fistful_base_PaymentServiceRef'{id = <<"nomoney">>}
 }).
 
 -define(RESOURCE, {bank_card, ?BANK_CARD}).
@@ -196,6 +200,25 @@
     metadata = ?DEFAULT_METADATA(),
     context = Context
 }).
+
+-define(WITHDRAWAL_METHOD_BANK_CARD(ID),
+    {bank_card, #'fistful_BankCardWithdrawalMethod'{payment_system = ?PAYMENT_SYSTEM_REF(ID)}}
+).
+-define(WITHDRAWAL_METHOD_DIGITAL_WALLET(ID), {digital_wallet, ?PAYMENT_SERVICE_REF(ID)}).
+-define(WITHDRAWAL_METHOD_GENERIC(ID), {generic, ?PAYMENT_SERVICE_REF(ID)}).
+-define(WITHDRAWAL_METHOD_CRYPTO_CURRENCY(ID), {crypto_currency, ?CRYPTO_CURRENCY_REF(ID)}).
+
+-define(WITHDRAWAL_METHODS,
+    ordsets:from_list([
+        ?WITHDRAWAL_METHOD_BANK_CARD(<<"VISA">>),
+        ?WITHDRAWAL_METHOD_BANK_CARD(<<"MIR">>),
+        ?WITHDRAWAL_METHOD_DIGITAL_WALLET(<<"Webmoney">>),
+        ?WITHDRAWAL_METHOD_DIGITAL_WALLET(<<"QIWI">>),
+        ?WITHDRAWAL_METHOD_GENERIC(<<"SomeBank1">>),
+        ?WITHDRAWAL_METHOD_GENERIC(<<"SomeBank2">>),
+        ?WITHDRAWAL_METHOD_CRYPTO_CURRENCY(<<"LiteCoin">>)
+    ])
+).
 
 -define(STAT_INVALID_EXCEPTION(Errors), #fistfulstat_InvalidRequest{errors = Errors}).
 -define(STAT_BADTOKEN_EXCEPTION, #fistfulstat_BadToken{reason = ?STRING}).
@@ -415,4 +438,4 @@
     adjustments = []
 }).
 
--define(FEES, #'Fees'{fees = #{operation_amount => ?CASH}}).
+-define(FEES, #'fistful_base_Fees'{fees = #{operation_amount => ?CASH}}).

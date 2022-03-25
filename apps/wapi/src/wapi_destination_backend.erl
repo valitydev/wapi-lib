@@ -23,6 +23,7 @@
         | {identity, notfound}
         | {currency, notfound}
         | inaccessible
+        | forbidden_withdrawal_method
         | {external_id_conflict, {id(), external_id()}}.
 create(Params, HandlerContext) ->
     do(fun() ->
@@ -76,6 +77,8 @@ create_request(ID, Params, ResourceThrift, HandlerContext) ->
             {error, {currency, notfound}};
         {exception, #fistful_PartyInaccessible{}} ->
             {error, inaccessible};
+        {exception, #fistful_ForbiddenWithdrawalMethod{}} ->
+            {error, forbidden_withdrawal_method};
         {exception, Details} ->
             {error, Details}
     end.
@@ -84,7 +87,7 @@ create_request(ID, Params, ResourceThrift, HandlerContext) ->
     {ok, response_data(), id()}
     | {error, {destination, notfound}}.
 get(DestinationID, HandlerContext) ->
-    Request = {fistful_destination, 'Get', {DestinationID, #'EventRange'{}}},
+    Request = {fistful_destination, 'Get', {DestinationID, #'fistful_base_EventRange'{}}},
     case service_call(Request, HandlerContext) of
         {ok, DestinationThrift} ->
             {ok, Owner} = wapi_backend_utils:get_entity_owner(destination, DestinationThrift),
@@ -118,7 +121,7 @@ construct_resource(#{
     case wapi_backend_utils:decode_resource(Token) of
         {ok, Resource} ->
             {bank_card, BankCard} = Resource,
-            {ok, {bank_card, #'ResourceBankCard'{bank_card = BankCard}}};
+            {ok, {bank_card, #'fistful_base_ResourceBankCard'{bank_card = BankCard}}};
         {error, Error} ->
             logger:warning("~p token decryption failed: ~p", [Type, Error]),
             {error, {invalid_resource_token, Type}}
@@ -171,7 +174,7 @@ construct_resource(
             {error, {invalid_generic_resource, {GenericResourceType, Error}}}
     end.
 
-tokenize_resource({bank_card, #'ResourceBankCard'{bank_card = BankCard}}) ->
+tokenize_resource({bank_card, #'fistful_base_ResourceBankCard'{bank_card = BankCard}}) ->
     wapi_backend_utils:tokenize_resource({bank_card, BankCard});
 tokenize_resource(Value) ->
     wapi_backend_utils:tokenize_resource(Value).
@@ -266,8 +269,8 @@ unmarshal(status, {unauthorized, #dst_Unauthorized{}}) ->
     <<"Unauthorized">>;
 unmarshal(
     resource,
-    {bank_card, #'ResourceBankCard'{
-        bank_card = #'BankCard'{
+    {bank_card, #'fistful_base_ResourceBankCard'{
+        bank_card = #'fistful_base_BankCard'{
             token = Token,
             bin = Bin,
             masked_pan = MaskedPan
@@ -282,8 +285,8 @@ unmarshal(
     });
 unmarshal(
     resource,
-    {crypto_wallet, #'ResourceCryptoWallet'{
-        crypto_wallet = #'CryptoWallet'{
+    {crypto_wallet, #'fistful_base_ResourceCryptoWallet'{
+        crypto_wallet = #'fistful_base_CryptoWallet'{
             id = CryptoWalletID,
             data = Data
         }
@@ -298,10 +301,10 @@ unmarshal(
     });
 unmarshal(
     resource,
-    {digital_wallet, #'ResourceDigitalWallet'{
-        digital_wallet = #'DigitalWallet'{
+    {digital_wallet, #'fistful_base_ResourceDigitalWallet'{
+        digital_wallet = #'fistful_base_DigitalWallet'{
             id = DigitalWalletID,
-            payment_service = #'PaymentServiceRef'{id = Provider}
+            payment_service = #'fistful_base_PaymentServiceRef'{id = Provider}
         }
     }}
 ) ->
@@ -312,10 +315,10 @@ unmarshal(
     };
 unmarshal(
     resource,
-    {generic, #'ResourceGeneric'{
-        generic = #'ResourceGenericData'{
-            provider = #'PaymentServiceRef'{id = Provider},
-            data = #'Content'{data = Data}
+    {generic, #'fistful_base_ResourceGeneric'{
+        generic = #'fistful_base_ResourceGenericData'{
+            provider = #'fistful_base_PaymentServiceRef'{id = Provider},
+            data = #'fistful_base_Content'{data = Data}
         }
     }}
 ) ->
@@ -366,7 +369,7 @@ marshal_crypto_currency_params(ripple, Resource) ->
 marshal_crypto_currency_params(_Other, _Resource) ->
     #{}.
 
-unmarshal_crypto_currency_params(ripple, #'CryptoDataRipple'{tag = Tag}) ->
+unmarshal_crypto_currency_params(ripple, #'fistful_base_CryptoDataRipple'{tag = Tag}) ->
     genlib_map:compact(#{
         tag => maybe_unmarshal(string, Tag)
     });

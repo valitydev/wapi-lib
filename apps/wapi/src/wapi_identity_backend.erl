@@ -14,6 +14,7 @@
 -export([get_identities/2]).
 
 -export([get_thrift_identity/2]).
+-export([get_identity_withdrawal_methods/2]).
 
 -include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
@@ -27,7 +28,7 @@ get_identity(IdentityID, HandlerContext) ->
     case get_thrift_identity(IdentityID, HandlerContext) of
         {ok, IdentityThrift} ->
             {ok, Owner} = wapi_backend_utils:get_entity_owner(identity, IdentityThrift),
-            {ok, unmarshal(identity, IdentityThrift), Owner};
+            {ok, unmarshal_identity(IdentityThrift), Owner};
         {error, _} = Error ->
             Error
     end.
@@ -57,7 +58,7 @@ create_identity(ID, Params, HandlerContext) ->
 
     case service_call(Request, HandlerContext) of
         {ok, Identity} ->
-            {ok, unmarshal(identity, Identity)};
+            {ok, unmarshal_identity(Identity)};
         {exception, #fistful_PartyNotFound{}} ->
             {error, {party, notfound}};
         {exception, #fistful_ProviderNotFound{}} ->
@@ -76,10 +77,22 @@ get_identities(_Params, _Context) ->
     {ok, identity_state()}
     | {error, {identity, notfound}}.
 get_thrift_identity(IdentityID, HandlerContext) ->
-    Request = {fistful_identity, 'Get', {IdentityID, #'EventRange'{}}},
+    Request = {fistful_identity, 'Get', {IdentityID, #'fistful_base_EventRange'{}}},
     case service_call(Request, HandlerContext) of
         {ok, IdentityThrift} ->
             {ok, IdentityThrift};
+        {exception, #fistful_IdentityNotFound{}} ->
+            {error, {identity, notfound}}
+    end.
+
+-spec get_identity_withdrawal_methods(id(), handler_context()) ->
+    {ok, response_data()}
+    | {error, {identity, notfound}}.
+get_identity_withdrawal_methods(IdentityID, HandlerContext) ->
+    Request = {fistful_identity, 'GetWithdrawalMethods', {IdentityID}},
+    case service_call(Request, HandlerContext) of
+        {ok, Methods} ->
+            {ok, unmarshal_withdrawal_methods(Methods)};
         {exception, #fistful_IdentityNotFound{}} ->
             {error, {identity, notfound}}
     end.
@@ -130,7 +143,44 @@ marshal(T, V) ->
 
 %%
 
-unmarshal(identity, #idnt_IdentityState{
+unmarshal_withdrawal_methods(Methods) ->
+    MethodMap = ordsets:fold(fun unmarshal_withdrawal_method/2, #{}, Methods),
+    #{
+        <<"methods">> => [
+            #{
+                <<"method">> => <<"WithdrawalMethodBankCard">>,
+                <<"paymentSystems">> => maps:get(bank_card, MethodMap, [])
+            },
+            #{
+                <<"method">> => <<"WithdrawalMethodDigitalWallet">>,
+                <<"providers">> => maps:get(digital_wallet, MethodMap, [])
+            },
+            #{
+                <<"method">> => <<"WithdrawalMethodGeneric">>,
+                <<"providers">> => maps:get(generic, MethodMap, [])
+            }
+            %% TODO: Need to add method type for crypto currency TD-250
+        ]
+    }.
+
+unmarshal_withdrawal_method({bank_card, #'fistful_BankCardWithdrawalMethod'{payment_system = PaymentSystem}}, Acc0) ->
+    Methods = maps:get(bank_card, Acc0, []),
+    #{id := ID} = unmarshal(payment_system, PaymentSystem),
+    Acc0#{bank_card => [ID | Methods]};
+unmarshal_withdrawal_method({digital_wallet, PaymentServiceRef}, Acc0) ->
+    Methods = maps:get(digital_wallet, Acc0, []),
+    #{id := ID} = unmarshal(payment_service, PaymentServiceRef),
+    Acc0#{digital_wallet => [ID | Methods]};
+unmarshal_withdrawal_method({generic, PaymentServiceRef}, Acc0) ->
+    Methods = maps:get(generic, Acc0, []),
+    #{id := ID} = unmarshal(payment_service, PaymentServiceRef),
+    Acc0#{generic => [ID | Methods]};
+unmarshal_withdrawal_method({crypto_currency, CryptoCurrencyRef}, Acc0) ->
+    Methods = maps:get(crypto_currency, Acc0, []),
+    #{id := ID} = unmarshal(crypto_currency, CryptoCurrencyRef),
+    Acc0#{crypto_currency => [ID | Methods]}.
+
+unmarshal_identity(#idnt_IdentityState{
     id = IdentityID,
     name = Name,
     blocking = Blocking,
@@ -144,15 +194,19 @@ unmarshal(identity, #idnt_IdentityState{
         <<"id">> => unmarshal(id, IdentityID),
         <<"name">> => unmarshal(string, Name),
         <<"createdAt">> => maybe_unmarshal(string, CreatedAt),
-        <<"isBlocked">> => maybe_unmarshal(blocking, Blocking),
+        <<"isBlocked">> => unmarshal_blocking(Blocking),
         <<"provider">> => unmarshal(id, Provider),
         <<"externalID">> => maybe_unmarshal(id, ExternalID),
         <<"metadata">> => wapi_backend_utils:get_from_ctx(<<"metadata">>, Context)
-    });
-unmarshal(blocking, unblocked) ->
+    }).
+
+unmarshal_blocking(undefined) ->
+    undefined;
+unmarshal_blocking(unblocked) ->
     false;
-unmarshal(blocking, blocked) ->
-    true;
+unmarshal_blocking(blocked) ->
+    true.
+
 unmarshal(T, V) ->
     wapi_codec:unmarshal(T, V).
 

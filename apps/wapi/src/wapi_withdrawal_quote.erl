@@ -77,15 +77,15 @@ payload_symmetry_test() ->
     WalletID = <<"wallet">>,
     DestinationID = <<"destination">>,
     ThriftQuote = #wthd_Quote{
-        cash_from = #'Cash'{
+        cash_from = #'fistful_base_Cash'{
             amount = 1000000,
-            currency = #'CurrencyRef'{
+            currency = #'fistful_base_CurrencyRef'{
                 symbolic_code = <<"RUB">>
             }
         },
-        cash_to = #'Cash'{
+        cash_to = #'fistful_base_Cash'{
             amount = 1,
-            currency = #'CurrencyRef'{
+            currency = #'fistful_base_CurrencyRef'{
                 symbolic_code = <<"USD">>
             }
         },
@@ -97,7 +97,7 @@ payload_symmetry_test() ->
             terminal_id = 2
         },
         resource =
-            {bank_card, #'ResourceDescriptorBankCard'{
+            {bank_card, #'fistful_base_ResourceDescriptorBankCard'{
                 bin_data_id = {obj, #{{arr, [{nl, {'msgp_Nil'}}]} => {arr, [{nl, {'msgp_Nil'}}]}}}
             }},
         operation_timestamp = <<"1970-01-01T00:00:00.234Z">>,
@@ -114,15 +114,15 @@ payload_v2_decoding_test() ->
     WalletID = <<"wallet">>,
     DestinationID = <<"destination">>,
     ExpectedThriftQuote = #wthd_Quote{
-        cash_from = #'Cash'{
+        cash_from = #'fistful_base_Cash'{
             amount = 1000000,
-            currency = #'CurrencyRef'{
+            currency = #'fistful_base_CurrencyRef'{
                 symbolic_code = <<"RUB">>
             }
         },
-        cash_to = #'Cash'{
+        cash_to = #'fistful_base_Cash'{
             amount = 1,
-            currency = #'CurrencyRef'{
+            currency = #'fistful_base_CurrencyRef'{
                 symbolic_code = <<"USD">>
             }
         },
@@ -135,7 +135,7 @@ payload_v2_decoding_test() ->
             provider_id_legacy = <<"700">>
         },
         resource =
-            {bank_card, #'ResourceDescriptorBankCard'{
+            {bank_card, #'fistful_base_ResourceDescriptorBankCard'{
                 bin_data_id = {obj, #{{arr, [{nl, {'msgp_Nil'}}]} => {arr, [{nl, {'msgp_Nil'}}]}}}
             }},
         operation_timestamp = <<"1970-01-01T00:00:00.234Z">>,

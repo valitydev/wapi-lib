@@ -25,7 +25,9 @@
     create_identity_party_inaccessible/1,
     create_identity_thrift_name/1,
     get_identity/1,
-    get_identity_notfound/1
+    get_identity_notfound/1,
+    get_identity_withdrawal_methods/1,
+    get_identity_withdrawal_methods_notfound/1
 ]).
 
 % common-api is used since it is the domain used in production RN
@@ -58,7 +60,9 @@ groups() ->
             create_identity_party_inaccessible,
             create_identity_thrift_name,
             get_identity,
-            get_identity_notfound
+            get_identity_notfound,
+            get_identity_withdrawal_methods,
+            get_identity_withdrawal_methods_notfound
         ]}
     ].
 
@@ -201,6 +205,39 @@ get_identity_notfound(C) ->
         get_identity_call_api(C)
     ).
 
+-spec get_identity_withdrawal_methods(config()) -> _.
+get_identity_withdrawal_methods(C) ->
+    PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_identity_op_ctx(<<"GetWithdrawalMethods">>, ?STRING, PartyID, C),
+    _ = wapi_ct_helper:mock_services(
+        [
+            {fistful_identity, fun
+                ('GetWithdrawalMethods', _) -> {ok, ?WITHDRAWAL_METHODS};
+                ('Get', _) -> {ok, ?IDENTITY(PartyID)}
+            end}
+        ],
+        C
+    ),
+    {ok, _} = get_identity_withdrawal_methods_call_api(C).
+
+-spec get_identity_withdrawal_methods_notfound(config()) -> _.
+get_identity_withdrawal_methods_notfound(C) ->
+    PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_arbiter(_ = wapi_ct_helper_bouncer:judge_always_forbidden(), C),
+    _ = wapi_ct_helper:mock_services(
+        [
+            {fistful_identity, fun
+                ('GetWithdrawalMethods', _) -> {throwing, #fistful_IdentityNotFound{}};
+                ('Get', _) -> {ok, ?IDENTITY(PartyID)}
+            end}
+        ],
+        C
+    ),
+    ?assertEqual(
+        {error, {404, #{}}},
+        get_identity_call_api(C)
+    ).
+
 %%
 
 create_identity_call_api(C) ->
@@ -221,6 +258,17 @@ create_identity_call_api(C) ->
 get_identity_call_api(C) ->
     call_api(
         fun swag_client_wallet_identities_api:get_identity/3,
+        #{
+            binding => #{
+                <<"identityID">> => ?STRING
+            }
+        },
+        wapi_ct_helper:cfg(context, C)
+    ).
+
+get_identity_withdrawal_methods_call_api(C) ->
+    call_api(
+        fun swag_client_wallet_identities_api:get_withdrawal_methods/3,
         #{
             binding => #{
                 <<"identityID">> => ?STRING

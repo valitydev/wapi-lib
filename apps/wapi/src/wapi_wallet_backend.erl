@@ -64,7 +64,7 @@ get_by_external_id(ExternalID, #{woody_context := WoodyContext} = HandlerContext
     {ok, response_data(), id()}
     | {error, {wallet, notfound}}.
 get(WalletID, HandlerContext) ->
-    Request = {fistful_wallet, 'Get', {WalletID, #'EventRange'{}}},
+    Request = {fistful_wallet, 'Get', {WalletID, #'fistful_base_EventRange'{}}},
     case service_call(Request, HandlerContext) of
         {ok, WalletThrift} ->
             {ok, Owner} = wapi_backend_utils:get_entity_owner(wallet, WalletThrift),
