@@ -264,7 +264,10 @@ delete_webhook_ok_test(C) ->
     ),
     _ = wapi_ct_helper:mock_services(
         [
-            {webhook_manager, fun('Delete', _) -> {ok, ok} end},
+            {webhook_manager, fun
+                ('Get', _) -> {ok, ?WEBHOOK(?WITHDRAWAL_EVENT_FILTER)};
+                ('Delete', _) -> {ok, ok}
+            end},
             {fistful_identity, fun
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
                 ('Get', _) -> {ok, ?IDENTITY(PartyID)}

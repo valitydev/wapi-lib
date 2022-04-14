@@ -1,9 +1,7 @@
 -module(wapi_codec).
 
 -include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_repairer_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_account_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_msgpack_thrift.hrl").
 
 -export([unmarshal/2]).
 -export([unmarshal/3]).

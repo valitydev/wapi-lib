@@ -68,10 +68,10 @@ get_service_url(ServiceName) ->
     maps:get(ServiceName, genlib_app:env(?APP, service_urls)).
 
 -spec get_service_modname(service_name()) -> woody:service().
-get_service_modname(cds_storage) ->
-    {dmsl_cds_thrift, 'Storage'};
 get_service_modname(identdoc_storage) ->
     {identdocstore_identity_document_storage_thrift, 'IdentityDocumentStorage'};
+get_service_modname(token_storage) ->
+    {tds_storage_thrift, 'TokenStorage'};
 get_service_modname(fistful_stat) ->
     {ff_proto_fistful_stat_thrift, 'FistfulStatistics'};
 get_service_modname(fistful_report) ->
@@ -95,7 +95,7 @@ get_service_modname(webhook_manager) ->
 
 -spec get_service_deadline(service_name()) -> undefined | woody_deadline:deadline().
 get_service_deadline(ServiceName) ->
-    ServiceDeadlines = genlib_app:env(?APP, api_deadlines, #{}),
+    ServiceDeadlines = genlib_app:env(?APP, service_deadlines, #{}),
     case maps:get(ServiceName, ServiceDeadlines, undefined) of
         Timeout when is_integer(Timeout) andalso Timeout >= 0 ->
             woody_deadline:from_timeout(Timeout);

@@ -29,7 +29,6 @@
 -define(WAPI_PORT, 8080).
 -define(WAPI_HOST_NAME, "localhost").
 -define(WAPI_URL, ?WAPI_HOST_NAME ++ ":" ++ integer_to_list(?WAPI_PORT)).
--define(DOMAIN, <<"wallet-api">>).
 
 %%
 -type config() :: [{atom(), any()}].
@@ -97,11 +96,12 @@ init_suite(Module, Config) ->
     Apps1 =
         start_app(scoper) ++
             start_app(woody) ++
+            start_app({dmt_client, SupPid}) ++
             start_app({wapi, Config}),
     _ = wapi_ct_helper_bouncer:mock_client(SupPid),
     [{apps, lists:reverse(Apps1)}, {suite_test_sup, SupPid} | Config].
 
--spec start_app(app_name() | {app_name(), config()}) -> [app_name()].
+-spec start_app(app_name() | {app_name(), _Config}) -> [app_name()].
 start_app(scoper = AppName) ->
     start_app_with(AppName, [
         {storage, scoper_storage_logger}
@@ -109,6 +109,19 @@ start_app(scoper = AppName) ->
 start_app(woody = AppName) ->
     start_app_with(AppName, [
         {acceptors_pool_size, 4}
+    ]);
+start_app({dmt_client = AppName, SupPid}) ->
+    Urls = mock_services_(
+        [
+            {domain_config, fun
+                ('Checkout', _) -> #'Snapshot'{version = 1, domain = #{}};
+                ('PullRange', _) -> #{}
+            end}
+        ],
+        SupPid
+    ),
+    start_app_with(AppName, [
+        {service_urls, #{'Repository' => maps:get(domain_config, Urls)}}
     ]);
 start_app({wapi = AppName, Config}) ->
     start_app_with(AppName, [
@@ -240,6 +253,8 @@ mock_services_(Services, SupPid) when is_pid(SupPid) ->
                     Acc#{ServiceName => make_url(ServiceName, Port)};
                 bender_thrift ->
                     Acc#{ServiceName => #{'Bender' => make_url(ServiceName, Port)}};
+                domain_config ->
+                    Acc#{ServiceName => make_url(ServiceName, Port)};
                 _ ->
                     WapiWoodyClient = maps:get(wapi, Acc, #{}),
                     Acc#{wapi => WapiWoodyClient#{ServiceName => make_url(ServiceName, Port)}}
@@ -262,6 +277,8 @@ mock_service_handler({ServiceName = bouncer, Fun}) ->
     mock_service_handler(ServiceName, {bouncer_decisions_thrift, 'Arbiter'}, Fun);
 mock_service_handler({ServiceName = org_management, Fun}) ->
     mock_service_handler(ServiceName, {orgmgmt_auth_context_provider_thrift, 'AuthContextProvider'}, Fun);
+mock_service_handler({ServiceName = domain_config, Fun}) ->
+    mock_service_handler(ServiceName, {dmsl_domain_config_thrift, 'Repository'}, Fun);
 mock_service_handler({ServiceName, Fun}) ->
     mock_service_handler(ServiceName, wapi_woody_client:get_service_modname(ServiceName), Fun);
 mock_service_handler({ServiceName, WoodyService, Fun}) ->

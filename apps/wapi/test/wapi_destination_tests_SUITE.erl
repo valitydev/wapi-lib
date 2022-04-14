@@ -4,9 +4,9 @@
 -include_lib("common_test/include/ct.hrl").
 
 -include_lib("wapi_wallet_dummy_data.hrl").
--include_lib("wapi_bouncer_data.hrl").
 
 -include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
+-include_lib("tds_proto/include/tds_storage_thrift.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -39,6 +39,7 @@
 -export([usdt_resource_test/1]).
 -export([zcash_resource_test/1]).
 -export([digital_wallet_resource_test/1]).
+-export([digital_wallet_w_token_resource_test/1]).
 
 % common-api is used since it is the domain used in production RN
 % TODO: change to wallet-api (or just omit since it is the default one) when new tokens will be a thing
@@ -85,7 +86,8 @@ groups() ->
             ethereum_resource_test,
             usdt_resource_test,
             zcash_resource_test,
-            digital_wallet_resource_test
+            digital_wallet_resource_test,
+            digital_wallet_w_token_resource_test
         ]}
     ].
 
@@ -233,7 +235,8 @@ create_destination_fail_resource_token_invalid_test(C) ->
 
 -spec create_destination_fail_resource_token_expire_test(config()) -> _.
 create_destination_fail_resource_token_expire_test(C) ->
-    InvalidResourceToken = wapi_crypto:create_resource_token(?RESOURCE, wapi_utils:deadline_from_timeout(0)),
+    ExpiredDeadline = wapi_utils:deadline_from_timeout(0),
+    InvalidResourceToken = wapi_crypto:create_resource_token({bank_card, ?BANK_CARD}, ExpiredDeadline),
     Destination = make_destination(C, bank_card),
     _ = create_destination_start_mocks(C, {ok, Destination}),
     ?assertMatch(
@@ -277,7 +280,7 @@ create_destination_fail_withdrawal_method_test(C) ->
     Destination = make_destination(C, bank_card),
     _ = create_destination_start_mocks(C, {throwing, #fistful_ForbiddenWithdrawalMethod{}}),
     ?assertEqual(
-        {error, {422, #{<<"message">> => <<"Resource type no longer allowed">>}}},
+        {error, {422, #{<<"message">> => <<"Resource type not allowed">>}}},
         create_destination_call_api(C, Destination)
     ).
 
@@ -390,6 +393,59 @@ digital_wallet_resource_test(C) ->
         Resource,
     ?assertEqual(ID, maps:get(<<"id">>, SwagResource)).
 
+-spec digital_wallet_w_token_resource_test(config()) -> _.
+digital_wallet_w_token_resource_test(C) ->
+    Runner = self(),
+    PartyID = wapi_ct_helper:cfg(party, C),
+    Token = <<"YISSTOKEN">>,
+    Provider = <<"yissmoney">>,
+    Resource = #{
+        <<"type">> => <<"DigitalWalletDestinationResource">>,
+        <<"id">> => ?STRING,
+        <<"provider">> => Provider,
+        <<"token">> => Token
+    },
+    Destination = #{
+        <<"name">> => ?STRING,
+        <<"identity">> => ?STRING,
+        <<"currency">> => ?RUB,
+        <<"resource">> => Resource
+    },
+    _ = wapi_ct_helper:mock_services(
+        [
+            {token_storage, fun('PutToken', {ID, #tds_Token{content = TokenStored}}) ->
+                _ = Runner ! {token, {ID, TokenStored}},
+                {ok, ok}
+            end},
+            {bender_thrift, fun
+                ('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT};
+                ('GetInternalID', _) -> {ok, ?GET_INTERNAL_ID_RESULT}
+            end},
+            {fistful_identity, fun
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
+                ('Get', _) -> {ok, ?IDENTITY(PartyID)}
+            end},
+            {fistful_destination, fun('Create', _) ->
+                {ok, ?DESTINATION(PartyID, ?RESOURCE_DIGITAL_WALLET)}
+            end}
+        ],
+        C
+    ),
+    _ = wapi_ct_helper_bouncer:mock_assert_identity_op_ctx(<<"CreateDestination">>, ?STRING, PartyID, C),
+    {ok, #{<<"resource">> := ResourceOut}} = call_api(
+        fun swag_client_wallet_withdrawals_api:create_destination/3,
+        #{body => Destination},
+        wapi_ct_helper:cfg(context, C)
+    ),
+    ?assertEqual(undefined, maps:get(<<"token">>, ResourceOut, undefined)),
+    receive
+        {token, {ID, TokenStored}} ->
+            ?assertEqual(Token, TokenStored),
+            ?assertNotEqual(ID, Token)
+    after 1000 ->
+        error('missing token storage interaction')
+    end.
+
 %%
 
 do_destination_lifecycle(ResourceType, C) ->
@@ -501,12 +557,11 @@ build_resource_spec({crypto_wallet, R}) ->
         <<"type">> => <<"CryptoWalletDestinationResource">>,
         <<"id">> => (R#'fistful_base_ResourceCryptoWallet'.crypto_wallet)#'fistful_base_CryptoWallet'.id
     };
-build_resource_spec({digital_wallet, R}) ->
-    Ref = (R#'fistful_base_ResourceDigitalWallet'.digital_wallet)#'fistful_base_DigitalWallet'.payment_service,
+build_resource_spec({digital_wallet, #'fistful_base_ResourceDigitalWallet'{digital_wallet = DW}}) ->
     #{
         <<"type">> => <<"DigitalWalletDestinationResource">>,
-        <<"id">> => (R#'fistful_base_ResourceDigitalWallet'.digital_wallet)#'fistful_base_DigitalWallet'.id,
-        <<"provider">> => Ref#'fistful_base_PaymentServiceRef'.id
+        <<"id">> => DW#'fistful_base_DigitalWallet'.id,
+        <<"provider">> => (DW#'fistful_base_DigitalWallet'.payment_service)#'fistful_base_PaymentServiceRef'.id
     };
 build_resource_spec(
     {generic, #'fistful_base_ResourceGeneric'{generic = #'fistful_base_ResourceGenericData'{data = Data}}}
@@ -628,7 +683,7 @@ generate_resource(ResourceType) when
             currency = Currency
         }
     }};
-generate_resource(ResourceType) when ResourceType =:= digital_wallet ->
+generate_resource(digital_wallet) ->
     {digital_wallet, #'fistful_base_ResourceDigitalWallet'{
         digital_wallet = #'fistful_base_DigitalWallet'{
             id = uniq(),

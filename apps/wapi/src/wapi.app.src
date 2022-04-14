@@ -30,7 +30,8 @@
         token_keeper_client,
         thrift,
         wapi_core,
-        dmt_client
+        dmt_client,
+        tds_proto
     ]},
     {env, []}
 ]}.

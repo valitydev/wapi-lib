@@ -31,6 +31,7 @@
 -export([parse_deadline/1]).
 
 -export([get_unique_id/0]).
+-export([get_random_id/0]).
 
 -type binding_value() :: binary().
 -type url() :: binary().
@@ -294,6 +295,11 @@ clamp_max_request_deadline(Value) when is_integer(Value) ->
 -spec get_unique_id() -> binary().
 get_unique_id() ->
     wapi_id:generate_snowflake_id().
+
+-spec get_random_id() -> binary().
+get_random_id() ->
+    Random = crypto:strong_rand_bytes(16),
+    genlib_format:format_int_base(binary:decode_unsigned(Random), 62).
 
 %%
 

@@ -1,7 +1,5 @@
 -module(wapi_backend_utils).
 
--include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
 -include_lib("fistful_proto/include/ff_proto_w2w_transfer_thrift.hrl").

@@ -84,7 +84,7 @@ authorize_api_key(OperationID, ApiKey, _Context, _HandlerOpts) ->
 -spec handle_request(swag_server_wallet:operation_id(), req_data(), request_context(), handler_opts()) ->
     request_result().
 handle_request(OperationID, Req, SwagContext, Opts) ->
-    wapi_handler:handle_request(wallet, OperationID, Req, SwagContext, Opts).
+    wapi_handler:handle_request(OperationID, Req, SwagContext, Opts).
 
 %% Providers
 -spec prepare(operation_id(), req_data(), handler_context(), handler_opts()) -> {ok, request_state()} | no_return().

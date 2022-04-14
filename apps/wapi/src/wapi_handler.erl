@@ -1,13 +1,11 @@
 -module(wapi_handler).
 
 %% API
--export([handle_request/5]).
+-export([handle_request/4]).
 -export([throw_result/1]).
 -export([respond_if_forbidden/2]).
 
 %% Behaviour definition
-
--type tag() :: wallet | payres.
 
 -type operation_id() :: swag_server_wallet:operation_id().
 
@@ -58,17 +56,15 @@
 %% API
 
 -define(REQUEST_RESULT, wapi_req_result).
--define(APP, wapi).
 
--spec handle_request(tag(), operation_id(), req_data(), swagger_context(), opts()) -> request_result().
-handle_request(Tag, OperationID, Req, SwagContext, Opts) ->
+-spec handle_request(operation_id(), req_data(), swagger_context(), opts()) -> request_result().
+handle_request(OperationID, Req, SwagContext, Opts) ->
     #{'X-Request-Deadline' := Header} = Req,
     case wapi_utils:parse_deadline(Header) of
         {ok, Deadline} ->
-            WoodyContext = attach_deadline(Deadline, create_woody_context(Tag, Req)),
-            process_request(Tag, OperationID, Req, SwagContext, Opts, WoodyContext);
+            WoodyContext = attach_deadline(Deadline, create_woody_context(Req)),
+            process_request(OperationID, Req, SwagContext, Opts, WoodyContext);
         _ ->
-            _ = logger:warning("Operation ~p failed due to invalid deadline header ~p", [OperationID, Header]),
             wapi_handler_utils:reply_ok(400, #{
                 <<"errorType">> => <<"SchemaViolated">>,
                 <<"name">> => <<"X-Request-Deadline">>,
@@ -76,13 +72,12 @@ handle_request(Tag, OperationID, Req, SwagContext, Opts) ->
             })
     end.
 
-process_request(Tag, OperationID, Req, SwagContext0, Opts, WoodyContext) ->
+process_request(OperationID, Req, SwagContext0, Opts, WoodyContext) ->
     _ = logger:info("Processing request ~p", [OperationID]),
     try
         SwagContext = do_authorize_api_key(SwagContext0, WoodyContext),
         Context = create_handler_context(OperationID, SwagContext, WoodyContext),
-        Handler = get_handler(Tag),
-        {ok, RequestState} = Handler:prepare(OperationID, Req, Context, Opts),
+        {ok, RequestState} = wapi_wallet_handler:prepare(OperationID, Req, Context, Opts),
         #{authorize := Authorize, process := Process} = RequestState,
         {ok, Resolution} = Authorize(),
         case Resolution of
@@ -114,15 +109,11 @@ respond_if_forbidden(forbidden, Response) ->
 respond_if_forbidden(allowed, _Response) ->
     allowed.
 
-get_handler(wallet) -> wapi_wallet_handler;
-get_handler(payres) -> wapi_payres_handler.
-
--spec create_woody_context(tag(), req_data()) -> woody_context:ctx().
-create_woody_context(Tag, #{'X-Request-ID' := RequestID}) ->
+-spec create_woody_context(req_data()) -> woody_context:ctx().
+create_woody_context(#{'X-Request-ID' := RequestID}) ->
     RpcID = #{trace_id := TraceID} = woody_context:new_rpc_id(genlib:to_binary(RequestID)),
     ok = scoper:add_meta(#{request_id => RequestID, trace_id => TraceID}),
-    _ = logger:debug("Created TraceID for the request"),
-    woody_context:new(RpcID, undefined, wapi_woody_client:get_service_deadline(Tag)).
+    woody_context:new(RpcID, undefined, wapi_woody_client:get_service_deadline(wallet)).
 
 attach_deadline(undefined, Context) ->
     Context;

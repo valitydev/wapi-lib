@@ -27,7 +27,9 @@
         | {external_id_conflict, {id(), external_id()}}.
 create(Params, HandlerContext) ->
     do(fun() ->
-        ResourceThrift = unwrap(construct_resource(maps:get(<<"resource">>, Params))),
+        ResourceIn = maps:get(<<"resource">>, Params),
+        Resource = secure_resource(ResourceIn, HandlerContext),
+        ResourceThrift = unwrap(construct_resource(Resource)),
         ID = unwrap(generate_id(Params, ResourceThrift, HandlerContext)),
         unwrap(create_request(ID, Params, ResourceThrift, HandlerContext))
     end).
@@ -114,16 +116,27 @@ get_by_external_id(ExternalID, HandlerContext = #{woody_context := WoodyContext}
 %% Internal
 %%
 
-construct_resource(#{
-    <<"token">> := Token,
-    <<"type">> := Type
-}) ->
+secure_resource(
+    #{<<"type">> := <<"DigitalWalletDestinationResource">>, <<"token">> := Token} = Resource,
+    #{woody_context := WoodyContext}
+) ->
+    TokenID = wapi_token_storage:put(Token, WoodyContext),
+    Resource#{<<"token">> => TokenID};
+secure_resource(Resource, _HandlerContext) ->
+    Resource.
+
+construct_resource(
+    #{
+        <<"type">> := <<"BankCardDestinationResource">> = Type,
+        <<"token">> := Token
+    }
+) ->
     case wapi_backend_utils:decode_resource(Token) of
         {ok, Resource} ->
             {bank_card, BankCard} = Resource,
             {ok, {bank_card, #'fistful_base_ResourceBankCard'{bank_card = BankCard}}};
         {error, Error} ->
-            logger:warning("~p token decryption failed: ~p", [Type, Error]),
+            _ = logger:warning("BankCardDestinationResource token decryption failed: ~p", [Error]),
             {error, {invalid_resource_token, Type}}
     end;
 construct_resource(
@@ -145,20 +158,19 @@ construct_resource(
         <<"type">> := <<"DigitalWalletDestinationResource">>,
         <<"id">> := DigitalWalletID,
         <<"provider">> := Provider
-    }
+    } = Resource
 ) ->
     ConstructedResource =
         {digital_wallet, #{
             digital_wallet => #{
                 id => marshal(string, DigitalWalletID),
-                payment_service => #{id => marshal(string, Provider)}
+                payment_service => #{id => marshal(string, Provider)},
+                token => maybe_marshal(string, maps:get(<<"token">>, Resource, undefined))
             }
         }},
     {ok, wapi_codec:marshal(resource, ConstructedResource)};
 construct_resource(
-    Resource = #{
-        <<"type">> := GenericResourceType
-    }
+    Resource = #{<<"type">> := GenericResourceType}
 ) ->
     case prepare_generic_resource_data(GenericResourceType, Resource) of
         {ok, Data} ->
@@ -176,6 +188,16 @@ construct_resource(
 
 tokenize_resource({bank_card, #'fistful_base_ResourceBankCard'{bank_card = BankCard}}) ->
     wapi_backend_utils:tokenize_resource({bank_card, BankCard});
+tokenize_resource({digital_wallet, Resource}) ->
+    % NOTE
+    % Deliberately excluding `token` from hashing because at this point it contains random string
+    % and would break conflict detection otherwise.
+    DigitalWallet = Resource#'fistful_base_ResourceDigitalWallet'.digital_wallet,
+    wapi_backend_utils:tokenize_resource(
+        {digital_wallet, Resource#'fistful_base_ResourceDigitalWallet'{
+            digital_wallet = DigitalWallet#'fistful_base_DigitalWallet'{token = undefined}
+        }}
+    );
 tokenize_resource(Value) ->
     wapi_backend_utils:tokenize_resource(Value).
 
