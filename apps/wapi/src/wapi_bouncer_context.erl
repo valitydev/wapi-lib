@@ -11,13 +11,14 @@
 -export_type([acc/0]).
 -export_type([fragments/0]).
 
+-type operation_id() :: wapi_handler_utils:operation_id().
 -type prototypes() :: [
     {operation, prototype_operation()}
     | {wallet, prototype_wallet()}
 ].
 
 -type prototype_operation() :: #{
-    id => swag_server_wallet:operation_id(),
+    id => operation_id(),
     party => maybe_undefined(entity_id()),
     identity => maybe_undefined(entity_id()),
     wallet => maybe_undefined(entity_id()),

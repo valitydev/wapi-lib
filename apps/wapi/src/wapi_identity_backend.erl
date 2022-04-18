@@ -1,7 +1,7 @@
 -module(wapi_identity_backend).
 
--type handler_context() :: wapi_handler:context().
--type response_data() :: wapi_handler:response_data().
+-type handler_context() :: wapi_handler_utils:handler_context().
+-type response_data() :: wapi_handler_utils:response_data().
 -type params() :: map().
 -type id() :: binary().
 -type result(T, E) :: {ok, T} | {error, E}.

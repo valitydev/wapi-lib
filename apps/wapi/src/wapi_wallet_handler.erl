@@ -1,58 +1,31 @@
 -module(wapi_wallet_handler).
 
--behaviour(swag_server_wallet_logic_handler).
--behaviour(wapi_handler).
-
-%% swag_server_wallet_logic_handler callbacks
--export([map_error/2]).
--export([authorize_api_key/4]).
--export([handle_request/4]).
-
-%% wapi_handler callbacks
 -export([prepare/4]).
 
 %% Types
 
--type req_data() :: wapi_handler:req_data().
--type request_state() :: wapi_handler:request_state().
--type handler_context() :: wapi_handler:context().
--type request_result() :: wapi_handler:request_result().
--type operation_id() :: swag_server_wallet:operation_id().
--type api_key() :: swag_server_wallet:api_key().
--type request_context() :: swag_server_wallet:request_context().
--type handler_opts() :: swag_server_wallet:handler_opts(_).
+-type req_data() :: #{atom() | binary() => term()}.
+-type handler_context() :: wapi_handler_utils:handler_context().
+-type operation_id() :: wapi_handler_utils:operation_id().
+-type handler_opts() :: wapi_handler_utils:handler_opts().
 
-%% API
+-type throw(_T) :: no_return().
+-type status_code() :: wapi_handler_utils:status_code().
+-type headers() :: wapi_handler_utils:headers().
+-type response_data() :: wapi_handler_utils:response_data().
+-type response() :: {status_code(), headers(), response_data()}.
+-type request_result() :: {ok | error, response()}.
+-type request_state() :: #{
+    authorize := fun(() -> {ok, wapi_auth:resolution()} | throw(response())),
+    process := fun(() -> {ok, response()} | throw(request_result()))
+}.
 
--spec map_error(atom(), swag_server_wallet_validation:error()) -> swag_server_wallet:error_reason().
-map_error(validation_error, Error) ->
-    Type = map_error_type(maps:get(type, Error)),
-    Name = genlib:to_binary(maps:get(param_name, Error)),
-    Message =
-        case maps:get(description, Error, undefined) of
-            undefined ->
-                <<"Request parameter: ", Name/binary, ", error type: ", Type/binary>>;
-            Description ->
-                DescriptionBin = genlib:to_binary(Description),
-                <<"Request parameter: ", Name/binary, ", error type: ", Type/binary, ", description: ",
-                    DescriptionBin/binary>>
-        end,
-    jsx:encode(#{
-        <<"errorType">> => Type,
-        <<"name">> => Name,
-        <<"description">> => Message
-    }).
+-export_type([req_data/0]).
 
--spec map_error_type(swag_server_wallet_validation:error_type()) -> binary().
-map_error_type(no_match) -> <<"NoMatch">>;
-map_error_type(not_found) -> <<"NotFound">>;
-map_error_type(not_in_range) -> <<"NotInRange">>;
-map_error_type(wrong_length) -> <<"WrongLength">>;
-map_error_type(wrong_size) -> <<"WrongSize">>;
-map_error_type(schema_violated) -> <<"SchemaViolated">>;
-map_error_type(wrong_type) -> <<"WrongType">>;
-map_error_type(wrong_body) -> <<"WrongBody">>;
-map_error_type(wrong_array) -> <<"WrongArray">>.
+respond_if_forbidden(forbidden, Response) ->
+    wapi_handler_utils:throw_result(Response);
+respond_if_forbidden(allowed, _Response) ->
+    allowed.
 
 mask_notfound(Resolution) ->
     % ED-206
@@ -61,30 +34,7 @@ mask_notfound(Resolution) ->
     % client has no permission to act on it". From the point of view of existing integrations this
     % is not great, so we have to mask specific instances of missing authorization as if specified
     % invoice is nonexistent.
-    wapi_handler:respond_if_forbidden(Resolution, wapi_handler_utils:reply_ok(404)).
-
--spec authorize_api_key(operation_id(), api_key(), request_context(), handler_opts()) ->
-    Result :: false | {true, wapi_auth:preauth_context()}.
-authorize_api_key(OperationID, ApiKey, _Context, _HandlerOpts) ->
-    %% Since we require the request id field to create a woody context for our trip to token_keeper
-    %% it seems it is no longer possible to perform any authorization in this method.
-    %% To gain this ability back be would need to rewrite the swagger generator to perform its
-    %% request validation checks before this stage.
-    %% But since a decent chunk of authorization logic is already defined in the handler function
-    %% it is probably easier to move it there in its entirety.
-    ok = scoper:add_scope('swag.server', #{api => wallet, operation_id => OperationID}),
-    case wapi_auth:preauthorize_api_key(ApiKey) of
-        {ok, Context} ->
-            {true, Context};
-        {error, Error} ->
-            _ = logger:info("API Key preauthorization failed for ~p due to ~p", [OperationID, Error]),
-            false
-    end.
-
--spec handle_request(swag_server_wallet:operation_id(), req_data(), request_context(), handler_opts()) ->
-    request_result().
-handle_request(OperationID, Req, SwagContext, Opts) ->
-    wapi_handler:handle_request(OperationID, Req, SwagContext, Opts).
+    respond_if_forbidden(Resolution, wapi_handler_utils:reply_ok(404)).
 
 %% Providers
 -spec prepare(operation_id(), req_data(), handler_context(), handler_opts()) -> {ok, request_state()} | no_return().
@@ -200,7 +150,7 @@ prepare(OperationID = 'CreateIdentity', #{'Identity' := Params}, Context, Opts) 
     Process = fun() ->
         case wapi_identity_backend:create_identity(Params, Context) of
             {ok, Identity = #{<<"id">> := IdentityId}} ->
-                wapi_handler_utils:reply_ok(201, Identity, get_location('GetIdentity', [IdentityId], Opts));
+                wapi_handler_utils:reply_ok(201, Identity, get_location('GetIdentity', [IdentityId], Context, Opts));
             {error, {inaccessible, _}} ->
                 wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Party inaccessible">>));
             {error, {party, notfound}} ->
@@ -299,7 +249,7 @@ prepare(OperationID = 'CreateWallet', #{'Wallet' := Params = #{<<"identity">> :=
     Process = fun() ->
         case wapi_wallet_backend:create(Params, Context) of
             {ok, Wallet = #{<<"id">> := WalletId}} ->
-                wapi_handler_utils:reply_ok(201, Wallet, get_location('GetWallet', [WalletId], Opts));
+                wapi_handler_utils:reply_ok(201, Wallet, get_location('GetWallet', [WalletId], Context, Opts));
             {error, {identity, notfound}} ->
                 wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
             {error, {currency, notfound}} ->
@@ -467,7 +417,7 @@ prepare(
     Process = fun() ->
         case wapi_destination_backend:create(Params, Context) of
             {ok, Destination = #{<<"id">> := DestinationId}} ->
-                wapi_handler_utils:reply_ok(201, Destination, get_location('GetDestination', [DestinationId], Opts));
+                wapi_handler_utils:reply_ok(201, Destination, get_location('GetDestination', [DestinationId], Context, Opts));
             {error, {identity, notfound}} ->
                 wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
             {error, {currency, notfound}} ->
@@ -617,7 +567,7 @@ prepare(OperationID = 'CreateWithdrawal', #{'WithdrawalParameters' := Params}, C
     Process = fun() ->
         case wapi_withdrawal_backend:create(Params, Context) of
             {ok, Withdrawal = #{<<"id">> := WithdrawalId}} ->
-                wapi_handler_utils:reply_ok(202, Withdrawal, get_location('GetWithdrawal', [WithdrawalId], Opts));
+                wapi_handler_utils:reply_ok(202, Withdrawal, get_location('GetWithdrawal', [WithdrawalId], Context, Opts));
             {error, {destination, notfound}} ->
                 wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such destination">>));
             {error, {destination, unauthorized}} ->
@@ -1264,8 +1214,8 @@ prepare(OperationID = 'GetCurrency', #{'currencyID' := CurrencyId}, Context, _Op
     {ok, #{authorize => Authorize, process => Process}}.
 
 %% Internal functions
-get_location(OperationId, Params, Opts) ->
-    #{path := PathSpec} = swag_server_wallet_router:get_operation(OperationId),
+get_location(OperationId, Params, #{swag_server_get_operation_fun := Get}, Opts) ->
+    #{path := PathSpec} = Get(OperationId),
     wapi_handler_utils:get_location(PathSpec, Params, Opts).
 
 issue_grant_token(TokenSpec, Expiration, Context) ->

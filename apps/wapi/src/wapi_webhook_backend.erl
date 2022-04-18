@@ -6,10 +6,10 @@
 -export([delete_webhook/2]).
 
 -type id() :: binary() | undefined.
--type ctx() :: wapi_handler:context().
--type req_data() :: wapi_handler:req_data().
--type handler_context() :: wapi_handler:context().
--type response_data() :: wapi_handler:response_data().
+-type ctx() :: wapi_handler_utils:handler_context().
+-type req_data() :: wapi_wallet_handler:req_data().
+-type handler_context() :: wapi_handler_utils:handler_context().
+-type response_data() :: wapi_handler_utils:response_data().
 
 -include_lib("fistful_proto/include/ff_proto_webhooker_thrift.hrl").
 

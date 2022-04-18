@@ -21,23 +21,56 @@
 -export([get_location/3]).
 -export([maybe_with/3]).
 
+-export([throw_result/1]).
+
 -define(APP, wapi).
 
--type handler_context() :: wapi_handler:context().
--type handler_opts() :: wapi_handler:opts().
+-type client_peer() :: #{
+    ip_address => IP :: inet:ip_address(),
+    port_number => Port :: inet:port_number()
+}.
+-type auth_context() :: any().
+-type req() :: cowboy_req:req().
+-type request_context() :: #{
+    auth_context => AuthContext :: auth_context(),
+    peer => client_peer(),
+    cowboy_req => req()
+}.
+
+-type operation_id() :: atom().
+-type swag_server_get_schema_fun() :: fun(() -> map()).
+-type swag_server_get_operation_fun() :: fun((atom()) -> map()).
+-type handler_context() :: #{
+    operation_id := operation_id(),
+    woody_context := woody_context:ctx(),
+    swagger_context := request_context(),
+    swag_server_get_schema_fun := swag_server_get_schema_fun(),
+    swag_server_get_operation_fun := swag_server_get_operation_fun()
+}.
+
+-type handler_opts() :: _.
 
 -type error_message() :: binary() | io_lib:chars().
 
 -type error_type() :: external_id_conflict.
 -type error_params() :: {ID :: binary(), ExternalID :: binary()}.
 
--type status_code() :: wapi_handler:status_code().
--type headers() :: wapi_handler:headers().
--type response_data() :: wapi_handler:response_data().
+-type status_code() :: 200..599.
+-type headers() :: cowboy:http_headers().
+-type response_data() :: map() | [map()] | undefined.
 
 -type owner() :: binary() | undefined.
 
 -export_type([owner/0]).
+-export_type([request_context/0]).
+-export_type([operation_id/0]).
+-export_type([swag_server_get_schema_fun/0]).
+-export_type([swag_server_get_operation_fun/0]).
+-export_type([handler_context/0]).
+-export_type([handler_opts/0]).
+-export_type([status_code/0]).
+-export_type([headers/0]).
+-export_type([response_data/0]).
 
 %% API
 
@@ -90,7 +123,7 @@ reply(Status, Code, Data, Headers) ->
 
 -spec throw_not_implemented() -> no_return().
 throw_not_implemented() ->
-    wapi_handler:throw_result(reply_error(501)).
+    throw_result(reply_error(501)).
 
 -spec get_location(wapi_utils:route_match(), [binary()], handler_opts()) -> headers().
 get_location(PathSpec, Params, _Opts) ->
@@ -119,3 +152,9 @@ maybe_with(Name, Params, Then) ->
         undefined ->
             undefined
     end.
+
+-define(REQUEST_RESULT, wapi_req_result).
+
+-spec throw_result({ok | error, {status_code(), #{}, response_data()}}) -> no_return().
+throw_result(Res) ->
+    erlang:throw({?REQUEST_RESULT, Res}).

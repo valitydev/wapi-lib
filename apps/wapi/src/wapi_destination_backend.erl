@@ -1,8 +1,8 @@
 -module(wapi_destination_backend).
 
--type req_data() :: wapi_handler:req_data().
--type handler_context() :: wapi_handler:context().
--type response_data() :: wapi_handler:response_data().
+-type req_data() :: wapi_wallet_handler:req_data().
+-type handler_context() :: wapi_handler_utils:handler_context().
+-type response_data() :: wapi_handler_utils:response_data().
 -type id() :: binary().
 -type external_id() :: binary().
 
@@ -29,7 +29,7 @@ create(Params, HandlerContext) ->
     do(fun() ->
         ResourceIn = maps:get(<<"resource">>, Params),
         Resource = secure_resource(ResourceIn, HandlerContext),
-        ResourceThrift = unwrap(construct_resource(Resource)),
+        ResourceThrift = unwrap(construct_resource(Resource, HandlerContext)),
         ID = unwrap(generate_id(Params, ResourceThrift, HandlerContext)),
         unwrap(create_request(ID, Params, ResourceThrift, HandlerContext))
     end).
@@ -129,7 +129,8 @@ construct_resource(
     #{
         <<"type">> := <<"BankCardDestinationResource">> = Type,
         <<"token">> := Token
-    }
+    },
+    _Context
 ) ->
     case wapi_backend_utils:decode_resource(Token) of
         {ok, Resource} ->
@@ -143,7 +144,8 @@ construct_resource(
     #{
         <<"type">> := <<"CryptoWalletDestinationResource">>,
         <<"id">> := CryptoWalletID
-    } = Resource
+    } = Resource,
+    _Context
 ) ->
     CostructedResource =
         {crypto_wallet, #{
@@ -158,7 +160,8 @@ construct_resource(
         <<"type">> := <<"DigitalWalletDestinationResource">>,
         <<"id">> := DigitalWalletID,
         <<"provider">> := Provider
-    } = Resource
+    } = Resource,
+    _Context
 ) ->
     ConstructedResource =
         {digital_wallet, #{
@@ -170,9 +173,10 @@ construct_resource(
         }},
     {ok, wapi_codec:marshal(resource, ConstructedResource)};
 construct_resource(
-    Resource = #{<<"type">> := GenericResourceType}
+    Resource = #{<<"type">> := GenericResourceType},
+    Context
 ) ->
-    case prepare_generic_resource_data(GenericResourceType, Resource) of
+    case prepare_generic_resource_data(GenericResourceType, Resource, Context) of
         {ok, Data} ->
             ConstructedResource =
                 {generic, #{
@@ -201,8 +205,8 @@ tokenize_resource({digital_wallet, Resource}) ->
 tokenize_resource(Value) ->
     wapi_backend_utils:tokenize_resource(Value).
 
-prepare_generic_resource_data(ResourceType, Resource) ->
-    Schema = swag_server_wallet_schema:get(),
+prepare_generic_resource_data(ResourceType, Resource, #{swag_server_get_schema_fun := Get}) ->
+    Schema = Get(),
     Definitions = maps:get(<<"definitions">>, Schema),
     ResourceSchema = maps:get(ResourceType, Definitions),
     case maps:get(<<"x-vality-genericMethod">>, ResourceSchema, undefined) of

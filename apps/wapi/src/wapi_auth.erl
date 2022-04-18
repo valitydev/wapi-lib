@@ -19,6 +19,7 @@
 -type token_type() :: bearer.
 -type auth_context() :: {authorized, token_keeper_client:auth_data()}.
 -type preauth_context() :: {unauthorized, {token_type(), token_keeper_client:token()}}.
+-type api_key() :: binary().
 
 -type resolution() ::
     allowed
@@ -49,7 +50,7 @@ get_user_id(?AUTHORIZED(#{metadata := Metadata})) ->
 
 %%
 
--spec preauthorize_api_key(swag_server_wallet:api_key()) -> {ok, preauth_context()} | {error, _Reason}.
+-spec preauthorize_api_key(api_key()) -> {ok, preauth_context()} | {error, _Reason}.
 preauthorize_api_key(ApiKey) ->
     case parse_api_key(ApiKey) of
         {ok, Token} ->
@@ -75,7 +76,7 @@ authorize_token_by_type(bearer, Token, TokenContext, WoodyContext) ->
 
 -spec authorize_operation(
     Prototypes :: wapi_bouncer_context:prototypes(),
-    Context :: wapi_handler:context()
+    Context :: wapi_handler_utils:handler_context()
 ) -> resolution().
 authorize_operation(Prototypes, Context) ->
     AuthContext = extract_auth_context(Context),

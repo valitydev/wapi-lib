@@ -17,7 +17,6 @@
         identdocstore_proto,
         fistful_reporter_proto,
         file_storage_proto,
-        swag_server_wallet,
         scoper,
         jose,
         jsx,

@@ -1,8 +1,8 @@
 -module(wapi_w2w_backend).
 
--type req_data() :: wapi_handler:req_data().
--type handler_context() :: wapi_handler:context().
--type response_data() :: wapi_handler:response_data().
+-type req_data() :: wapi_wallet_handler:req_data().
+-type handler_context() :: wapi_handler_utils:handler_context().
+-type response_data() :: wapi_handler_utils:response_data().
 
 -type id() :: binary().
 -type external_id() :: id().

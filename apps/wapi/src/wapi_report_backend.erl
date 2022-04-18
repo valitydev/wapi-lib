@@ -11,9 +11,9 @@
 -export([download_file/3]).
 
 -type id() :: binary().
--type req_data() :: wapi_handler:req_data().
--type handler_context() :: wapi_handler:context().
--type response_data() :: wapi_handler:response_data().
+-type req_data() :: wapi_wallet_handler:req_data().
+-type handler_context() :: wapi_handler_utils:handler_context().
+-type response_data() :: wapi_handler_utils:response_data().
 
 -spec create_report(req_data(), handler_context()) -> {ok, response_data()} | {error, Error} when
     Error ::

@@ -12,7 +12,7 @@
 
 %% Types
 
--type handler_context() :: wapi_handler:context().
+-type handler_context() :: wapi_handler_utils:handler_context().
 
 %% API
 

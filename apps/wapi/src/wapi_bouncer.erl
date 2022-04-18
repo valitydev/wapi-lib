@@ -12,7 +12,7 @@
 -spec gather_context_fragments(
     TokenContextFragment :: token_keeper_client:context_fragment(),
     UserID :: binary() | undefined,
-    RequestContext :: swag_server_wallet:request_context(),
+    RequestContext :: wapi_handler_utils:request_context(),
     WoodyContext :: woody_context:ctx()
 ) -> wapi_bouncer_context:fragments().
 gather_context_fragments(TokenContextFragment, UserID, ReqCtx, WoodyCtx) ->
@@ -39,7 +39,7 @@ maybe_add_userorg(UserID, External, WoodyCtx) ->
             External
     end.
 
--spec add_requester_context(swag_server_wallet:request_context(), wapi_bouncer_context:acc()) ->
+-spec add_requester_context(wapi_handler_utils:request_context(), wapi_bouncer_context:acc()) ->
     wapi_bouncer_context:acc().
 add_requester_context(ReqCtx, FragmentAcc) ->
     ClientPeer = maps:get(peer, ReqCtx, #{}),

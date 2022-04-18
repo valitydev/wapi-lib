@@ -3,7 +3,7 @@
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include_lib("damsel/include/dmsl_domain_config_thrift.hrl").
 
--type response_data() :: wapi_handler:response_data().
+-type response_data() :: wapi_handler_utils:response_data().
 
 -export([get_currency/1]).
 

@@ -1,6 +1,6 @@
 -module(wapi_residence).
 
--type response_data() :: wapi_handler:response_data().
+-type response_data() :: wapi_handler_utils:response_data().
 
 -export([get/1]).
 

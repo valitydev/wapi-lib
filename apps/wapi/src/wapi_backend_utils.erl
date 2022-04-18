@@ -25,7 +25,7 @@
     | [md()]
     | #{md() => md()}.
 
--type handler_context() :: wapi_handler:context().
+-type handler_context() :: wapi_handler_utils:handler_context().
 -type id() :: binary().
 -type hash() :: integer().
 -type params() :: map().

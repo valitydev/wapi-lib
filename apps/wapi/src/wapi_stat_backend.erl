@@ -10,9 +10,9 @@
 -export([list_deposit_reverts/2]).
 -export([list_deposit_adjustments/2]).
 
--type req_data() :: wapi_handler:req_data().
--type handler_context() :: wapi_handler:context().
--type response_data() :: wapi_handler:response_data().
+-type req_data() :: wapi_wallet_handler:req_data().
+-type handler_context() :: wapi_handler_utils:handler_context().
+-type response_data() :: wapi_handler_utils:response_data().
 
 -spec list_wallets(req_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
     StatError :: {invalid | bad_token, binary()}.

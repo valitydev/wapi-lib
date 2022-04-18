@@ -2,8 +2,8 @@
 
 -include_lib("fistful_proto/include/ff_proto_provider_thrift.hrl").
 
--type handler_context() :: wapi_handler:context().
--type response_data() :: wapi_handler:response_data().
+-type handler_context() :: wapi_handler_utils:handler_context().
+-type response_data() :: wapi_handler_utils:response_data().
 -type id() :: binary().
 
 -export([get_providers/2]).
