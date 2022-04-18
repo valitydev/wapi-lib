@@ -35,7 +35,9 @@
 
 -spec init([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init([]) ->
-    {ok, {#{strategy => one_for_all, intensity => 1, period => 1}, []}}.
+    {ok, {#{strategy => one_for_all, intensity => 1, period => 1}, []}};
+init([suite_test_sup]) ->
+    {ok, {#{strategy => one_for_all, intensity => 1, period => 1}, wapi_ct_helper_handler_sup:child_spec()}}.
 
 -spec all() -> [{group, test_case_name()}].
 all() ->

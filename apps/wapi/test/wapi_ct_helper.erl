@@ -18,6 +18,7 @@
 -export([start_app/2]).
 -export([get_context/1]).
 -export([get_keysource/2]).
+-export([start_mocked_service_sup/2]).
 -export([start_mocked_service_sup/1]).
 -export([stop_mocked_service_sup/1]).
 -export([mock_services/2]).
@@ -93,11 +94,29 @@ get_test_case_name(C) ->
 -spec init_suite(module(), config()) -> config().
 init_suite(Module, Config) ->
     SupPid = start_mocked_service_sup(Module),
+    {ok, _} = supervisor:start_child(SupPid, wapi_ct_helper_swagger_server:child_spec([], #{wallet => {wapi_ct_helper_handler, #{}}}, #{})),
     Apps1 =
         start_app(scoper) ++
             start_app(woody) ++
             start_app({dmt_client, SupPid}) ++
             start_app({wapi, Config}),
+    UacConfig = maps:merge(
+        #{
+            jwt => #{
+                keyset => #{
+                    wapi => #{
+                        source => {pem_file, get_keysource("private.pem", Config)},
+                        metadata => #{
+                            auth_method => user_session_token,
+                            user_realm => <<"external">>
+                        }
+                    }
+                }
+            }
+        },
+        #{access => wapi_tokens_legacy:get_access_config()}
+    ),
+    ok = uac:configure(UacConfig),
     _ = wapi_ct_helper_bouncer:mock_client(SupPid),
     [{apps, lists:reverse(Apps1)}, {suite_test_sup, SupPid} | Config].
 
@@ -130,19 +149,6 @@ start_app({wapi = AppName, Config}) ->
         {realm, <<"external">>},
         {public_endpoint, <<"localhost:8080">>},
         {bouncer_ruleset_id, ?TEST_RULESET_ID},
-        {access_conf, #{
-            jwt => #{
-                keyset => #{
-                    wapi => #{
-                        source => {pem_file, get_keysource("private.pem", Config)},
-                        metadata => #{
-                            auth_method => user_session_token,
-                            user_realm => <<"external">>
-                        }
-                    }
-                }
-            }
-        }},
         {signee, ?SIGNEE},
         {lechiffre_opts, #{
             encryption_source => {json, {file, get_keysource("jwk.publ.json", Config)}},
@@ -197,7 +203,11 @@ get_context(Token) ->
 
 -spec start_mocked_service_sup(module()) -> pid().
 start_mocked_service_sup(Module) ->
-    {ok, SupPid} = supervisor:start_link(Module, []),
+    start_mocked_service_sup(Module, []).
+
+-spec start_mocked_service_sup(module(), term()) -> pid().
+start_mocked_service_sup(Module, Args) ->
+    {ok, SupPid} = supervisor:start_link(Module, Args),
     _ = unlink(SupPid),
     SupPid.
 

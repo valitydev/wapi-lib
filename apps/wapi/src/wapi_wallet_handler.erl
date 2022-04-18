@@ -21,6 +21,7 @@
 }.
 
 -export_type([req_data/0]).
+-export_type([request_result/0]).
 
 respond_if_forbidden(forbidden, Response) ->
     wapi_handler_utils:throw_result(Response);

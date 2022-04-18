@@ -55,7 +55,22 @@
 
 -spec init([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init([]) ->
-    {ok, {#{strategy => one_for_all, intensity => 1, period => 1}, []}}.
+    {ok, {#{strategy => one_for_all, intensity => 1, period => 1}, []}};
+init([suite_test_sup]) ->
+    {ok, {#{strategy => one_for_all, intensity => 1, period => 1}, wapi_ct_helper_handler_sup:child_spec()}};
+init([Config]) ->
+    LechiffreOpts = #{
+        encryption_source => {json, {file, wapi_ct_helper:get_keysource("jwk.publ.json", Config)}},
+        decryption_sources => [
+            {json, {file, wapi_ct_helper:get_keysource("jwk.priv.json", Config)}}
+        ]
+    },
+    LechiffreSpec = lechiffre:child_spec(lechiffre, LechiffreOpts),
+    {ok,
+        {
+            #{strategy => one_for_all, intensity => 1, period => 1},
+            wapi_ct_helper_handler_sup:child_spec() ++ [LechiffreSpec]
+        }}.
 
 -spec all() -> [{group, test_case_name()}].
 all() ->
@@ -143,7 +158,7 @@ end_per_testcase(_Name, C) ->
 
 makeup_and_start_mock_per_testcase(Name, C) ->
     C1 = wapi_ct_helper:makeup_cfg([wapi_ct_helper:test_case_name(Name), wapi_ct_helper:woody_ctx()], C),
-    [{test_sup, wapi_ct_helper:start_mocked_service_sup(?MODULE)} | C1].
+    [{test_sup, wapi_ct_helper:start_mocked_service_sup(?MODULE, [C1])} | C1].
 
 end_mock_per_testcase(C) ->
     wapi_ct_helper:stop_mocked_service_sup(?config(test_sup, C)),

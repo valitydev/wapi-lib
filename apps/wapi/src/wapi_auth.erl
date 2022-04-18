@@ -13,6 +13,7 @@
 -export_type([resolution/0]).
 -export_type([preauth_context/0]).
 -export_type([auth_context/0]).
+-export_type([api_key/0]).
 
 %%
 
