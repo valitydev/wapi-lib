@@ -233,8 +233,7 @@ start_woody_client(wapi, Urls) ->
         wapi_woody_client,
         service_urls,
         Urls
-    ),
-    start_app(wapi_woody_client, []).
+    ).
 
 -spec mock_services_(_, _) -> _.
 % TODO need a better name
