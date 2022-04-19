@@ -37,17 +37,20 @@ get_socket_transport() ->
     AcceptorsPool = genlib_app:env(?APP, acceptors_poolsize, ?DEFAULT_ACCEPTORS_POOLSIZE),
     {ranch_tcp, #{socket_opts => [{ip, IP}, {port, Port}], num_acceptors => AcceptorsPool}}.
 
-get_cowboy_config(_AdditionalRoutes, _LogicHandlers, _SwaggerHandlerOpts) ->
-    % Dispatch =
-    %     cowboy_router:compile(
-    %         swag_server_wallet_router:get_paths(
-    %             maps:get(wallet, LogicHandlers),
-    %             SwaggerHandlerOpts
-    %         )
-    %     ),
+get_cowboy_config(AdditionalRoutes, LogicHandlers, SwaggerHandlerOpts) ->
+    Dispatch =
+        cowboy_router:compile(
+            squash_routes(
+                AdditionalRoutes ++
+                    swag_server_wallet_router:get_paths(
+                        maps:get(wallet, LogicHandlers),
+                        SwaggerHandlerOpts
+                    )
+            )
+        ),
     CowboyOpts = #{
         env => #{
-            dispatch => #{},
+            dispatch => Dispatch,
             cors_policy => wapi_cors_policy
         },
         middlewares => [
@@ -66,14 +69,14 @@ get_cowboy_config(_AdditionalRoutes, _LogicHandlers, _SwaggerHandlerOpts) ->
         CowboyOpts
     ).
 
-% squash_routes(Routes) ->
-%     orddict:to_list(
-%         lists:foldl(
-%             fun({K, V}, D) -> orddict:update(K, fun(V0) -> V0 ++ V end, V, D) end,
-%             orddict:new(),
-%             Routes
-%         )
-%     ).
+squash_routes(Routes) ->
+    orddict:to_list(
+        lists:foldl(
+            fun({K, V}, D) -> orddict:update(K, fun(V0) -> V0 ++ V end, V, D) end,
+            orddict:new(),
+            Routes
+        )
+    ).
 
 mk_operation_id_getter(#{env := Env}) ->
     fun(Req) ->

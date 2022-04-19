@@ -41,7 +41,12 @@ map_error_type(wrong_type) -> <<"WrongType">>;
 map_error_type(wrong_body) -> <<"WrongBody">>;
 map_error_type(wrong_array) -> <<"WrongArray">>.
 
--spec authorize_api_key(wapi_handler_utils:operation_id(), wapi_auth:api_key(), wapi_handler_utils:request_context(), wapi_handler_utils:handler_opts()) ->
+-spec authorize_api_key(
+    wapi_handler_utils:operation_id(),
+    wapi_auth:api_key(),
+    wapi_handler_utils:request_context(),
+    wapi_handler_utils:handler_opts()
+) ->
     Result :: false | {true, wapi_auth:preauth_context()}.
 authorize_api_key(OperationID, ApiKey, _Context, _HandlerOpts) ->
     %% Since we require the request id field to create a woody context for our trip to token_keeper
@@ -59,7 +64,12 @@ authorize_api_key(OperationID, ApiKey, _Context, _HandlerOpts) ->
             false
     end.
 
--spec handle_request(swag_server_wallet:operation_id(), wapi_wallet_handler:req_data(), wapi_handler_utils:request_context(), wapi_handler_utils:handler_opts()) ->
+-spec handle_request(
+    swag_server_wallet:operation_id(),
+    wapi_wallet_handler:req_data(),
+    wapi_handler_utils:request_context(),
+    wapi_handler_utils:handler_opts()
+) ->
     wapi_wallet_handler:request_result().
 handle_request(OperationID, Req, SwagContext, Opts) ->
     #{'X-Request-Deadline' := Header} = Req,
@@ -128,13 +138,15 @@ make_token_context(#{cowboy_req := CowboyReq}) ->
             #{}
     end.
 
--spec create_handler_context(wapi_handler_utils:operation_id(), wapi_handler_utils:request_context(), woody_context:ctx()) -> wapi_handler_utils:handler_context().
+-spec create_handler_context(
+    wapi_handler_utils:operation_id(), wapi_handler_utils:request_context(), woody_context:ctx()
+) -> wapi_handler_utils:handler_context().
 create_handler_context(OpID, SwagContext, WoodyContext) ->
     #{
         operation_id => OpID,
         woody_context => WoodyContext,
         swagger_context => SwagContext,
-        swag_server_get_schema_fun => fun swag_server_wallet_schema:get/1,
+        swag_server_get_schema_fun => fun swag_server_wallet_schema:get/0,
         swag_server_get_operation_fun => fun(OperationID) -> swag_server_wallet_router:get_operation(OperationID) end
     }.
 

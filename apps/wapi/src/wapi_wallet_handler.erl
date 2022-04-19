@@ -418,7 +418,9 @@ prepare(
     Process = fun() ->
         case wapi_destination_backend:create(Params, Context) of
             {ok, Destination = #{<<"id">> := DestinationId}} ->
-                wapi_handler_utils:reply_ok(201, Destination, get_location('GetDestination', [DestinationId], Context, Opts));
+                wapi_handler_utils:reply_ok(
+                    201, Destination, get_location('GetDestination', [DestinationId], Context, Opts)
+                );
             {error, {identity, notfound}} ->
                 wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
             {error, {currency, notfound}} ->
@@ -568,7 +570,9 @@ prepare(OperationID = 'CreateWithdrawal', #{'WithdrawalParameters' := Params}, C
     Process = fun() ->
         case wapi_withdrawal_backend:create(Params, Context) of
             {ok, Withdrawal = #{<<"id">> := WithdrawalId}} ->
-                wapi_handler_utils:reply_ok(202, Withdrawal, get_location('GetWithdrawal', [WithdrawalId], Context, Opts));
+                wapi_handler_utils:reply_ok(
+                    202, Withdrawal, get_location('GetWithdrawal', [WithdrawalId], Context, Opts)
+                );
             {error, {destination, notfound}} ->
                 wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such destination">>));
             {error, {destination, unauthorized}} ->

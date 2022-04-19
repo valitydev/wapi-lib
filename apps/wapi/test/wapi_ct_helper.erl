@@ -94,12 +94,14 @@ get_test_case_name(C) ->
 -spec init_suite(module(), config()) -> config().
 init_suite(Module, Config) ->
     SupPid = start_mocked_service_sup(Module),
-    {ok, _} = supervisor:start_child(SupPid, wapi_ct_helper_swagger_server:child_spec([], #{wallet => {wapi_ct_helper_handler, #{}}}, #{})),
     Apps1 =
         start_app(scoper) ++
             start_app(woody) ++
             start_app({dmt_client, SupPid}) ++
             start_app({wapi, Config}),
+    {ok, _} = supervisor:start_child(
+        SupPid, wapi_ct_helper_swagger_server:child_spec([], #{wallet => {wapi_ct_helper_handler, #{}}}, #{})
+    ),
     UacConfig = maps:merge(
         #{
             jwt => #{
@@ -213,7 +215,7 @@ start_mocked_service_sup(Module, Args) ->
 
 -spec stop_mocked_service_sup(pid()) -> _.
 stop_mocked_service_sup(SupPid) ->
-    exit(SupPid, shutdown).
+    exit(SupPid, kill).
 
 -spec mock_services(_, _) -> _.
 mock_services(Services, SupOrConfig) ->

@@ -56,8 +56,6 @@
 -spec init([]) -> {ok, {supervisor:sup_flags(), [supervisor:child_spec()]}}.
 init([]) ->
     {ok, {#{strategy => one_for_all, intensity => 1, period => 1}, []}};
-init([suite_test_sup]) ->
-    {ok, {#{strategy => one_for_all, intensity => 1, period => 1}, wapi_ct_helper_handler_sup:child_spec()}};
 init([Config]) ->
     LechiffreOpts = #{
         encryption_source => {json, {file, wapi_ct_helper:get_keysource("jwk.publ.json", Config)}},
@@ -69,7 +67,7 @@ init([Config]) ->
     {ok,
         {
             #{strategy => one_for_all, intensity => 1, period => 1},
-            wapi_ct_helper_handler_sup:child_spec() ++ [LechiffreSpec]
+            [LechiffreSpec]
         }}.
 
 -spec all() -> [{group, test_case_name()}].
