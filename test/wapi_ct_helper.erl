@@ -315,7 +315,7 @@ get_lifetime(YY, MM, DD) ->
         <<"days">> => DD
     }.
 
--spec create_auth_ctx(binary()) -> #{swagger_context => wapi_handler:swagger_context()}.
+-spec create_auth_ctx(binary()) -> #{swagger_context => wapi_wallet_handler:request_context()}.
 create_auth_ctx(PartyID) ->
     #{
         swagger_context => #{auth_context => {?STRING, PartyID, #{}}}

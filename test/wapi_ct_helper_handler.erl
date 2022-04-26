@@ -43,7 +43,7 @@ map_error_type(wrong_array) -> <<"WrongArray">>.
     wapi_handler_utils:operation_id(),
     wapi_auth:api_key(),
     wapi_handler_utils:request_context(),
-    wapi_handler_utils:handler_opts()
+    wapi_wallet_handler:handler_opts()
 ) ->
     Result :: false | {true, wapi_auth:preauth_context()}.
 authorize_api_key(OperationID, ApiKey, _Context, _HandlerOpts) ->
@@ -66,7 +66,7 @@ authorize_api_key(OperationID, ApiKey, _Context, _HandlerOpts) ->
     swag_server_wallet:operation_id(),
     wapi_wallet_handler:request_data(),
     wapi_handler_utils:request_context(),
-    wapi_handler_utils:handler_opts()
+    wapi_wallet_handler:handler_opts()
 ) ->
     wapi_wallet_handler:request_result().
 handle_request(OperationID, Req, SwagContext, Opts) ->

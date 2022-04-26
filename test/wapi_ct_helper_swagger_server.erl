@@ -57,10 +57,7 @@ get_cowboy_config(LogicHandlers) ->
             cowboy_stream_h
         ]
     },
-    cowboy_access_log_h:set_extra_info_fun(
-        mk_operation_id_getter(CowboyOpts),
-        CowboyOpts
-    ).
+    CowboyOpts#{extra_info_fun => mk_operation_id_getter(CowboyOpts)}.
 
 mk_operation_id_getter(#{env := Env}) ->
     fun(Req) ->
