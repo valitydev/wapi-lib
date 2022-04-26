@@ -7,8 +7,6 @@
 -export([authorize_api_key/4]).
 -export([handle_request/4]).
 
--define(REQUEST_RESULT, wapi_req_result).
-
 %% API
 
 -spec map_error(atom(), swag_server_wallet_validation:error()) -> swag_server_wallet:error_reason().
@@ -99,14 +97,14 @@ process_request(OperationID, Req, SwagContext0, Opts, WoodyContext) ->
                 Process();
             forbidden ->
                 _ = logger:info("Authorization failed"),
-                wapi_handler_utils:reply_ok(401)
+                wapi_handler_utils:reply_ok(401);
+            Result ->
+                Result
         end
     catch
         throw:{token_auth_failed, Reason} ->
             _ = logger:info("API Key authorization failed for ~p due to ~p", [OperationID, Reason]),
             wapi_handler_utils:reply_ok(401);
-        throw:{?REQUEST_RESULT, Result} ->
-            Result;
         error:{woody_error, {Source, Class, Details}} ->
             process_woody_error(Source, Class, Details)
     end.

@@ -5,32 +5,56 @@
 %% Types
 
 -type request_data() :: #{atom() | binary() => term()}.
--type handler_context() :: wapi_handler_utils:handler_context().
--type operation_id() :: wapi_handler_utils:operation_id().
--type handler_opts() :: wapi_handler_utils:handler_opts().
-
--type throw(_T) :: no_return().
--type status_code() :: wapi_handler_utils:status_code().
--type headers() :: wapi_handler_utils:headers().
--type response_data() :: wapi_handler_utils:response_data().
+-type status_code() :: 200..599.
+-type headers() :: cowboy:http_headers().
+-type response_data() :: map() | [map()] | undefined.
 -type response() :: {status_code(), headers(), response_data()}.
 -type request_result() :: {ok | error, response()}.
 -type request_state() :: #{
-    authorize := fun(() -> {ok, wapi_auth:resolution()} | throw(response())),
-    process := fun(() -> {ok, response()} | throw(request_result()))
+    authorize := fun(() -> {ok, wapi_auth:resolution()} | request_result()),
+    process := fun(() -> request_result())
+}.
+
+-type operation_id() :: atom().
+-type swag_server_get_schema_fun() :: fun(() -> map()).
+-type swag_server_get_operation_fun() :: fun((atom()) -> map()).
+
+-type client_peer() :: #{
+    ip_address => IP :: inet:ip_address(),
+    port_number => Port :: inet:port_number()
+}.
+-type auth_context() :: any().
+-type req() :: cowboy_req:req().
+-type request_context() :: #{
+    auth_context => AuthContext :: auth_context(),
+    peer => client_peer(),
+    cowboy_req => req()
+}.
+
+-type handler_opts() :: _.
+-type handler_context() :: #{
+    operation_id := operation_id(),
+    woody_context := woody_context:ctx(),
+    swagger_context := request_context(),
+    swag_server_get_schema_fun := swag_server_get_schema_fun(),
+    swag_server_get_operation_fun := swag_server_get_operation_fun()
 }.
 
 -export_type([request_data/0]).
 -export_type([request_result/0]).
 
--define(REQUEST_RESULT, wapi_req_result).
-
--spec throw_result({ok | error, {status_code(), #{}, response_data()}}) -> no_return().
-throw_result(Res) ->
-    erlang:throw({?REQUEST_RESULT, Res}).
+-export_type([handler_opts/0]).
+-export_type([status_code/0]).
+-export_type([headers/0]).
+-export_type([response_data/0]).
+-export_type([request_context/0]).
+-export_type([operation_id/0]).
+-export_type([handler_context/0]).
+-export_type([swag_server_get_schema_fun/0]).
+-export_type([swag_server_get_operation_fun/0]).
 
 respond_if_forbidden(forbidden, Response) ->
-    throw_result(Response);
+    Response;
 respond_if_forbidden(allowed, _Response) ->
     allowed.
 
