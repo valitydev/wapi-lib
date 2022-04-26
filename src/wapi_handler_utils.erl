@@ -14,14 +14,10 @@
 
 -export([service_call/2]).
 
--export([throw_not_implemented/0]).
-
 -export([get_owner/1]).
 
 -export([get_location/3]).
 -export([maybe_with/3]).
-
--export([throw_result/1]).
 
 -define(APP, wapi).
 
@@ -121,10 +117,6 @@ reply_error(Code, Data, Headers) ->
 reply(Status, Code, Data, Headers) ->
     {Status, {Code, Headers, Data}}.
 
--spec throw_not_implemented() -> no_return().
-throw_not_implemented() ->
-    throw_result(reply_error(501)).
-
 -spec get_location(wapi_utils:route_match(), [binary()], handler_opts()) -> headers().
 get_location(PathSpec, Params, _Opts) ->
     %% TODO pass base URL via Opts
@@ -152,9 +144,3 @@ maybe_with(Name, Params, Then) ->
         undefined ->
             undefined
     end.
-
--define(REQUEST_RESULT, wapi_req_result).
-
--spec throw_result({ok | error, {status_code(), #{}, response_data()}}) -> no_return().
-throw_result(Res) ->
-    erlang:throw({?REQUEST_RESULT, Res}).

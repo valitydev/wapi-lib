@@ -1,6 +1,6 @@
 -module(wapi_wallet_backend).
 
--type req_data() :: wapi_wallet_handler:req_data().
+-type request_data() :: wapi_wallet_handler:request_data().
 -type handler_context() :: wapi_handler_utils:handler_context().
 -type response_data() :: wapi_handler_utils:response_data().
 -type id() :: binary().
@@ -15,7 +15,7 @@
 
 %% Pipeline
 
--spec create(req_data(), handler_context()) -> {ok, response_data()} | {error, WalletError} when
+-spec create(request_data(), handler_context()) -> {ok, response_data()} | {error, WalletError} when
     WalletError ::
         {identity, notfound}
         | {currency, notfound}

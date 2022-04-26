@@ -7,7 +7,7 @@
 -export([get_service_deadline/1]).
 
 %%
--define(APP, wapi_woody_client).
+-define(APP, wapi).
 
 -type service_name() :: atom().
 

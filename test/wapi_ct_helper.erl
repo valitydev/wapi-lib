@@ -100,7 +100,7 @@ init_suite(Module, Config) ->
             start_app({dmt_client, SupPid}) ++
             start_app({wapi, Config}),
     {ok, _} = supervisor:start_child(
-        SupPid, wapi_ct_helper_swagger_server:child_spec([], #{wallet => {wapi_ct_helper_handler, #{}}}, #{})
+        SupPid, wapi_ct_helper_swagger_server:child_spec(#{wallet => {wapi_ct_helper_handler, #{}}})
     ),
     UacConfig = maps:merge(
         #{
@@ -230,7 +230,7 @@ start_woody_client(bender_thrift, Urls) ->
     start_app(bender_client, []);
 start_woody_client(wapi, Urls) ->
     ok = application:set_env(
-        wapi_woody_client,
+        wapi,
         service_urls,
         Urls
     ).

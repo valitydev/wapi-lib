@@ -10,41 +10,41 @@
 -export([list_deposit_reverts/2]).
 -export([list_deposit_adjustments/2]).
 
--type req_data() :: wapi_wallet_handler:req_data().
+-type request_data() :: wapi_wallet_handler:request_data().
 -type handler_context() :: wapi_handler_utils:handler_context().
 -type response_data() :: wapi_handler_utils:response_data().
 
--spec list_wallets(req_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
+-spec list_wallets(request_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
     StatError :: {invalid | bad_token, binary()}.
 list_wallets(Params, Context) ->
     service_call(wallets, Params, Context).
 
--spec list_withdrawals(req_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
+-spec list_withdrawals(request_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
     StatError :: {invalid | bad_token, binary()}.
 list_withdrawals(Params, Context) ->
     service_call(withdrawals, Params, Context).
 
--spec list_deposits(req_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
+-spec list_deposits(request_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
     StatError :: {invalid | bad_token, binary()}.
 list_deposits(Params, Context) ->
     service_call(deposits, Params, Context).
 
--spec list_destinations(req_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
+-spec list_destinations(request_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
     StatError :: {invalid | bad_token, binary()}.
 list_destinations(Params, Context) ->
     service_call(destinations, Params, Context).
 
--spec list_identities(req_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
+-spec list_identities(request_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
     StatError :: {invalid | bad_token, binary()}.
 list_identities(Params, Context) ->
     service_call(identities, Params, Context).
 
--spec list_deposit_reverts(req_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
+-spec list_deposit_reverts(request_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
     StatError :: {invalid | bad_token, binary()}.
 list_deposit_reverts(Params, Context) ->
     service_call(deposit_reverts, Params, Context).
 
--spec list_deposit_adjustments(req_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
+-spec list_deposit_adjustments(request_data(), handler_context()) -> {ok, response_data()} | {error, StatError} when
     StatError :: {invalid | bad_token, binary()}.
 list_deposit_adjustments(Params, Context) ->
     service_call(deposit_adjustments, Params, Context).

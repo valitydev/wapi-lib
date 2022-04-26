@@ -9,7 +9,7 @@
 
 -define(STATUS_CHANGE(Status), {status_changed, #wthd_StatusChange{status = Status}}).
 
--type req_data() :: wapi_wallet_handler:req_data().
+-type request_data() :: wapi_wallet_handler:request_data().
 -type handler_context() :: wapi_handler_utils:handler_context().
 -type response_data() :: wapi_handler_utils:response_data().
 -type id() :: binary().
@@ -54,7 +54,7 @@
 
 -import(wapi_pipeline, [do/1, unwrap/1, unwrap/2]).
 
--spec create(req_data(), handler_context()) -> {ok, response_data()} | {error, create_error()}.
+-spec create(request_data(), handler_context()) -> {ok, response_data()} | {error, create_error()}.
 create(Params0, HandlerContext) ->
     case check_withdrawal_params(Params0, HandlerContext) of
         {ok, Params1} ->
@@ -134,7 +134,7 @@ get_by_external_id(ExternalID, HandlerContext = #{woody_context := WoodyContext}
             {error, {external_id, {unknown_external_id, ExternalID}}}
     end.
 
--spec create_quote(req_data(), handler_context()) -> {ok, response_data()} | {error, create_quote_error()}.
+-spec create_quote(request_data(), handler_context()) -> {ok, response_data()} | {error, create_quote_error()}.
 create_quote(#{'WithdrawalQuoteParams' := Params}, HandlerContext) ->
     CreateQuoteParams = marshal(create_quote_params, Params),
     Request = {fistful_withdrawal, 'GetQuote', {CreateQuoteParams}},
@@ -182,7 +182,7 @@ create_quote(#{'WithdrawalQuoteParams' := Params}, HandlerContext) ->
             {error, {destination, forbidden_withdrawal_method}}
     end.
 
--spec get_events(req_data(), handler_context()) ->
+-spec get_events(request_data(), handler_context()) ->
     {ok, response_data()} | {error, {withdrawal, notfound}}.
 get_events(Params = #{'withdrawalID' := WithdrawalId, 'limit' := Limit}, HandlerContext) ->
     Cursor = maps:get('eventCursor', Params, undefined),

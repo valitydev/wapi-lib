@@ -66,7 +66,7 @@ authorize_api_key(OperationID, ApiKey, _Context, _HandlerOpts) ->
 
 -spec handle_request(
     swag_server_wallet:operation_id(),
-    wapi_wallet_handler:req_data(),
+    wapi_wallet_handler:request_data(),
     wapi_handler_utils:request_context(),
     wapi_handler_utils:handler_opts()
 ) ->
@@ -111,7 +111,7 @@ process_request(OperationID, Req, SwagContext0, Opts, WoodyContext) ->
             process_woody_error(Source, Class, Details)
     end.
 
--spec create_woody_context(wapi_wallet_handler:req_data()) -> woody_context:ctx().
+-spec create_woody_context(wapi_wallet_handler:request_data()) -> woody_context:ctx().
 create_woody_context(#{'X-Request-ID' := RequestID}) ->
     RpcID = #{trace_id := TraceID} = woody_context:new_rpc_id(genlib:to_binary(RequestID)),
     ok = scoper:add_meta(#{request_id => RequestID, trace_id => TraceID}),

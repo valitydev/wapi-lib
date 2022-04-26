@@ -11,11 +11,11 @@
 -export([download_file/3]).
 
 -type id() :: binary().
--type req_data() :: wapi_wallet_handler:req_data().
+-type request_data() :: wapi_wallet_handler:request_data().
 -type handler_context() :: wapi_handler_utils:handler_context().
 -type response_data() :: wapi_handler_utils:response_data().
 
--spec create_report(req_data(), handler_context()) -> {ok, response_data()} | {error, Error} when
+-spec create_report(request_data(), handler_context()) -> {ok, response_data()} | {error, Error} when
     Error ::
         {identity, notfound}
         | invalid_request
@@ -72,7 +72,7 @@ get_report('contractID', ReportID, ContractID, HandlerContext) ->
             {error, notfound}
     end.
 
--spec get_reports(req_data(), handler_context()) -> {ok, response_data()} | {error, Error} when
+-spec get_reports(request_data(), handler_context()) -> {ok, response_data()} | {error, Error} when
     Error ::
         {identity, notfound}
         | invalid_request

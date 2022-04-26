@@ -4,7 +4,7 @@
 
 %% Types
 
--type req_data() :: #{atom() | binary() => term()}.
+-type request_data() :: #{atom() | binary() => term()}.
 -type handler_context() :: wapi_handler_utils:handler_context().
 -type operation_id() :: wapi_handler_utils:operation_id().
 -type handler_opts() :: wapi_handler_utils:handler_opts().
@@ -20,11 +20,17 @@
     process := fun(() -> {ok, response()} | throw(request_result()))
 }.
 
--export_type([req_data/0]).
+-export_type([request_data/0]).
 -export_type([request_result/0]).
 
+-define(REQUEST_RESULT, wapi_req_result).
+
+-spec throw_result({ok | error, {status_code(), #{}, response_data()}}) -> no_return().
+throw_result(Res) ->
+    erlang:throw({?REQUEST_RESULT, Res}).
+
 respond_if_forbidden(forbidden, Response) ->
-    wapi_handler_utils:throw_result(Response);
+    throw_result(Response);
 respond_if_forbidden(allowed, _Response) ->
     allowed.
 
@@ -38,7 +44,7 @@ mask_notfound(Resolution) ->
     respond_if_forbidden(Resolution, wapi_handler_utils:reply_ok(404)).
 
 %% Providers
--spec prepare(operation_id(), req_data(), handler_context(), handler_opts()) -> {ok, request_state()} | no_return().
+-spec prepare(operation_id(), request_data(), handler_context(), handler_opts()) -> {ok, request_state()} | no_return().
 prepare(OperationID = 'ListProviders', #{'residence' := Residence}, Context, _Opts) ->
     Authorize = fun() ->
         Prototypes = [{operation, #{id => OperationID}}],

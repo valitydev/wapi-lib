@@ -1,6 +1,6 @@
 -module(wapi_destination_backend).
 
--type req_data() :: wapi_wallet_handler:req_data().
+-type request_data() :: wapi_wallet_handler:request_data().
 -type handler_context() :: wapi_handler_utils:handler_context().
 -type response_data() :: wapi_handler_utils:response_data().
 -type id() :: binary().
@@ -16,7 +16,7 @@
 
 -import(wapi_pipeline, [do/1, unwrap/1]).
 
--spec create(req_data(), handler_context()) -> {ok, response_data()} | {error, DestinationError} when
+-spec create(request_data(), handler_context()) -> {ok, response_data()} | {error, DestinationError} when
     DestinationError ::
         {invalid_resource_token, binary()}
         | {invalid_generic_resource, {binary(), unknown_resource}}

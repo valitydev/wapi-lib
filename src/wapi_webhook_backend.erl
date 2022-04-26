@@ -7,13 +7,13 @@
 
 -type id() :: binary() | undefined.
 -type ctx() :: wapi_handler_utils:handler_context().
--type req_data() :: wapi_wallet_handler:req_data().
+-type request_data() :: wapi_wallet_handler:request_data().
 -type handler_context() :: wapi_handler_utils:handler_context().
 -type response_data() :: wapi_handler_utils:response_data().
 
 -include_lib("fistful_proto/include/ff_proto_webhooker_thrift.hrl").
 
--spec create_webhook(req_data(), handler_context()) -> {ok, response_data()}.
+-spec create_webhook(request_data(), handler_context()) -> {ok, response_data()}.
 create_webhook(#{'Webhook' := Params}, HandlerContext) ->
     WebhookParams = marshal_webhook_params(Params),
     Call = {webhook_manager, 'Create', {WebhookParams}},

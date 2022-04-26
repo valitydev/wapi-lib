@@ -1,6 +1,6 @@
 -module(wapi_w2w_backend).
 
--type req_data() :: wapi_wallet_handler:req_data().
+-type request_data() :: wapi_wallet_handler:request_data().
 -type handler_context() :: wapi_handler_utils:handler_context().
 -type response_data() :: wapi_handler_utils:response_data().
 
@@ -12,7 +12,7 @@
 
 -include_lib("fistful_proto/include/ff_proto_w2w_transfer_thrift.hrl").
 
--spec create_transfer(req_data(), handler_context()) -> {ok, response_data()} | {error, CreateError} when
+-spec create_transfer(request_data(), handler_context()) -> {ok, response_data()} | {error, CreateError} when
     CreateError ::
         {external_id_conflict, external_id()}
         | {wallet_from | wallet_to, notfound | inaccessible}

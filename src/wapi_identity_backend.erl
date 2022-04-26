@@ -11,7 +11,6 @@
 
 -export([create_identity/2]).
 -export([get_identity/2]).
--export([get_identities/2]).
 
 -export([get_thrift_identity/2]).
 -export([get_identity_withdrawal_methods/2]).
@@ -68,10 +67,6 @@ create_identity(ID, Params, HandlerContext) ->
         {exception, Details} ->
             {error, Details}
     end.
-
--spec get_identities(params(), handler_context()) -> no_return().
-get_identities(_Params, _Context) ->
-    wapi_handler_utils:throw_not_implemented().
 
 -spec get_thrift_identity(id(), handler_context()) ->
     {ok, identity_state()}
