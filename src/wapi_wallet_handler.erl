@@ -68,7 +68,7 @@ mask_notfound(Resolution) ->
     respond_if_forbidden(Resolution, wapi_handler_utils:reply_ok(404)).
 
 %% Providers
--spec prepare(operation_id(), request_data(), handler_context(), handler_opts()) -> {ok, request_state()} | no_return().
+-spec prepare(operation_id(), request_data(), handler_context(), handler_opts()) -> {ok, request_state()}.
 prepare(OperationID = 'ListProviders', #{'residence' := Residence}, Context, _Opts) ->
     Authorize = fun() ->
         Prototypes = [{operation, #{id => OperationID}}],

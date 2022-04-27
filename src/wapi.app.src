@@ -17,7 +17,6 @@
         scoper,
         jose,
         jsx,
-        cowboy_draining_server,
         cowboy_cors,
         snowflake,
         uac,

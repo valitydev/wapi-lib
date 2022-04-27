@@ -18,15 +18,13 @@
 child_spec(LogicHandlers) ->
     {Transport, TransportOpts} = get_socket_transport(),
     CowboyOpts = get_cowboy_config(LogicHandlers),
-    GsTimeout = genlib_app:env(?APP, graceful_shutdown_timeout, 5000),
     Protocol = cowboy_clear,
-    cowboy_draining_server:child_spec(
+    ranch:child_spec(
         ?RANCH_REF,
         Transport,
         TransportOpts,
         Protocol,
-        CowboyOpts,
-        GsTimeout
+        CowboyOpts
     ).
 
 get_socket_transport() ->
@@ -52,33 +50,6 @@ get_cowboy_config(LogicHandlers) ->
             cowboy_router,
             cowboy_cors,
             cowboy_handler
-        ],
-        stream_handlers => [
-            cowboy_stream_h
         ]
     },
-    CowboyOpts#{extra_info_fun => mk_operation_id_getter(CowboyOpts)}.
-
-mk_operation_id_getter(#{env := Env}) ->
-    fun(Req) ->
-        get_operation_id(Req, Env)
-    end.
-
-%% Ensure that request has host and path required for
-%% cowboy_router:execute/2.
-%% NOTE: Be careful when upgrade cowboy in this project
-%% because cowboy_router:execute/2 call can change.
-get_operation_id(Req = #{host := _Host, path := _Path}, Env) ->
-    case cowboy_router:execute(Req, Env) of
-        {ok, _, #{handler_opts := {_Operations, _LogicHandler, _SwaggerHandlerOpts} = HandlerOpts}} ->
-            case swag_server_wallet_utils:get_operation_id(Req, HandlerOpts) of
-                undefined ->
-                    #{};
-                OperationID ->
-                    #{operation_id => OperationID}
-            end;
-        _ ->
-            #{}
-    end;
-get_operation_id(_Req, _Env) ->
-    #{}.
+    CowboyOpts.
