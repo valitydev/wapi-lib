@@ -44,7 +44,7 @@ get_cowboy_config(LogicHandlers) ->
     CowboyOpts = #{
         env => #{
             dispatch => Dispatch,
-            cors_policy => wapi_cors_policy
+            cors_policy => example_policy
         },
         middlewares => [
             cowboy_router,

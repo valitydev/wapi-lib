@@ -16,8 +16,10 @@
 }.
 
 -type operation_id() :: atom().
--type swag_server_get_schema_fun() :: fun(() -> map()).
--type swag_server_get_operation_fun() :: fun((atom()) -> map()).
+-type swag_schema() :: map().
+-type operation_spec() :: map().
+-type swag_server_get_schema_fun() :: fun(() -> swag_schema()).
+-type swag_server_get_operation_fun() :: fun((operation_id()) -> operation_spec()).
 
 -type client_peer() :: #{
     ip_address => IP :: inet:ip_address(),
