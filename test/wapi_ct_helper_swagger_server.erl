@@ -43,12 +43,10 @@ get_cowboy_config(LogicHandlers) ->
         ),
     CowboyOpts = #{
         env => #{
-            dispatch => Dispatch,
-            cors_policy => example_policy
+            dispatch => Dispatch
         },
         middlewares => [
             cowboy_router,
-            cowboy_cors,
             cowboy_handler
         ]
     },
