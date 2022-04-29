@@ -1,0 +1,30 @@
+{application, wapi, [
+    {description, "Wallet API service adapter"},
+    {vsn, "0.1.0"},
+    {registered, []},
+    {applications, [
+        kernel,
+        stdlib,
+        public_key,
+        genlib,
+        woody,
+        lechiffre,
+        bender_client,
+        damsel,
+        identdocstore_proto,
+        fistful_reporter_proto,
+        file_storage_proto,
+        scoper,
+        jose,
+        jsx,
+        cowboy_cors,
+        snowflake,
+        uac,
+        bouncer_client,
+        token_keeper_client,
+        thrift,
+        dmt_client,
+        tds_proto
+    ]},
+    {env, []}
+]}.

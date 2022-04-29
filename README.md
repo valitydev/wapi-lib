@@ -1,3 +1,3 @@
-# Wapi @ v0
+# Wapi @ lib
 
-> Wallet API
+> Wallet API lib
