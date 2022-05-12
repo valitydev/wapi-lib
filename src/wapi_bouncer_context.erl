@@ -128,7 +128,7 @@ new() ->
 mk_base_fragment() ->
     bouncer_context_helpers:make_env_fragment(#{
         now => genlib_rfc3339:format(genlib_time:unow(), second),
-        deployment => #{id => genlib_app:env(wapi, deployment, undefined)}
+        deployment => #{id => genlib_app:env(wapi_lib, deployment, undefined)}
     }).
 
 -spec build(prototypes(), fragments()) -> fragments().

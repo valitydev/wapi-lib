@@ -59,7 +59,7 @@ get_verification_options() ->
 
 -spec get_signee() -> term().
 get_signee() ->
-    wapi_utils:unwrap(application:get_env(wapi, signee)).
+    wapi_utils:unwrap(application:get_env(wapi_lib, signee)).
 
 %%
 

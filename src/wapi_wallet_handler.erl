@@ -1357,7 +1357,7 @@ build_prototype_for(wallet, Entities, AuthContext) ->
 
 get_default_url_lifetime() ->
     Now = erlang:system_time(second),
-    Lifetime = application:get_env(wapi, file_storage_url_lifetime, ?DEFAULT_URL_LIFETIME),
+    Lifetime = application:get_env(wapi_lib, file_storage_url_lifetime, ?DEFAULT_URL_LIFETIME),
     genlib_rfc3339:format(Now + Lifetime, second).
 
 maybe_to_list(undefined) ->

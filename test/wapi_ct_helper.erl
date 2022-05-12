@@ -42,7 +42,7 @@
 -export_type([app_name/0]).
 -export_type([sup_or_config/0]).
 
--define(SIGNEE, wapi).
+-define(SIGNEE, wapi_lib).
 
 -spec cfg(atom(), config()) -> term().
 cfg(Key, Config) ->
@@ -98,7 +98,7 @@ init_suite(Module, Config) ->
         start_app(scoper) ++
             start_app(woody) ++
             start_app({dmt_client, SupPid}) ++
-            start_app({wapi, Config}),
+            start_app({wapi_lib, Config}),
     {ok, _} = supervisor:start_child(
         SupPid, wapi_ct_helper_swagger_server:child_spec(#{wallet => {wapi_ct_helper_handler, #{}}})
     ),
@@ -106,7 +106,7 @@ init_suite(Module, Config) ->
         #{
             jwt => #{
                 keyset => #{
-                    wapi => #{
+                    wapi_lib => #{
                         source => {pem_file, get_keysource("private.pem", Config)},
                         metadata => #{
                             auth_method => user_session_token,
@@ -144,7 +144,7 @@ start_app({dmt_client = AppName, SupPid}) ->
     start_app_with(AppName, [
         {service_urls, #{'Repository' => maps:get(domain_config, Urls)}}
     ]);
-start_app({wapi = AppName, Config}) ->
+start_app({wapi_lib = AppName, Config}) ->
     start_app_with(AppName, [
         {ip, ?WAPI_IP},
         {port, ?WAPI_PORT},
@@ -228,9 +228,9 @@ start_woody_client(bender_thrift, Urls) ->
         Urls
     ),
     start_app(bender_client, []);
-start_woody_client(wapi, Urls) ->
+start_woody_client(wapi_lib, Urls) ->
     ok = application:set_env(
-        wapi,
+        wapi_lib,
         service_urls,
         Urls
     ).
@@ -267,8 +267,8 @@ mock_services_(Services, SupPid) when is_pid(SupPid) ->
                 domain_config ->
                     Acc#{ServiceName => make_url(ServiceName, Port)};
                 _ ->
-                    WapiWoodyClient = maps:get(wapi, Acc, #{}),
-                    Acc#{wapi => WapiWoodyClient#{ServiceName => make_url(ServiceName, Port)}}
+                    WapiWoodyClient = maps:get(wapi_lib, Acc, #{}),
+                    Acc#{wapi_lib => WapiWoodyClient#{ServiceName => make_url(ServiceName, Port)}}
             end
         end,
         #{},
