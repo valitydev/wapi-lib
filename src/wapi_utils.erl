@@ -284,7 +284,7 @@ unit_factor(_Other) ->
 -define(MAX_REQUEST_DEADLINE_TIME, timer:minutes(1)).
 
 clamp_max_request_deadline(Value) when is_integer(Value) ->
-    MaxDeadline = genlib_app:env(wapi, max_request_deadline, ?MAX_REQUEST_DEADLINE_TIME),
+    MaxDeadline = genlib_app:env(wapi_lib, max_request_deadline, ?MAX_REQUEST_DEADLINE_TIME),
     case Value > MaxDeadline of
         true ->
             MaxDeadline;

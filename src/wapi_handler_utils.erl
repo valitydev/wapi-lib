@@ -19,7 +19,7 @@
 -export([get_location/3]).
 -export([maybe_with/3]).
 
--define(APP, wapi).
+-define(APP, wapi_lib).
 
 -type status_code() :: wapi_wallet_handler:status_code().
 -type headers() :: wapi_wallet_handler:headers().

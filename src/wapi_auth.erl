@@ -1,6 +1,6 @@
 -module(wapi_auth).
 
--define(APP, wapi).
+-define(APP, wapi_lib).
 
 -export([get_subject_id/1]).
 -export([get_party_id/1]).

@@ -8,7 +8,7 @@
 -type logic_handler() :: swag_server_wallet:logic_handler(_).
 -type logic_handlers() :: #{atom() => logic_handler()}.
 
--define(APP, wapi).
+-define(APP, wapi_lib).
 -define(DEFAULT_ACCEPTORS_POOLSIZE, 100).
 -define(DEFAULT_IP_ADDR, "::").
 -define(DEFAULT_PORT, 8080).

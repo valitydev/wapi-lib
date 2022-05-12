@@ -11,7 +11,7 @@
 DOTENV := $(shell grep -v '^\#' .env)
 
 # Development images
-DEV_IMAGE_TAG = wapi-dev
+DEV_IMAGE_TAG = wapi-lib-dev
 DEV_IMAGE_ID = $(file < .image.dev)
 
 DOCKER ?= docker
