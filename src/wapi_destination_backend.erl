@@ -143,15 +143,16 @@ construct_resource(
 construct_resource(
     #{
         <<"type">> := <<"CryptoWalletDestinationResource">>,
-        <<"id">> := CryptoWalletID
-    } = Resource,
+        <<"id">> := CryptoWalletID,
+        <<"currency">> := Currency
+    },
     _Context
 ) ->
     CostructedResource =
         {crypto_wallet, #{
             crypto_wallet => #{
                 id => CryptoWalletID,
-                data => marshal_crypto_currency_data(Resource)
+                currency => #{id => marshal(string, Currency)}
             }
         }},
     {ok, wapi_codec:marshal(resource, CostructedResource)};
@@ -314,16 +315,16 @@ unmarshal(
     {crypto_wallet, #'fistful_base_ResourceCryptoWallet'{
         crypto_wallet = #'fistful_base_CryptoWallet'{
             id = CryptoWalletID,
-            data = Data
+            currency = #'fistful_base_CryptoCurrencyRef'{id = Currency},
+            tag = Tag
         }
     }}
 ) ->
-    {Currency, Params} = unmarshal_crypto_currency_data(Data),
     genlib_map:compact(#{
         <<"type">> => <<"CryptoWalletDestinationResource">>,
         <<"id">> => unmarshal(string, CryptoWalletID),
-        <<"currency">> => Currency,
-        <<"tag">> => genlib_map:get(tag, Params)
+        <<"currency">> => unmarshal(string, Currency),
+        <<"tag">> => maybe_unmarshal(string, Tag)
     });
 unmarshal(
     resource,
@@ -359,45 +360,3 @@ maybe_unmarshal(_, undefined) ->
     undefined;
 maybe_unmarshal(T, V) ->
     unmarshal(T, V).
-
-marshal_crypto_currency_data(Resource) ->
-    #{
-        <<"currency">> := CryptoCurrencyName
-    } = Resource,
-    Name = marshal_crypto_currency_name(CryptoCurrencyName),
-    Params = marshal_crypto_currency_params(Name, Resource),
-    {Name, Params}.
-
-unmarshal_crypto_currency_data({Name, Params}) ->
-    {unmarshal_crypto_currency_name(Name), unmarshal_crypto_currency_params(Name, Params)}.
-
-marshal_crypto_currency_name(<<"Bitcoin">>) -> bitcoin;
-marshal_crypto_currency_name(<<"Litecoin">>) -> litecoin;
-marshal_crypto_currency_name(<<"BitcoinCash">>) -> bitcoin_cash;
-marshal_crypto_currency_name(<<"Ripple">>) -> ripple;
-marshal_crypto_currency_name(<<"Ethereum">>) -> ethereum;
-marshal_crypto_currency_name(<<"USDT">>) -> usdt;
-marshal_crypto_currency_name(<<"Zcash">>) -> zcash.
-
-unmarshal_crypto_currency_name(bitcoin) -> <<"Bitcoin">>;
-unmarshal_crypto_currency_name(litecoin) -> <<"Litecoin">>;
-unmarshal_crypto_currency_name(bitcoin_cash) -> <<"BitcoinCash">>;
-unmarshal_crypto_currency_name(ripple) -> <<"Ripple">>;
-unmarshal_crypto_currency_name(ethereum) -> <<"Ethereum">>;
-unmarshal_crypto_currency_name(usdt) -> <<"USDT">>;
-unmarshal_crypto_currency_name(zcash) -> <<"Zcash">>.
-
-marshal_crypto_currency_params(ripple, Resource) ->
-    Tag = maps:get(<<"tag">>, Resource, undefined),
-    #{
-        tag => maybe_marshal(string, Tag)
-    };
-marshal_crypto_currency_params(_Other, _Resource) ->
-    #{}.
-
-unmarshal_crypto_currency_params(ripple, #'fistful_base_CryptoDataRipple'{tag = Tag}) ->
-    genlib_map:compact(#{
-        tag => maybe_unmarshal(string, Tag)
-    });
-unmarshal_crypto_currency_params(_Other, _Params) ->
-    #{}.

@@ -390,21 +390,13 @@ unmarshal_bank_card(#'fistful_base_BankCard'{
 
 unmarshal_crypto_wallet(#'fistful_base_CryptoWallet'{
     id = CryptoWalletID,
-    data = Data
+    currency = #'fistful_base_CryptoCurrencyRef'{id = Currency}
 }) ->
     #{
         <<"type">> => <<"CryptoWalletDestinationResource">>,
         <<"id">> => CryptoWalletID,
-        <<"currency">> => unmarshal_crypto_currency_name(Data)
+        <<"currency">> => Currency
     }.
-
-unmarshal_crypto_currency_name({bitcoin, _}) -> <<"Bitcoin">>;
-unmarshal_crypto_currency_name({litecoin, _}) -> <<"Litecoin">>;
-unmarshal_crypto_currency_name({bitcoin_cash, _}) -> <<"BitcoinCash">>;
-unmarshal_crypto_currency_name({ripple, _}) -> <<"Ripple">>;
-unmarshal_crypto_currency_name({ethereum, _}) -> <<"Ethereum">>;
-unmarshal_crypto_currency_name({usdt, _}) -> <<"USDT">>;
-unmarshal_crypto_currency_name({zcash, _}) -> <<"Zcash">>.
 
 unmarshal_digital_wallet(#'fistful_base_DigitalWallet'{
     id = DigitalWalletID,
