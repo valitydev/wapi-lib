@@ -317,7 +317,7 @@ unmarshal(crypto_wallet, #'fistful_base_CryptoWallet'{
 }) ->
     genlib_map:compact(#{
         id => unmarshal(string, CryptoWalletID),
-        currency => unmarshal(currency_ref, CryptoCurrencyRef)
+        currency => unmarshal(crypto_currency, CryptoCurrencyRef)
     });
 unmarshal(cash, #'fistful_base_Cash'{
     amount = Amount,
@@ -439,5 +439,24 @@ bank_card_codec_test() ->
         }
     ),
     ?assertEqual(BankCard, unmarshal(bank_card, Decoded)).
+
+-spec crypto_wallet_codec_test() -> _.
+
+crypto_wallet_codec_test() ->
+    CryptoWallet = #{
+        id => <<"token">>,
+        currency => #{id => <<"BTC">>}
+    },
+    Type = {struct, struct, {ff_proto_base_thrift, 'CryptoWallet'}},
+    Binary = wapi_thrift_utils:serialize(Type, marshal(crypto_wallet, CryptoWallet)),
+    Decoded = wapi_thrift_utils:deserialize(Type, Binary),
+    ?assertEqual(
+        Decoded,
+        #'fistful_base_CryptoWallet'{
+            id = <<"token">>,
+            currency = #'fistful_base_CryptoCurrencyRef'{id = <<"BTC">>}
+        }
+    ),
+    ?assertEqual(CryptoWallet, unmarshal(crypto_wallet, Decoded)).
 
 -endif.
