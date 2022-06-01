@@ -134,7 +134,6 @@
     bin = <<"424242">>,
     masked_pan = <<"4242">>,
     bank_name = ?STRING,
-    payment_system_deprecated = visa,
     issuer_country = rus,
     card_type = debit
 }).
