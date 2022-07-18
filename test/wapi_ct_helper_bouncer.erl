@@ -1,9 +1,7 @@
 -module(wapi_ct_helper_bouncer).
 
--include_lib("common_test/include/ct.hrl").
 -include_lib("wapi_wallet_dummy_data.hrl").
 -include_lib("wapi_bouncer_data.hrl").
--include_lib("stdlib/include/assert.hrl").
 
 -export([mock_assert_op_ctx/2]).
 -export([mock_assert_party_op_ctx/3]).
@@ -25,7 +23,7 @@
 mock_assert_op_ctx(Op, Config) ->
     mock_arbiter(
         ?assertContextMatches(
-            #bctx_v1_ContextFragment{
+            #ctx_v1_ContextFragment{
                 wapi = ?CTX_WAPI(?CTX_WAPI_OP(Op))
             }
         ),
@@ -36,7 +34,7 @@ mock_assert_op_ctx(Op, Config) ->
 mock_assert_party_op_ctx(Op, PartyID, Config) ->
     mock_arbiter(
         ?assertContextMatches(
-            #bctx_v1_ContextFragment{
+            #ctx_v1_ContextFragment{
                 wapi = ?CTX_WAPI(?CTX_PARTY_OP(Op, PartyID))
             }
         ),
@@ -88,7 +86,7 @@ mock_assert_generic_op_ctx(Entities, WapiContext, Config) ->
     List = lists:map(fun make_entity/1, Entities),
     mock_arbiter(
         ?assertContextMatches(
-            #bctx_v1_ContextFragment{
+            #ctx_v1_ContextFragment{
                 wapi = WapiContext,
                 wallet = List
             }
@@ -99,50 +97,50 @@ mock_assert_generic_op_ctx(Entities, WapiContext, Config) ->
 %%
 
 make_entity({identity, ID, OwnerID}) ->
-    #bouncer_base_Entity{
+    #base_Entity{
         id = ID,
         type = <<"Identity">>,
         party = OwnerID
     };
 make_entity({wallet, ID, OwnerID}) ->
-    #bouncer_base_Entity{
+    #base_Entity{
         id = ID,
         type = <<"Wallet">>,
         party = OwnerID,
-        wallet = #bouncer_base_WalletAttrs{}
+        wallet = #base_WalletAttrs{}
     };
 make_entity({withdrawal, ID, OwnerID}) ->
-    #bouncer_base_Entity{
+    #base_Entity{
         id = ID,
         type = <<"Withdrawal">>,
         party = OwnerID
     };
 make_entity({w2w_transfer, ID, OwnerID}) ->
-    #bouncer_base_Entity{
+    #base_Entity{
         id = ID,
         type = <<"W2WTransfer">>,
         party = OwnerID
     };
 make_entity({destination, ID, OwnerID}) ->
-    #bouncer_base_Entity{
+    #base_Entity{
         id = ID,
         type = <<"Destination">>,
         party = OwnerID
     };
 make_entity({report, ID, Data = #{identity := IdentityID}}) ->
-    #bouncer_base_Entity{
+    #base_Entity{
         id = ID,
         type = <<"WalletReport">>,
-        wallet = #bouncer_base_WalletAttrs{
+        wallet = #base_WalletAttrs{
             identity = IdentityID,
             report = wapi_handler_utils:maybe_with(files, Data, fun build_report_attrs/1)
         }
     };
 make_entity({webhook, ID, Data = #{identity := IdentityID}}) ->
-    #bouncer_base_Entity{
+    #base_Entity{
         id = ID,
         type = <<"WalletWebhook">>,
-        wallet = #bouncer_base_WalletAttrs{
+        wallet = #base_WalletAttrs{
             identity = IdentityID,
             wallet = maps:get(wallet, Data, undefined)
         }
@@ -152,7 +150,7 @@ build_set(L) when is_list(L) ->
     ordsets:from_list(L).
 
 build_report_attrs(Attrs) when is_list(Attrs) ->
-    #bouncer_base_WalletReportAttrs{
+    #base_WalletReportAttrs{
         files = build_set(Attrs)
     }.
 
@@ -205,11 +203,11 @@ mock_arbiter(JudgeFun, SupOrConfig) ->
         )
     ).
 
-decode_context(#bdcs_Context{fragments = Fragments}) ->
+decode_context(#decision_Context{fragments = Fragments}) ->
     maps:map(fun(_, Fragment) -> decode_fragment(Fragment) end, Fragments).
 
-decode_fragment(#bctx_ContextFragment{type = v1_thrift_binary, content = Content}) ->
-    Type = {struct, struct, {bouncer_context_v1_thrift, 'ContextFragment'}},
+decode_fragment(#ctx_ContextFragment{type = v1_thrift_binary, content = Content}) ->
+    Type = {struct, struct, {bouncer_ctx_v1_thrift, 'ContextFragment'}},
     Codec = thrift_strict_binary_codec:new(Content),
     {ok, Fragment, _} = thrift_strict_binary_codec:read(Codec, Type),
     Fragment.
@@ -226,7 +224,7 @@ combine_fragments(Fragments) ->
     [Fragment | Rest] = maps:values(Fragments),
     lists:foldl(fun combine_fragments/2, Fragment, Rest).
 
-combine_fragments(Fragment1 = #bctx_v1_ContextFragment{}, Fragment2 = #bctx_v1_ContextFragment{}) ->
+combine_fragments(Fragment1 = #ctx_v1_ContextFragment{}, Fragment2 = #ctx_v1_ContextFragment{}) ->
     combine_records(Fragment1, Fragment2).
 
 combine_records(Record1, Record2) ->

@@ -5,7 +5,7 @@
 -type params() :: map().
 -type id() :: binary().
 -type result(T, E) :: {ok, T} | {error, E}.
--type identity_state() :: ff_proto_identity_thrift:'IdentityState'().
+-type identity_state() :: fistful_identity_thrift:'IdentityState'().
 
 -export_type([identity_state/0]).
 
@@ -15,8 +15,9 @@
 -export([get_thrift_identity/2]).
 -export([get_identity_withdrawal_methods/2]).
 
--include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_identity_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_base_thrift.hrl").
 
 %% Pipeline
 
@@ -124,7 +125,7 @@ marshal(
     }
 ) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
-    #idnt_IdentityParams{
+    #identity_IdentityParams{
         id = marshal(id, ID),
         name = marshal(string, Name),
         party = marshal(id, Owner),
@@ -175,7 +176,7 @@ unmarshal_withdrawal_method({crypto_currency, CryptoCurrencyRef}, Acc0) ->
     #{id := ID} = unmarshal(crypto_currency, CryptoCurrencyRef),
     Acc0#{crypto_currency => [ID | Methods]}.
 
-unmarshal_identity(#idnt_IdentityState{
+unmarshal_identity(#identity_IdentityState{
     id = IdentityID,
     name = Name,
     blocking = Blocking,

@@ -10,7 +10,10 @@
 -export([create_transfer/2]).
 -export([get_transfer/2]).
 
--include_lib("fistful_proto/include/ff_proto_w2w_transfer_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_base_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_w2w_transfer_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_w2w_status_thrift.hrl").
 
 -spec create_transfer(request_data(), handler_context()) -> {ok, response_data()} | {error, CreateError} when
     CreateError ::

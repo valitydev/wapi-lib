@@ -5,7 +5,11 @@
 
 -include_lib("wapi_wallet_dummy_data.hrl").
 
--include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_base_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_identity_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_account_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_destination_thrift.hrl").
 -include_lib("tds_proto/include/tds_storage_thrift.hrl").
 
 -export([all/0]).
@@ -35,9 +39,6 @@
 -export([digital_wallet_resource_test/1]).
 -export([digital_wallet_w_token_resource_test/1]).
 
-% common-api is used since it is the domain used in production RN
-% TODO: change to wallet-api (or just omit since it is the default one) when new tokens will be a thing
--define(DOMAIN, <<"common-api">>).
 -define(GENERIC_RESOURCE_TYPE, <<"BankTransferGeneric">>).
 -define(GENERIC_RESOURCE_NAME, <<"GenericBankAccount">>).
 
@@ -354,7 +355,7 @@ digital_wallet_w_token_resource_test(C) ->
                 _ = Runner ! {token, {ID, TokenStored}},
                 {ok, ok}
             end},
-            {bender_thrift, fun
+            {bender, fun
                 ('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT};
                 ('GetInternalID', _) -> {ok, ?GET_INTERNAL_ID_RESULT}
             end},
@@ -390,10 +391,10 @@ do_destination_lifecycle(ResourceType, C) ->
     Identity = generate_identity(PartyID),
     Resource = generate_resource(ResourceType),
     Context = generate_context(PartyID),
-    Destination = generate_destination(Identity#idnt_IdentityState.id, Resource, Context),
+    Destination = generate_destination(Identity#identity_IdentityState.id, Resource, Context),
     _ = wapi_ct_helper:mock_services(
         [
-            {bender_thrift, fun
+            {bender, fun
                 ('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT};
                 ('GetInternalID', _) -> {ok, ?GET_INTERNAL_ID_RESULT}
             end},
@@ -440,7 +441,7 @@ do_destination_lifecycle(ResourceType, C) ->
         fun swag_client_wallet_withdrawals_api:get_destination_by_external_id/3,
         #{
             binding => #{
-                <<"externalID">> => Destination#dst_DestinationState.external_id
+                <<"externalID">> => Destination#destination_DestinationState.external_id
             }
         },
         wapi_ct_helper:cfg(context, C)
@@ -448,16 +449,16 @@ do_destination_lifecycle(ResourceType, C) ->
     exit(Sup2, kill),
     _ = timer:sleep(1000),
     ?assertEqual(GetResult, GetByIDResult),
-    ?assertEqual(Destination#dst_DestinationState.id, maps:get(<<"id">>, CreateResult)),
-    ?assertEqual(Destination#dst_DestinationState.external_id, maps:get(<<"externalID">>, CreateResult)),
-    ?assertEqual(Identity#idnt_IdentityState.id, maps:get(<<"identity">>, CreateResult)),
+    ?assertEqual(Destination#destination_DestinationState.id, maps:get(<<"id">>, CreateResult)),
+    ?assertEqual(Destination#destination_DestinationState.external_id, maps:get(<<"externalID">>, CreateResult)),
+    ?assertEqual(Identity#identity_IdentityState.id, maps:get(<<"identity">>, CreateResult)),
     ?assertEqual(
-        ((Destination#dst_DestinationState.account)#account_Account.currency)#'fistful_base_CurrencyRef'.symbolic_code,
+        Destination#destination_DestinationState.account#account_Account.currency#fistful_base_CurrencyRef.symbolic_code,
         maps:get(<<"currency">>, CreateResult)
     ),
     ?assertEqual(<<"Authorized">>, maps:get(<<"status">>, CreateResult)),
     ?assertEqual(false, maps:get(<<"isBlocked">>, CreateResult)),
-    ?assertEqual(Destination#dst_DestinationState.created_at, maps:get(<<"createdAt">>, CreateResult)),
+    ?assertEqual(Destination#destination_DestinationState.created_at, maps:get(<<"createdAt">>, CreateResult)),
     ?assertEqual(#{<<"key">> => <<"val">>}, maps:get(<<"metadata">>, CreateResult)),
     {ok, Resource, maps:get(<<"resource">>, CreateResult)}.
 
@@ -468,14 +469,14 @@ call_api(F, Params, Context) ->
     wapi_client_lib:handle_response(Response).
 
 build_destination_spec(D, undefined) ->
-    build_destination_spec(D, D#dst_DestinationState.resource);
+    build_destination_spec(D, D#destination_DestinationState.resource);
 build_destination_spec(D, Resource) ->
     #{
-        <<"name">> => D#dst_DestinationState.name,
-        <<"identity">> => (D#dst_DestinationState.account)#account_Account.identity,
+        <<"name">> => D#destination_DestinationState.name,
+        <<"identity">> => (D#destination_DestinationState.account)#account_Account.identity,
         <<"currency">> =>
-            ((D#dst_DestinationState.account)#account_Account.currency)#'fistful_base_CurrencyRef'.symbolic_code,
-        <<"externalID">> => D#dst_DestinationState.external_id,
+            D#destination_DestinationState.account#account_Account.currency#fistful_base_CurrencyRef.symbolic_code,
+        <<"externalID">> => D#destination_DestinationState.external_id,
         <<"resource">> => build_resource_spec(Resource)
     }.
 
@@ -483,26 +484,26 @@ build_resource_spec({bank_card, R}) ->
     #{
         <<"type">> => <<"BankCardDestinationResource">>,
         <<"token">> => wapi_crypto:create_resource_token(
-            {bank_card, R#'fistful_base_ResourceBankCard'.bank_card}, undefined
+            {bank_card, R#fistful_base_ResourceBankCard.bank_card}, undefined
         )
     };
 build_resource_spec({crypto_wallet, R}) ->
     CurrencyRef = (R#'fistful_base_ResourceCryptoWallet'.crypto_wallet)#'fistful_base_CryptoWallet'.currency,
     #{
         <<"type">> => <<"CryptoWalletDestinationResource">>,
-        <<"id">> => (R#'fistful_base_ResourceCryptoWallet'.crypto_wallet)#'fistful_base_CryptoWallet'.id,
-        <<"currency">> => CurrencyRef#'fistful_base_CryptoCurrencyRef'.id
+        <<"id">> => R#fistful_base_ResourceCryptoWallet.crypto_wallet#fistful_base_CryptoWallet.id,
+        <<"currency">> => CurrencyRef#fistful_base_CryptoCurrencyRef.id
     };
 build_resource_spec({digital_wallet, #'fistful_base_ResourceDigitalWallet'{digital_wallet = DW}}) ->
     #{
         <<"type">> => <<"DigitalWalletDestinationResource">>,
-        <<"id">> => DW#'fistful_base_DigitalWallet'.id,
-        <<"provider">> => (DW#'fistful_base_DigitalWallet'.payment_service)#'fistful_base_PaymentServiceRef'.id
+        <<"id">> => DW#fistful_base_DigitalWallet.id,
+        <<"provider">> => DW#fistful_base_DigitalWallet.payment_service#fistful_base_PaymentServiceRef.id
     };
 build_resource_spec(
-    {generic, #'fistful_base_ResourceGeneric'{generic = #'fistful_base_ResourceGenericData'{data = Data}}}
+    {generic, #fistful_base_ResourceGeneric{generic = #fistful_base_ResourceGenericData{data = Data}}}
 ) ->
-    #'fistful_base_Content'{data = Params} = Data,
+    #fistful_base_Content{data = Params} = Data,
     jsx:decode(Params);
 build_resource_spec(Token) ->
     #{
@@ -514,7 +515,7 @@ uniq() ->
     genlib:bsuuid().
 
 generate_identity(PartyID) ->
-    #idnt_IdentityState{
+    #identity_IdentityState{
         id = ?STRING,
         name = uniq(),
         party_id = PartyID,
@@ -534,10 +535,10 @@ generate_context(PartyID) ->
 
 generate_destination(IdentityID, Resource, Context) ->
     ID = ?STRING,
-    #dst_DestinationState{
+    #destination_DestinationState{
         id = ID,
         name = uniq(),
-        status = {authorized, #dst_Authorized{}},
+        status = {authorized, #destination_Authorized{}},
         account = #account_Account{
             id = ID,
             identity = IdentityID,
@@ -606,7 +607,7 @@ make_destination(C, ResourceType) ->
     Identity = generate_identity(PartyID),
     Resource = generate_resource(ResourceType),
     Context = generate_context(PartyID),
-    generate_destination(Identity#idnt_IdentityState.id, Resource, Context).
+    generate_destination(Identity#identity_IdentityState.id, Resource, Context).
 
 create_destination_start_mocks(C, CreateDestinationResult) ->
     PartyID = ?config(party, C),
@@ -614,7 +615,7 @@ create_destination_start_mocks(C, CreateDestinationResult) ->
     _ = wapi_ct_helper_bouncer:mock_assert_identity_op_ctx(<<"CreateDestination">>, ?STRING, PartyID, C),
     wapi_ct_helper:mock_services(
         [
-            {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
+            {bender, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
             {fistful_identity, fun
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
                 ('Get', _) -> {ok, ?IDENTITY(PartyID)}

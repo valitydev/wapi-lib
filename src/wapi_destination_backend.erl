@@ -10,7 +10,9 @@
 -export([get/2]).
 -export([get_by_external_id/2]).
 
--include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_base_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_destination_thrift.hrl").
 
 %% Pipeline
 
@@ -106,7 +108,7 @@ get_by_external_id(ExternalID, HandlerContext = #{woody_context := WoodyContext}
     PartyID = wapi_handler_utils:get_owner(HandlerContext),
     IdempotentKey = wapi_backend_utils:get_idempotent_key(destination, PartyID, ExternalID),
     case bender_client:get_internal_id(IdempotentKey, WoodyContext) of
-        {ok, {DestinationID, _}, _CtxData} ->
+        {ok, DestinationID, _CtxData} ->
             get(DestinationID, HandlerContext);
         {error, internal_id_not_found} ->
             {error, {external_id, {unknown_external_id, ExternalID}}}
@@ -240,7 +242,7 @@ marshal(
     }
 ) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
-    #dst_DestinationParams{
+    #destination_DestinationParams{
         id = marshal(id, ID),
         identity = marshal(id, IdentityID),
         name = marshal(string, Name),
@@ -258,7 +260,7 @@ maybe_marshal(_, undefined) ->
 maybe_marshal(T, V) ->
     marshal(T, V).
 
-unmarshal(destination, #dst_DestinationState{
+unmarshal(destination, #destination_DestinationState{
     id = DestinationID,
     name = Name,
     account = Account,
@@ -290,9 +292,9 @@ unmarshal(blocking, unblocked) ->
     false;
 unmarshal(blocking, blocked) ->
     true;
-unmarshal(status, {authorized, #dst_Authorized{}}) ->
+unmarshal(status, {authorized, #destination_Authorized{}}) ->
     <<"Authorized">>;
-unmarshal(status, {unauthorized, #dst_Unauthorized{}}) ->
+unmarshal(status, {unauthorized, #destination_Unauthorized{}}) ->
     <<"Unauthorized">>;
 unmarshal(
     resource,

@@ -5,7 +5,11 @@
 
 -include_lib("wapi_wallet_dummy_data.hrl").
 
--include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_base_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_account_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_identity_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_wallet_thrift.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -31,9 +35,6 @@
     get_account_fail_get_accountbalance_wallet_notfound/1
 ]).
 
-% common-api is used since it is the domain used in production RN
-% TODO: change to wallet-api (or just omit since it is the default one) when new tokens will be a thing
--define(DOMAIN, <<"common-api">>).
 -define(EMPTY_RESP(Code), {error, {Code, #{}}}).
 
 -type test_case_name() :: atom().
@@ -169,7 +170,7 @@ get_by_external_id_ok(C) ->
     _ = wapi_ct_helper_bouncer:mock_assert_wallet_op_ctx(<<"GetWalletByExternalID">>, ?STRING, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
-            {bender_thrift, fun('GetInternalID', _) -> {ok, ?GET_INTERNAL_ID_RESULT} end},
+            {bender, fun('GetInternalID', _) -> {ok, ?GET_INTERNAL_ID_RESULT} end},
             {fistful_wallet, fun
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
                 ('Get', _) -> {ok, ?WALLET(PartyID)}
@@ -292,7 +293,7 @@ create_wallet_start_mocks(C, CreateResultFun) ->
     _ = wapi_ct_helper_bouncer:mock_assert_identity_op_ctx(<<"CreateWallet">>, ?STRING, PartyID, C),
     wapi_ct_helper:mock_services(
         [
-            {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
+            {bender, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
             {fistful_identity, fun
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
                 ('Get', _) -> {ok, ?IDENTITY(PartyID)}

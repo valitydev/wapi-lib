@@ -4,7 +4,8 @@
 
 -include_lib("wapi_wallet_dummy_data.hrl").
 
--include_lib("fistful_proto/include/ff_proto_fistful_stat_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_base_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_stat_thrift.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -41,10 +42,6 @@
     list_deposit_adjustment_invalid_error/1,
     list_deposit_adjustment_bad_token_error/1
 ]).
-
-% common-api is used since it is the domain used in production RN
-% TODO: change to wallet-api (or just omit since it is the default one) when new tokens will be a thing
--define(DOMAIN, <<"common-api">>).
 
 -type test_case_name() :: atom().
 -type config() :: [{atom(), any()}].
@@ -136,7 +133,7 @@ list_wallets(C) ->
     _ = wapi_ct_helper_bouncer:mock_assert_op_ctx(<<"ListWallets">>, C),
     _ = wapi_ct_helper:mock_services(
         [
-            {fistful_stat, fun('GetWallets', _) -> {ok, ?STAT_RESPONCE(?STAT_WALLETS)} end}
+            {fistful_stat, fun('GetWallets', _) -> {ok, ?STAT_RESPONSE(?STAT_WALLETS)} end}
         ],
         C
     ),
@@ -167,7 +164,7 @@ list_withdrawals(C) ->
     _ = wapi_ct_helper_bouncer:mock_assert_op_ctx(<<"ListWithdrawals">>, C),
     _ = wapi_ct_helper:mock_services(
         [
-            {fistful_stat, fun('GetWithdrawals', _) -> {ok, ?STAT_RESPONCE(?STAT_WITHDRAWALS)} end}
+            {fistful_stat, fun('GetWithdrawals', _) -> {ok, ?STAT_RESPONSE(?STAT_WITHDRAWALS)} end}
         ],
         C
     ),
@@ -198,7 +195,7 @@ list_deposits(C) ->
     _ = wapi_ct_helper_bouncer:mock_assert_op_ctx(<<"ListDeposits">>, C),
     _ = wapi_ct_helper:mock_services(
         [
-            {fistful_stat, fun('GetDeposits', _) -> {ok, ?STAT_RESPONCE(?STAT_DEPOSITS)} end}
+            {fistful_stat, fun('GetDeposits', _) -> {ok, ?STAT_RESPONSE(?STAT_DEPOSITS)} end}
         ],
         C
     ),
@@ -229,7 +226,7 @@ list_destinations(C) ->
     _ = wapi_ct_helper_bouncer:mock_assert_op_ctx(<<"ListDestinations">>, C),
     _ = wapi_ct_helper:mock_services(
         [
-            {fistful_stat, fun('GetDestinations', _) -> {ok, ?STAT_RESPONCE(?STAT_DESTINATIONS)} end}
+            {fistful_stat, fun('GetDestinations', _) -> {ok, ?STAT_RESPONSE(?STAT_DESTINATIONS)} end}
         ],
         C
     ),
@@ -260,7 +257,7 @@ list_identities(C) ->
     _ = wapi_ct_helper_bouncer:mock_assert_op_ctx(<<"ListIdentities">>, C),
     _ = wapi_ct_helper:mock_services(
         [
-            {fistful_stat, fun('GetIdentities', _) -> {ok, ?STAT_RESPONCE(?STAT_IDENTITIES)} end}
+            {fistful_stat, fun('GetIdentities', _) -> {ok, ?STAT_RESPONSE(?STAT_IDENTITIES)} end}
         ],
         C
     ),
@@ -291,7 +288,7 @@ list_deposit_revert(Cfg) ->
     _ = wapi_ct_helper_bouncer:mock_assert_op_ctx(<<"ListDepositReverts">>, Cfg),
     _ = wapi_ct_helper:mock_services(
         [
-            {fistful_stat, fun('GetDepositReverts', _) -> {ok, ?STAT_RESPONCE(?STAT_DEPOSIT_REVERTS)} end}
+            {fistful_stat, fun('GetDepositReverts', _) -> {ok, ?STAT_RESPONSE(?STAT_DEPOSIT_REVERTS)} end}
         ],
         Cfg
     ),
@@ -323,7 +320,7 @@ list_deposit_adjustment_wo_changes_plan(Cfg) ->
     _ = wapi_ct_helper:mock_services(
         [
             {fistful_stat, fun('GetDepositAdjustments', _) ->
-                {ok, ?STAT_RESPONCE(?STAT_DEPOSIT_ADJUSTMENTS_WO_CANGES_PLAN)}
+                {ok, ?STAT_RESPONSE(?STAT_DEPOSIT_ADJUSTMENTS_WO_CANGES_PLAN)}
             end}
         ],
         Cfg
@@ -344,7 +341,7 @@ list_deposit_adjustment_with_changes_plan(Cfg) ->
     _ = wapi_ct_helper:mock_services(
         [
             {fistful_stat, fun('GetDepositAdjustments', _) ->
-                {ok, ?STAT_RESPONCE(?STAT_DEPOSIT_ADJUSTMENTS_WITH_CANGES_PLAN)}
+                {ok, ?STAT_RESPONSE(?STAT_DEPOSIT_ADJUSTMENTS_WITH_CANGES_PLAN)}
             end}
         ],
         Cfg

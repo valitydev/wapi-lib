@@ -2,8 +2,7 @@
 
 -include_lib("fistful_reporter_proto/include/ff_reporter_reports_thrift.hrl").
 -include_lib("file_storage_proto/include/fs_file_storage_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_identity_thrift.hrl").
 
 -export([create_report/2]).
 -export([get_report/3]).
@@ -118,7 +117,7 @@ download_file(FileID, ExpiresAt, HandlerContext) ->
     Error :: {identity, notfound}.
 get_contract_id_from_identity(IdentityID, HandlerContext) ->
     case wapi_identity_backend:get_thrift_identity(IdentityID, HandlerContext) of
-        {ok, #idnt_IdentityState{contract_id = ContractID}} ->
+        {ok, #identity_IdentityState{contract_id = ContractID}} ->
             {ok, ContractID};
         {error, _} = Error ->
             Error

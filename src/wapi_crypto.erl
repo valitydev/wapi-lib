@@ -1,13 +1,13 @@
 -module(wapi_crypto).
 
--include_lib("fistful_proto/include/ff_proto_resource_token_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_restoken_thrift.hrl").
 
 -type encrypted_token() :: binary().
 -type deadline() :: wapi_utils:deadline().
--type resource_token() :: ff_proto_resource_token_thrift:'ResourceToken'().
--type resource_payload() :: ff_proto_resource_token_thrift:'ResourcePayload'().
+-type resource_token() :: fistful_restoken_thrift:'ResourceToken'().
+-type resource_payload() :: fistful_restoken_thrift:'ResourcePayload'().
 -type resource() :: {bank_card, bank_card()}.
--type bank_card() :: ff_proto_base_thrift:'BankCard'().
+-type bank_card() :: fistful_fistful_base_thrift:'BankCard'().
 
 -export_type([encrypted_token/0]).
 -export_type([resource/0]).
@@ -18,7 +18,7 @@
 -spec create_resource_token(resource(), deadline()) -> encrypted_token().
 create_resource_token(Resource, ValidUntil) ->
     ResourceToken = encode_resource_token(Resource, ValidUntil),
-    ThriftType = {struct, struct, {ff_proto_resource_token_thrift, 'ResourceToken'}},
+    ThriftType = {struct, struct, {fistful_restoken_thrift, 'ResourceToken'}},
     {ok, EncodedToken} = lechiffre:encode(ThriftType, ResourceToken),
     TokenVersion = token_version(),
     <<TokenVersion/binary, ".", EncodedToken/binary>>.
@@ -45,18 +45,18 @@ token_version() ->
     <<"v2">>.
 
 decrypt_token(EncryptedToken) ->
-    ThriftType = {struct, struct, {ff_proto_resource_token_thrift, 'ResourceToken'}},
+    ThriftType = {struct, struct, {fistful_restoken_thrift, 'ResourceToken'}},
     case lechiffre:decode(ThriftType, EncryptedToken) of
         {ok, ResourceToken} ->
-            Resource = decode_resource_payload(ResourceToken#rst_ResourceToken.payload),
-            ValidUntil = decode_deadline(ResourceToken#rst_ResourceToken.valid_until),
+            Resource = decode_resource_payload(ResourceToken#restoken_ResourceToken.payload),
+            ValidUntil = decode_deadline(ResourceToken#restoken_ResourceToken.valid_until),
             {ok, {Resource, ValidUntil}};
         {error, _} = Error ->
             Error
     end.
 
 decrypt_token_v1(EncryptedToken) ->
-    ThriftType = {struct, struct, {ff_proto_base_thrift, 'BankCard'}},
+    ThriftType = {struct, struct, {fistful_fistful_base_thrift, 'BankCard'}},
     case lechiffre:decode(ThriftType, EncryptedToken) of
         {ok, BankCard} ->
             {ok, {{bank_card, BankCard}, undefined}};
@@ -72,14 +72,14 @@ encode_deadline(Deadline) ->
 
 -spec encode_resource_token(resource(), deadline()) -> resource_token().
 encode_resource_token(Resource, ValidUntil) ->
-    #rst_ResourceToken{
+    #restoken_ResourceToken{
         payload = encode_resource_payload(Resource),
         valid_until = encode_deadline(ValidUntil)
     }.
 
 -spec encode_resource_payload(resource()) -> resource_payload().
 encode_resource_payload({bank_card, BankCard}) ->
-    {bank_card_payload, #rst_BankCardPayload{
+    {bank_card_payload, #restoken_BankCardPayload{
         bank_card = BankCard
     }}.
 
@@ -91,4 +91,4 @@ decode_deadline(Deadline) ->
 
 -spec decode_resource_payload(resource_payload()) -> resource().
 decode_resource_payload({bank_card_payload, Payload}) ->
-    {bank_card, Payload#rst_BankCardPayload.bank_card}.
+    {bank_card, Payload#restoken_BankCardPayload.bank_card}.

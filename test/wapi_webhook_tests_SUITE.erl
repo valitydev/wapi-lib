@@ -5,8 +5,12 @@
 -include_lib("wapi_wallet_dummy_data.hrl").
 -include_lib("wapi_bouncer_data.hrl").
 
--include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_webhooker_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_base_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_account_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_identity_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_wallet_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_webhooker_thrift.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -30,10 +34,6 @@
 -type test_case_name() :: atom().
 -type config() :: [{atom(), any()}].
 -type group_name() :: atom().
-
-% common-api is used since it is the domain used in production RN
-% TODO: change to wallet-api (or just omit since it is the default one) when new tokens will be a thing
--define(DOMAIN, <<"common-api">>).
 
 -behaviour(supervisor).
 
@@ -106,7 +106,7 @@ create_webhook_ok_test(C) ->
         [
             {identity, ?STRING, PartyID}
         ],
-        ?CTX_WAPI(#bctx_v1_WalletAPIOperation{
+        ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
             id = <<"CreateWebhook">>,
             identity = ?STRING
         }),
@@ -146,7 +146,7 @@ create_withdrawal_webhook_ok_test(C) ->
             {identity, ?STRING, PartyID},
             {wallet, ?STRING, PartyID}
         ],
-        ?CTX_WAPI(#bctx_v1_WalletAPIOperation{
+        ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
             id = <<"CreateWebhook">>,
             identity = ?STRING,
             wallet = ?STRING
@@ -217,7 +217,7 @@ get_webhook_ok_test(C) ->
             {webhook, integer_to_binary(?INTEGER), #{identity => ?STRING}},
             {identity, ?STRING, PartyID}
         ],
-        ?CTX_WAPI(#bctx_v1_WalletAPIOperation{
+        ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
             id = <<"GetWebhookByID">>,
             identity = ?STRING,
             webhook = integer_to_binary(?INTEGER)
@@ -255,7 +255,7 @@ delete_webhook_ok_test(C) ->
             {webhook, integer_to_binary(?INTEGER), #{identity => ?STRING}},
             {identity, ?STRING, PartyID}
         ],
-        ?CTX_WAPI(#bctx_v1_WalletAPIOperation{
+        ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
             id = <<"DeleteWebhookByID">>,
             identity = ?STRING,
             webhook = integer_to_binary(?INTEGER)

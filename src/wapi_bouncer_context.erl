@@ -1,6 +1,7 @@
 -module(wapi_bouncer_context).
 
--include_lib("bouncer_proto/include/bouncer_context_v1_thrift.hrl").
+-include_lib("bouncer_proto/include/bouncer_ctx_v1_thrift.hrl").
+-include_lib("bouncer_proto/include/bouncer_base_thrift.hrl").
 
 -type fragment() :: bouncer_client:context_fragment().
 -type acc() :: bouncer_context_helpers:context_fragment().
@@ -137,9 +138,9 @@ build(Prototypes, {Acc0, External}) ->
     {Acc1, External}.
 
 build(operation, Params = #{id := OperationID}, Acc) ->
-    Acc#bctx_v1_ContextFragment{
-        wapi = #bctx_v1_ContextWalletAPI{
-            op = #bctx_v1_WalletAPIOperation{
+    Acc#ctx_v1_ContextFragment{
+        wapi = #ctx_v1_ContextWalletAPI{
+            op = #ctx_v1_WalletAPIOperation{
                 id = operation_id_to_binary(OperationID),
                 party = maybe(party, Params),
                 identity = maybe(identity, Params),
@@ -157,7 +158,7 @@ build(operation, Params = #{id := OperationID}, Acc) ->
         }
     };
 build(wallet, Params, Acc) when is_list(Params) ->
-    Acc#bctx_v1_ContextFragment{
+    Acc#ctx_v1_ContextFragment{
         wallet = build_set(lists:map(fun build_entity_ctx/1, Params))
     }.
 
@@ -210,66 +211,66 @@ build_wallet_entity_(_, _) ->
 %%
 
 build_entity_ctx({identity, Data}) ->
-    #bouncer_base_Entity{
+    #base_Entity{
         id = maybe(id, Data),
         type = <<"Identity">>,
         party = maybe(party, Data)
     };
 build_entity_ctx({wallet, Data}) ->
-    #bouncer_base_Entity{
+    #base_Entity{
         id = maybe(id, Data),
         type = <<"Wallet">>,
         party = maybe(party, Data),
-        wallet = #bouncer_base_WalletAttrs{
+        wallet = #base_WalletAttrs{
             body = wapi_handler_utils:maybe_with(cash, Data, fun build_cash/1)
         }
     };
 build_entity_ctx({withdrawal, Data}) ->
-    #bouncer_base_Entity{
+    #base_Entity{
         id = maybe(id, Data),
         type = <<"Withdrawal">>,
         party = maybe(party, Data)
     };
 build_entity_ctx({deposit, Data}) ->
-    #bouncer_base_Entity{
+    #base_Entity{
         id = maybe(id, Data),
         type = <<"Deposit">>,
-        wallet = #bouncer_base_WalletAttrs{
+        wallet = #base_WalletAttrs{
             wallet = maybe(wallet, Data)
         }
     };
 build_entity_ctx({w2w_transfer, Data}) ->
-    #bouncer_base_Entity{
+    #base_Entity{
         id = maybe(id, Data),
         type = <<"W2WTransfer">>,
         party = maybe(party, Data)
     };
 build_entity_ctx({source, Data}) ->
-    #bouncer_base_Entity{
+    #base_Entity{
         id = maybe(id, Data),
         type = <<"Source">>,
         party = maybe(party, Data)
     };
 build_entity_ctx({destination, Data}) ->
-    #bouncer_base_Entity{
+    #base_Entity{
         id = maybe(id, Data),
         type = <<"Destination">>,
         party = maybe(party, Data)
     };
 build_entity_ctx({webhook, Data}) ->
-    #bouncer_base_Entity{
+    #base_Entity{
         id = maybe(id, Data),
         type = <<"WalletWebhook">>,
-        wallet = #bouncer_base_WalletAttrs{
+        wallet = #base_WalletAttrs{
             identity = maybe(identity, Data),
             wallet = maybe(wallet, Data)
         }
     };
 build_entity_ctx({report, Data}) ->
-    #bouncer_base_Entity{
+    #base_Entity{
         id = maybe(id, Data),
         type = <<"WalletReport">>,
-        wallet = #bouncer_base_WalletAttrs{
+        wallet = #base_WalletAttrs{
             identity = maybe(identity, Data),
             report = wapi_handler_utils:maybe_with(files, Data, fun build_report_attrs/1)
         }
@@ -289,7 +290,7 @@ build_grants(Grants) when is_list(Grants) ->
     build_set(lists:map(fun build_grant/1, Grants)).
 
 build_grant(Grant) ->
-    #bctx_v1_WalletGrant{
+    #ctx_v1_WalletGrant{
         wallet = maybe(wallet, Grant),
         destination = maybe(destination, Grant),
         body = wapi_handler_utils:maybe_with(body, Grant, fun build_cash/1),
@@ -298,7 +299,7 @@ build_grant(Grant) ->
     }.
 
 build_cash(Cash) ->
-    #bouncer_base_Cash{
+    #base_Cash{
         amount = maybe(amount, Cash),
         currency = maybe(currency, Cash)
     }.
@@ -307,6 +308,6 @@ build_set(L) when is_list(L) ->
     ordsets:from_list(L).
 
 build_report_attrs(Attrs) when is_list(Attrs) ->
-    #bouncer_base_WalletReportAttrs{
+    #base_WalletReportAttrs{
         files = build_set(Attrs)
     }.

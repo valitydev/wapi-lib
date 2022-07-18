@@ -1,11 +1,7 @@
 -module(wapi_bouncer).
 
--include_lib("bouncer_proto/include/bouncer_context_thrift.hrl").
-
 -export([gather_context_fragments/4]).
 -export([judge/2]).
-
--define(CLAIM_BOUNCER_CTX, <<"bouncer_ctx">>).
 
 %%
 

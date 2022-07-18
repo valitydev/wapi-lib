@@ -1,13 +1,16 @@
 -module(wapi_backend_utils).
 
--include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_w2w_transfer_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_base_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_identity_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_wallet_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_destination_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_w2w_transfer_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_wthd_thrift.hrl").
 
 -define(EXTERNAL_ID, <<"externalID">>).
 -define(CTX_NS, <<"com.rbkmoney.wapi">>).
 -define(BENDER_DOMAIN, <<"wapi">>).
+-define(BENDER_SCHEMA_VER1, 1).
 
 %% Context
 -type context() :: #{namespace() => md()}.
@@ -43,11 +46,11 @@
     | withdrawal
     | w2w_transfer.
 -type entity_state() ::
-    ff_proto_identity_thrift:'IdentityState'()
-    | ff_proto_wallet_thrift:'WalletState'()
-    | ff_proto_destination_thrift:'DestinationState'()
-    | ff_proto_w2w_transfer_thrift:'W2WTransferState'()
-    | ff_proto_withdrawal_thrift:'WithdrawalState'().
+    fistful_identity_thrift:'IdentityState'()
+    | fistful_wallet_thrift:'WalletState'()
+    | fistful_destination_thrift:'DestinationState'()
+    | fistful_w2w_transfer_thrift:'W2WTransferState'()
+    | fistful_wthd_thrift:'WithdrawalState'().
 
 -export([gen_id/3]).
 -export([gen_id/4]).
@@ -92,11 +95,16 @@ gen_id_by_type(Type, IdempotentKey, Hash, Context) ->
 %    bender_client:gen_snowflake(IdempotentKey, Hash, WoodyCtx).
 gen_sequence_id(Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
     BinType = atom_to_binary(Type, utf8),
-    case bender_client:gen_sequence(IdempotentKey, BinType, Hash, WoodyCtx) of
-        % No need for IntegerID at this project so far
-        {ok, {ID, _IntegerID}} ->
+    BenderCtx = #{
+        <<"version">> => ?BENDER_SCHEMA_VER1,
+        <<"params_hash">> => Hash
+    },
+    case bender_client:gen_sequence(IdempotentKey, BinType, WoodyCtx, BenderCtx) of
+        {ok, ID} ->
             {ok, ID};
-        {error, {external_id_conflict, {ID, _IntegerID}}} ->
+        {ok, ID, #{<<"version">> := ?BENDER_SCHEMA_VER1, <<"params_hash">> := Hash}} ->
+            {ok, ID};
+        {ok, ID, #{<<"version">> := ?BENDER_SCHEMA_VER1, <<"params_hash">> := _}} ->
             {error, {external_id_conflict, ID}}
     end.
 
@@ -193,11 +201,11 @@ tokenize_resource(Value) ->
 get_entity_owner(Type, State) ->
     {ok, get_context_owner(get_context_from_state(Type, State))}.
 
-get_context_from_state(identity, #idnt_IdentityState{context = Context}) ->
+get_context_from_state(identity, #identity_IdentityState{context = Context}) ->
     Context;
-get_context_from_state(wallet, #wlt_WalletState{context = Context}) ->
+get_context_from_state(wallet, #wallet_WalletState{context = Context}) ->
     Context;
-get_context_from_state(destination, #dst_DestinationState{context = Context}) ->
+get_context_from_state(destination, #destination_DestinationState{context = Context}) ->
     Context;
 get_context_from_state(w2w_transfer, #w2w_transfer_W2WTransferState{context = Context}) ->
     Context;

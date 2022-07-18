@@ -165,11 +165,11 @@
 
 -define(LAST_DIGITS(CardNumber), string:slice(CardNumber, 12)).
 
--define(DESTINATION_STATUS, {authorized, #dst_Authorized{}}).
+-define(DESTINATION_STATUS, {authorized, #destination_Authorized{}}).
 
 -define(DESTINATION(PartyID), ?DESTINATION(PartyID, ?RESOURCE_BANK_CARD)).
 
--define(DESTINATION(PartyID, Resource), #dst_DestinationState{
+-define(DESTINATION(PartyID, Resource), #destination_DestinationState{
     id = ?STRING,
     name = ?STRING,
     status = ?DESTINATION_STATUS,
@@ -180,7 +180,7 @@
     context = ?DEFAULT_CONTEXT(PartyID)
 }).
 
--define(WALLET(PartyID), #wlt_WalletState{
+-define(WALLET(PartyID), #wallet_WalletState{
     id = ?STRING,
     name = ?STRING,
     blocking = ?BLOCKING,
@@ -195,7 +195,7 @@
     ?IDENTITY(PartyID, ?DEFAULT_CONTEXT(PartyID))
 ).
 
--define(IDENTITY(PartyID, Context), #idnt_IdentityState{
+-define(IDENTITY(PartyID, Context), #identity_IdentityState{
     id = ?STRING,
     name = ?STRING,
     party_id = ?STRING,
@@ -224,14 +224,14 @@
     ])
 ).
 
--define(STAT_INVALID_EXCEPTION(Errors), #fistfulstat_InvalidRequest{errors = Errors}).
--define(STAT_BADTOKEN_EXCEPTION, #fistfulstat_BadToken{reason = ?STRING}).
+-define(STAT_INVALID_EXCEPTION(Errors), #stat_InvalidRequest{errors = Errors}).
+-define(STAT_BADTOKEN_EXCEPTION, #stat_BadToken{reason = ?STRING}).
 
--define(STAT_RESPONCE(Data), #fistfulstat_StatResponse{data = Data}).
+-define(STAT_RESPONSE(Data), #stat_StatResponse{data = Data}).
 
 -define(STAT_WALLETS,
     {wallets, [
-        #fistfulstat_StatWallet{
+        #stat_StatWallet{
             id = ?STRING,
             identity_id = ?STRING,
             name = ?STRING,
@@ -243,7 +243,7 @@
 
 -define(STAT_WITHDRAWALS,
     {withdrawals, [
-        #fistfulstat_StatWithdrawal{
+        #stat_StatWithdrawal{
             id = ?STRING,
             created_at = ?TIMESTAMP,
             identity_id = ?STRING,
@@ -253,14 +253,14 @@
             amount = ?INTEGER,
             fee = ?INTEGER,
             currency_symbolic_code = ?RUB,
-            status = {pending, #fistfulstat_WithdrawalPending{}}
+            status = {pending, #stat_WithdrawalPending{}}
         }
     ]}
 ).
 
 -define(STAT_DEPOSITS,
     {deposits, [
-        #fistfulstat_StatDeposit{
+        #stat_StatDeposit{
             id = ?STRING,
             created_at = ?TIMESTAMP,
             identity_id = ?STRING,
@@ -269,14 +269,14 @@
             amount = ?INTEGER,
             fee = ?INTEGER,
             currency_symbolic_code = ?RUB,
-            status = {pending, #fistfulstat_DepositPending{}}
+            status = {pending, #stat_DepositPending{}}
         }
     ]}
 ).
 
 -define(STAT_DESTINATIONS,
     {destinations, [
-        #fistfulstat_StatDestination{
+        #stat_StatDestination{
             id = ?STRING,
             name = ?STRING,
             created_at = ?TIMESTAMP,
@@ -285,9 +285,9 @@
             currency_symbolic_code = ?RUB,
             resource = {bank_card, ?BANK_CARD},
             external_id = ?STRING,
-            status = {unauthorized, #fistfulstat_Unauthorized{}}
+            status = {unauthorized, #stat_Unauthorized{}}
         },
-        #fistfulstat_StatDestination{
+        #stat_StatDestination{
             id = ?STRING,
             name = ?STRING,
             created_at = ?TIMESTAMP,
@@ -296,14 +296,14 @@
             currency_symbolic_code = ?RUB,
             resource = {digital_wallet, ?DIGITAL_WALLET},
             external_id = ?STRING,
-            status = {unauthorized, #fistfulstat_Unauthorized{}}
+            status = {unauthorized, #stat_Unauthorized{}}
         }
     ]}
 ).
 
 -define(STAT_IDENTITIES,
     {identities, [
-        #fistfulstat_StatIdentity{
+        #stat_StatIdentity{
             id = ?STRING,
             name = ?STRING,
             created_at = ?TIMESTAMP,
@@ -316,11 +316,11 @@
 
 -define(STAT_DEPOSIT_REVERTS,
     {deposit_reverts, [
-        #fistfulstat_StatDepositRevert{
+        #stat_StatDepositRevert{
             id = ?STRING,
             wallet_id = ?STRING,
             source_id = ?STRING,
-            status = {succeeded, #fistfulstat_DepositRevertSucceeded{}},
+            status = {succeeded, #stat_DepositRevertSucceeded{}},
             body = ?CASH,
             created_at = ?TIMESTAMP,
             domain_revision = ?INTEGER,
@@ -333,15 +333,15 @@
 ).
 
 -define(STAT_DEPOSIT_ADJUSTMENTS_WO_CANGES_PLAN,
-    ?STAT_DEPOSIT_ADJUSTMENTS(#fistfulstat_DepositAdjustmentChangesPlan{})
+    ?STAT_DEPOSIT_ADJUSTMENTS(#stat_DepositAdjustmentChangesPlan{})
 ).
 
 -define(STAT_DEPOSIT_ADJUSTMENTS_WITH_CANGES_PLAN,
     ?STAT_DEPOSIT_ADJUSTMENTS(
-        #fistfulstat_DepositAdjustmentChangesPlan{
-            new_cash = #fistfulstat_DepositAdjustmentCashChangePlan{amount = ?CASH, fee = ?CASH, provider_fee = ?CASH},
-            new_status = #fistfulstat_DepositAdjustmentStatusChangePlan{
-                new_status = {succeeded, #fistfulstat_DepositAdjustmentStatusChangePlanSucceeded{}}
+        #stat_DepositAdjustmentChangesPlan{
+            new_cash = #stat_DepositAdjustmentCashChangePlan{amount = ?CASH, fee = ?CASH, provider_fee = ?CASH},
+            new_status = #stat_DepositAdjustmentStatusChangePlan{
+                new_status = {succeeded, #stat_DepositAdjustmentStatusChangePlanSucceeded{}}
             }
         }
     )
@@ -349,9 +349,9 @@
 
 -define(STAT_DEPOSIT_ADJUSTMENTS(ChangesPlan),
     {deposit_adjustments, [
-        #fistfulstat_StatDepositAdjustment{
+        #stat_StatDepositAdjustment{
             id = ?STRING,
-            status = {succeeded, #fistfulstat_DepositAdjustmentSucceeded{}},
+            status = {succeeded, #stat_DepositAdjustmentSucceeded{}},
             changes_plan = ChangesPlan,
             created_at = ?TIMESTAMP,
             domain_revision = ?INTEGER,
