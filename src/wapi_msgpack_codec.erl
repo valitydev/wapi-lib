@@ -17,7 +17,7 @@
     | {binary, binary()}
     | nil.
 
--type encoded_value() :: fistful_msgpack_thrift:'Value'().
+-type encoded_value() :: fistful_msgp_thrift:'Value'().
 
 -export_type([type_name/0]).
 -export_type([encoded_value/0]).
