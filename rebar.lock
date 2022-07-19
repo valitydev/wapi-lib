@@ -51,7 +51,7 @@
  {<<"hackney">>,{pkg,<<"hackney">>,<<"1.17.4">>},1},
  {<<"identdocstore_proto">>,
   {git,"https://github.com/valitydev/identdocstore-proto.git",
-       {ref,"89a4cda0c7bc45528c6df54b76a97fb0fd82754f"}},
+       {ref,"0ab676da2bb23eb04c42e02325c40c413d74856e"}},
   0},
  {<<"idna">>,{pkg,<<"idna">>,<<"6.1.1">>},2},
  {<<"jose">>,

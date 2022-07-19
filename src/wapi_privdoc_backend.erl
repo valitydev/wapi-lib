@@ -6,7 +6,7 @@
 
 -module(wapi_privdoc_backend).
 
--include_lib("identdocstore_proto/include/identdocstore_identity_document_storage_thrift.hrl").
+-include_lib("identdocstore_proto/include/identdocstore_identdoc_thrift.hrl").
 
 -export([get_proof/2]).
 
@@ -25,11 +25,11 @@ to_swag(doc_data, {{russian_domestic_passport, D}, Token}) ->
     to_swag(doc, {
         #{
             <<"type">> => <<"RUSDomesticPassportData">>,
-            <<"series">> => D#'identdocstore_RussianDomesticPassport'.series,
-            <<"number">> => D#'identdocstore_RussianDomesticPassport'.number,
-            <<"firstName">> => D#'identdocstore_RussianDomesticPassport'.first_name,
-            <<"familyName">> => D#'identdocstore_RussianDomesticPassport'.family_name,
-            <<"patronymic">> => D#'identdocstore_RussianDomesticPassport'.patronymic
+            <<"series">> => D#identdoc_RussianDomesticPassport.series,
+            <<"number">> => D#identdoc_RussianDomesticPassport.number,
+            <<"firstName">> => D#identdoc_RussianDomesticPassport.first_name,
+            <<"familyName">> => D#identdoc_RussianDomesticPassport.family_name,
+            <<"patronymic">> => D#identdoc_RussianDomesticPassport.patronymic
         },
         Token
     });
@@ -37,7 +37,7 @@ to_swag(doc_data, {{russian_retiree_insurance_certificate, D}, Token}) ->
     to_swag(doc, {
         #{
             <<"type">> => <<"RUSRetireeInsuranceCertificateData">>,
-            <<"number">> => D#'identdocstore_RussianRetireeInsuranceCertificate'.number
+            <<"number">> => D#identdoc_RussianRetireeInsuranceCertificate.number
         },
         Token
     });
