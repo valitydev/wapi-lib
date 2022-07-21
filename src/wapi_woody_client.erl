@@ -75,9 +75,9 @@ get_service_modname(token_storage) ->
 get_service_modname(fistful_stat) ->
     {fistful_stat_thrift, 'FistfulStatistics'};
 get_service_modname(fistful_report) ->
-    {ff_reporter_reports_thrift, 'Reporting'};
+    {ffreport_reports_thrift, 'Reporting'};
 get_service_modname(file_storage) ->
-    {fs_file_storage_thrift, 'FileStorage'};
+    {filestore_storage_thrift, 'FileStorage'};
 get_service_modname(fistful_provider) ->
     {fistful_provider_thrift, 'Management'};
 get_service_modname(fistful_identity) ->

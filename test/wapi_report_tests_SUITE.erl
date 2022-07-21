@@ -2,7 +2,7 @@
 
 -include_lib("common_test/include/ct.hrl").
 
--include_lib("fistful_reporter_proto/include/ff_reporter_reports_thrift.hrl").
+-include_lib("fistful_reporter_proto/include/ffreport_reports_thrift.hrl").
 -include_lib("wapi_wallet_dummy_data.hrl").
 -include_lib("fistful_proto/include/fistful_fistful_thrift.hrl").
 -include_lib("fistful_proto/include/fistful_identity_thrift.hrl").

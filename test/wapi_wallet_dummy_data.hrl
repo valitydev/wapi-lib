@@ -380,9 +380,9 @@
 
 -define(REPORT_ID, ?INTEGER).
 
--define(REPORT_EXT(Status, FilesList), #ff_reports_Report{
+-define(REPORT_EXT(Status, FilesList), #reports_Report{
     report_id = ?INTEGER,
-    time_range = #ff_reports_ReportTimeRange{
+    time_range = #reports_ReportTimeRange{
         from_time = ?TIMESTAMP,
         to_time = ?TIMESTAMP
     },
