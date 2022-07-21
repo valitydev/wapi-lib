@@ -452,8 +452,9 @@ do_destination_lifecycle(ResourceType, C) ->
     ?assertEqual(Destination#destination_DestinationState.id, maps:get(<<"id">>, CreateResult)),
     ?assertEqual(Destination#destination_DestinationState.external_id, maps:get(<<"externalID">>, CreateResult)),
     ?assertEqual(Identity#identity_IdentityState.id, maps:get(<<"identity">>, CreateResult)),
+    Account = Destination#destination_DestinationState.account,
     ?assertEqual(
-        Destination#destination_DestinationState.account#account_Account.currency#fistful_base_CurrencyRef.symbolic_code,
+        Account#account_Account.currency#fistful_base_CurrencyRef.symbolic_code,
         maps:get(<<"currency">>, CreateResult)
     ),
     ?assertEqual(<<"Authorized">>, maps:get(<<"status">>, CreateResult)),
