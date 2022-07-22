@@ -12,6 +12,7 @@
         bender_client,
         damsel,
         identdocstore_proto,
+        fistful_proto,
         fistful_reporter_proto,
         file_storage_proto,
         scoper,

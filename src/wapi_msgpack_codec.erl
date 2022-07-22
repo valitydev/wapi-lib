@@ -1,6 +1,6 @@
 -module(wapi_msgpack_codec).
 
--include_lib("fistful_proto/include/ff_proto_msgpack_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_msgp_thrift.hrl").
 
 -export([unmarshal/2]).
 -export([marshal/2]).
@@ -17,7 +17,7 @@
     | {binary, binary()}
     | nil.
 
--type encoded_value() :: ff_proto_msgpack_thrift:'Value'().
+-type encoded_value() :: fistful_msgp_thrift:'Value'().
 
 -export_type([type_name/0]).
 -export_type([encoded_value/0]).

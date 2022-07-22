@@ -2,9 +2,10 @@
 
 -include_lib("common_test/include/ct.hrl").
 
--include_lib("fistful_reporter_proto/include/ff_reporter_reports_thrift.hrl").
+-include_lib("fistful_reporter_proto/include/ffreport_reports_thrift.hrl").
 -include_lib("wapi_wallet_dummy_data.hrl").
--include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_identity_thrift.hrl").
 -include_lib("wapi_bouncer_data.hrl").
 
 -export([all/0]).
@@ -26,9 +27,6 @@
     download_file_ok_test/1
 ]).
 
-% common-api is used since it is the domain used in production RN
-% TODO: change to wallet-api (or just omit since it is the default one) when new tokens will be a thing
--define(DOMAIN, <<"common-api">>).
 -define(EMPTY_RESP(Code), {error, {Code, #{}}}).
 
 -type test_case_name() :: atom().
@@ -135,7 +133,7 @@ get_report_ok_test(C) ->
             {report, genlib:to_binary(?INTEGER), #{identity => ?STRING, files => [?STRING, ?STRING, ?STRING]}},
             {identity, ?STRING, PartyID}
         ],
-        ?CTX_WAPI(#bctx_v1_WalletAPIOperation{
+        ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
             id = <<"GetReport">>,
             identity = ?STRING,
             report = genlib:to_binary(?INTEGER)

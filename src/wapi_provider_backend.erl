@@ -1,6 +1,7 @@
 -module(wapi_provider_backend).
 
--include_lib("fistful_proto/include/ff_proto_provider_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_provider_thrift.hrl").
 
 -type handler_context() :: wapi_handler_utils:handler_context().
 -type response_data() :: wapi_handler_utils:response_data().

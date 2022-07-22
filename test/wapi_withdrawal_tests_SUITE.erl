@@ -6,9 +6,14 @@
 -include_lib("wapi_wallet_dummy_data.hrl").
 -include_lib("wapi_bouncer_data.hrl").
 
--include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_destination_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_base_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_account_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_cashflow_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_wallet_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_wthd_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_wthd_status_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_destination_thrift.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -51,10 +56,6 @@
     get_events_ok/1,
     get_events_fail_withdrawal_notfound/1
 ]).
-
-% common-api is used since it is the domain used in production RN
-% TODO: change to wallet-api (or just omit since it is the default one) when new tokens will be a thing
--define(DOMAIN, <<"common-api">>).
 
 -type test_case_name() :: atom().
 -type config() :: [{atom(), any()}].
@@ -329,7 +330,7 @@ get_by_external_id_ok(C) ->
     _ = wapi_ct_helper_bouncer:mock_assert_withdrawal_op_ctx(<<"GetWithdrawalByExternalID">>, ?STRING, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
-            {bender_thrift, fun('GetInternalID', _) -> {ok, ?GET_INTERNAL_ID_RESULT} end},
+            {bender, fun('GetInternalID', _) -> {ok, ?GET_INTERNAL_ID_RESULT} end},
             {fistful_withdrawal, fun
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
                 ('Get', _) -> {ok, ?WITHDRAWAL(PartyID)}
@@ -553,7 +554,7 @@ create_withdrawal_start_mocks(C, CreateWithdrawalResultFun) ->
             {destination, ?STRING, PartyID},
             {wallet, ?STRING, PartyID}
         ],
-        ?CTX_WAPI(#bctx_v1_WalletAPIOperation{
+        ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
             id = <<"CreateWithdrawal">>,
             destination = ?STRING,
             wallet = ?STRING
@@ -562,7 +563,7 @@ create_withdrawal_start_mocks(C, CreateWithdrawalResultFun) ->
     ),
     wapi_ct_helper:mock_services(
         [
-            {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
+            {bender, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
             {fistful_wallet, fun
                 ('Get', _) -> {ok, ?WALLET(PartyID)};
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)}
@@ -598,7 +599,7 @@ get_quote_start_mocks(C, GetQuoteResultFun) ->
             {destination, ?STRING, PartyID},
             {wallet, ?STRING, PartyID}
         ],
-        ?CTX_WAPI(#bctx_v1_WalletAPIOperation{
+        ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
             id = <<"CreateQuote">>,
             destination = ?STRING,
             wallet = ?STRING

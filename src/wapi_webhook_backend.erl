@@ -11,7 +11,7 @@
 -type handler_context() :: wapi_handler_utils:handler_context().
 -type response_data() :: wapi_handler_utils:response_data().
 
--include_lib("fistful_proto/include/ff_proto_webhooker_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_webhooker_thrift.hrl").
 
 -spec create_webhook(request_data(), handler_context()) -> {ok, response_data()}.
 create_webhook(#{'Webhook' := Params}, HandlerContext) ->

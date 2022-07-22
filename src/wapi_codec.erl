@@ -1,7 +1,7 @@
 -module(wapi_codec).
 
--include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_account_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_base_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_account_thrift.hrl").
 
 -export([unmarshal/2]).
 -export([unmarshal/3]).
@@ -420,7 +420,7 @@ bank_card_codec_test() ->
         cardholder_name => <<"name">>,
         bin_data_id => #{<<"foo">> => 1}
     },
-    Type = {struct, struct, {ff_proto_base_thrift, 'BankCard'}},
+    Type = {struct, struct, {fistful_fistful_base_thrift, 'BankCard'}},
     Binary = wapi_thrift_utils:serialize(Type, marshal(bank_card, BankCard)),
     Decoded = wapi_thrift_utils:deserialize(Type, Binary),
     ?assertEqual(
@@ -447,7 +447,7 @@ crypto_wallet_codec_test() ->
         id => <<"token">>,
         currency => #{id => <<"BTC">>}
     },
-    Type = {struct, struct, {ff_proto_base_thrift, 'CryptoWallet'}},
+    Type = {struct, struct, {fistful_fistful_base_thrift, 'CryptoWallet'}},
     Binary = wapi_thrift_utils:serialize(Type, marshal(crypto_wallet, CryptoWallet)),
     Decoded = wapi_thrift_utils:deserialize(Type, Binary),
     ?assertEqual(

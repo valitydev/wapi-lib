@@ -1,7 +1,7 @@
 -module(wapi_domain_backend).
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
--include_lib("damsel/include/dmsl_domain_config_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_conf_thrift.hrl").
 
 -type response_data() :: wapi_handler_utils:response_data().
 
@@ -44,6 +44,6 @@ object(Ref, {Type, ObjectRef}) ->
         {Type, {_RecordName, ObjectRef, ObjectData}} ->
             {ok, ObjectData}
     catch
-        #'ObjectNotFound'{} ->
+        #domain_conf_ObjectNotFound{} ->
             {error, notfound}
     end.

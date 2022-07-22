@@ -1,6 +1,7 @@
 -module(wapi_withdrawal_quote).
 
--include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_base_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_wthd_thrift.hrl").
 
 -export([create_token_payload/4]).
 -export([decode_token_payload/1]).
@@ -19,7 +20,7 @@
 -type wallet_id() :: binary().
 -type destination_id() :: binary() | undefined.
 -type party_id() :: binary().
--type quote() :: ff_proto_withdrawal_thrift:'Quote'().
+-type quote() :: fistful_wthd_thrift:'Quote'().
 
 %% API
 
@@ -55,13 +56,13 @@ decode_token_payload(#{<<"version">> := 1}) ->
 
 -spec encode_quote(quote()) -> token_payload().
 encode_quote(Quote) ->
-    Type = {struct, struct, {ff_proto_withdrawal_thrift, 'Quote'}},
+    Type = {struct, struct, {fistful_wthd_thrift, 'Quote'}},
     Bin = wapi_thrift_utils:serialize(Type, Quote),
     base64:encode(Bin).
 
 -spec decode_quote(token_payload()) -> quote().
 decode_quote(Encoded) ->
-    Type = {struct, struct, {ff_proto_withdrawal_thrift, 'Quote'}},
+    Type = {struct, struct, {fistful_wthd_thrift, 'Quote'}},
     Bin = base64:decode(Encoded),
     wapi_thrift_utils:deserialize(Type, Bin).
 

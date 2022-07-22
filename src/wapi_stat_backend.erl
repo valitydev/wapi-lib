@@ -1,6 +1,7 @@
 -module(wapi_stat_backend).
 
--include_lib("fistful_proto/include/ff_proto_fistful_stat_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_base_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_stat_thrift.hrl").
 
 -export([list_wallets/2]).
 -export([list_withdrawals/2]).
@@ -158,13 +159,13 @@ create_query(deposit_adjustments, Req, Context) ->
     }.
 
 create_request(Dsl, Token) ->
-    #fistfulstat_StatRequest{
+    #stat_StatRequest{
         dsl = Dsl,
         continuation_token = Token
     }.
 
 process_result(
-    {ok, #fistfulstat_StatResponse{
+    {ok, #stat_StatResponse{
         data = {QueryType, Data},
         continuation_token = ContinuationToken
     }}
@@ -175,10 +176,10 @@ process_result(
         <<"continuationToken">> => ContinuationToken
     }),
     {ok, Response};
-process_result({exception, #fistfulstat_InvalidRequest{errors = Errors}}) ->
+process_result({exception, #stat_InvalidRequest{errors = Errors}}) ->
     FormattedErrors = format_request_errors(Errors),
     {error, {invalid, FormattedErrors}};
-process_result({exception, #fistfulstat_BadToken{reason = Reason}}) ->
+process_result({exception, #stat_BadToken{reason = Reason}}) ->
     {error, {bad_token, Reason}}.
 
 get_time(Key, Req) ->
@@ -196,104 +197,104 @@ format_request_errors([]) -> <<>>;
 format_request_errors(Errors) -> genlib_string:join(<<"\n">>, Errors).
 
 -spec unmarshal_response
-    (withdrawals, ff_proto_fistful_stat_thrift:'StatWithdrawal'()) -> map();
-    (deposits, ff_proto_fistful_stat_thrift:'StatDeposit'()) -> map();
-    (wallets, ff_proto_fistful_stat_thrift:'StatWallet'()) -> map();
-    (destinations, ff_proto_fistful_stat_thrift:'StatDestination'()) -> map();
-    (identities, ff_proto_fistful_stat_thrift:'StatIdentity'()) -> map();
-    (deposit_reverts, ff_proto_fistful_stat_thrift:'StatDepositRevert'()) -> map();
-    (deposit_adjustments, ff_proto_fistful_stat_thrift:'StatDepositAdjustment'()) -> map().
+    (withdrawals, fistful_stat_thrift:'StatWithdrawal'()) -> map();
+    (deposits, fistful_stat_thrift:'StatDeposit'()) -> map();
+    (wallets, fistful_stat_thrift:'StatWallet'()) -> map();
+    (destinations, fistful_stat_thrift:'StatDestination'()) -> map();
+    (identities, fistful_stat_thrift:'StatIdentity'()) -> map();
+    (deposit_reverts, fistful_stat_thrift:'StatDepositRevert'()) -> map();
+    (deposit_adjustments, fistful_stat_thrift:'StatDepositAdjustment'()) -> map().
 unmarshal_response(withdrawals, Response) ->
     merge_and_compact(
         #{
-            <<"id">> => Response#fistfulstat_StatWithdrawal.id,
-            <<"createdAt">> => Response#fistfulstat_StatWithdrawal.created_at,
-            <<"wallet">> => Response#fistfulstat_StatWithdrawal.source_id,
-            <<"destination">> => Response#fistfulstat_StatWithdrawal.destination_id,
-            <<"externalID">> => Response#fistfulstat_StatWithdrawal.external_id,
+            <<"id">> => Response#stat_StatWithdrawal.id,
+            <<"createdAt">> => Response#stat_StatWithdrawal.created_at,
+            <<"wallet">> => Response#stat_StatWithdrawal.source_id,
+            <<"destination">> => Response#stat_StatWithdrawal.destination_id,
+            <<"externalID">> => Response#stat_StatWithdrawal.external_id,
             <<"body">> => unmarshal_cash(
-                Response#fistfulstat_StatWithdrawal.amount,
-                Response#fistfulstat_StatWithdrawal.currency_symbolic_code
+                Response#stat_StatWithdrawal.amount,
+                Response#stat_StatWithdrawal.currency_symbolic_code
             ),
             <<"fee">> => unmarshal_cash(
-                Response#fistfulstat_StatWithdrawal.fee,
-                Response#fistfulstat_StatWithdrawal.currency_symbolic_code
+                Response#stat_StatWithdrawal.fee,
+                Response#stat_StatWithdrawal.currency_symbolic_code
             )
         },
-        unmarshal_withdrawal_stat_status(Response#fistfulstat_StatWithdrawal.status)
+        unmarshal_withdrawal_stat_status(Response#stat_StatWithdrawal.status)
     );
 unmarshal_response(deposits, Response) ->
     merge_and_compact(
         #{
-            <<"id">> => Response#fistfulstat_StatDeposit.id,
-            <<"createdAt">> => Response#fistfulstat_StatDeposit.created_at,
-            <<"wallet">> => Response#fistfulstat_StatDeposit.destination_id,
-            <<"source">> => Response#fistfulstat_StatDeposit.source_id,
+            <<"id">> => Response#stat_StatDeposit.id,
+            <<"createdAt">> => Response#stat_StatDeposit.created_at,
+            <<"wallet">> => Response#stat_StatDeposit.destination_id,
+            <<"source">> => Response#stat_StatDeposit.source_id,
             <<"body">> => unmarshal_cash(
-                Response#fistfulstat_StatDeposit.amount,
-                Response#fistfulstat_StatDeposit.currency_symbolic_code
+                Response#stat_StatDeposit.amount,
+                Response#stat_StatDeposit.currency_symbolic_code
             ),
             <<"fee">> => unmarshal_cash(
-                Response#fistfulstat_StatDeposit.fee,
-                Response#fistfulstat_StatDeposit.currency_symbolic_code
+                Response#stat_StatDeposit.fee,
+                Response#stat_StatDeposit.currency_symbolic_code
             ),
-            <<"revertStatus">> => unmarshal_revert_status(Response#fistfulstat_StatDeposit.revert_status)
+            <<"revertStatus">> => unmarshal_revert_status(Response#stat_StatDeposit.revert_status)
         },
-        unmarshal_deposit_stat_status(Response#fistfulstat_StatDeposit.status)
+        unmarshal_deposit_stat_status(Response#stat_StatDeposit.status)
     );
 unmarshal_response(wallets, Response) ->
     genlib_map:compact(#{
-        <<"id">> => Response#fistfulstat_StatWallet.id,
-        <<"name">> => Response#fistfulstat_StatWallet.name,
-        <<"identity">> => Response#fistfulstat_StatWallet.identity_id,
-        <<"createdAt">> => Response#fistfulstat_StatWallet.created_at,
-        <<"currency">> => Response#fistfulstat_StatWallet.currency_symbolic_code
+        <<"id">> => Response#stat_StatWallet.id,
+        <<"name">> => Response#stat_StatWallet.name,
+        <<"identity">> => Response#stat_StatWallet.identity_id,
+        <<"createdAt">> => Response#stat_StatWallet.created_at,
+        <<"currency">> => Response#stat_StatWallet.currency_symbolic_code
     });
 unmarshal_response(destinations, Response) ->
     genlib_map:compact(#{
-        <<"id">> => Response#fistfulstat_StatDestination.id,
-        <<"name">> => Response#fistfulstat_StatDestination.name,
-        <<"createdAt">> => Response#fistfulstat_StatDestination.created_at,
-        <<"isBlocked">> => Response#fistfulstat_StatDestination.is_blocked,
-        <<"identity">> => Response#fistfulstat_StatDestination.identity,
-        <<"currency">> => Response#fistfulstat_StatDestination.currency_symbolic_code,
-        <<"resource">> => unmarshal_resource(Response#fistfulstat_StatDestination.resource),
-        <<"status">> => unmarshal_destination_stat_status(Response#fistfulstat_StatDestination.status),
-        <<"externalID">> => Response#fistfulstat_StatDestination.external_id
+        <<"id">> => Response#stat_StatDestination.id,
+        <<"name">> => Response#stat_StatDestination.name,
+        <<"createdAt">> => Response#stat_StatDestination.created_at,
+        <<"isBlocked">> => Response#stat_StatDestination.is_blocked,
+        <<"identity">> => Response#stat_StatDestination.identity,
+        <<"currency">> => Response#stat_StatDestination.currency_symbolic_code,
+        <<"resource">> => unmarshal_resource(Response#stat_StatDestination.resource),
+        <<"status">> => unmarshal_destination_stat_status(Response#stat_StatDestination.status),
+        <<"externalID">> => Response#stat_StatDestination.external_id
     });
 unmarshal_response(identities, Response) ->
     genlib_map:compact(#{
-        <<"id">> => Response#fistfulstat_StatIdentity.id,
-        <<"name">> => Response#fistfulstat_StatIdentity.name,
-        <<"createdAt">> => Response#fistfulstat_StatIdentity.created_at,
-        <<"provider">> => Response#fistfulstat_StatIdentity.provider,
-        <<"isBlocked">> => Response#fistfulstat_StatIdentity.is_blocked,
-        <<"externalID">> => Response#fistfulstat_StatIdentity.external_id
+        <<"id">> => Response#stat_StatIdentity.id,
+        <<"name">> => Response#stat_StatIdentity.name,
+        <<"createdAt">> => Response#stat_StatIdentity.created_at,
+        <<"provider">> => Response#stat_StatIdentity.provider,
+        <<"isBlocked">> => Response#stat_StatIdentity.is_blocked,
+        <<"externalID">> => Response#stat_StatIdentity.external_id
     });
 unmarshal_response(deposit_reverts, Response) ->
     merge_and_compact(
         #{
-            <<"id">> => Response#fistfulstat_StatDepositRevert.id,
-            <<"depositId">> => Response#fistfulstat_StatDepositRevert.deposit_id,
-            <<"wallet">> => Response#fistfulstat_StatDepositRevert.wallet_id,
-            <<"source">> => Response#fistfulstat_StatDepositRevert.source_id,
-            <<"body">> => unmarshal_cash(Response#fistfulstat_StatDepositRevert.body),
-            <<"createdAt">> => Response#fistfulstat_StatDepositRevert.created_at,
-            <<"reason">> => Response#fistfulstat_StatDepositRevert.reason,
-            <<"externalId">> => Response#fistfulstat_StatDepositRevert.external_id
+            <<"id">> => Response#stat_StatDepositRevert.id,
+            <<"depositId">> => Response#stat_StatDepositRevert.deposit_id,
+            <<"wallet">> => Response#stat_StatDepositRevert.wallet_id,
+            <<"source">> => Response#stat_StatDepositRevert.source_id,
+            <<"body">> => unmarshal_cash(Response#stat_StatDepositRevert.body),
+            <<"createdAt">> => Response#stat_StatDepositRevert.created_at,
+            <<"reason">> => Response#stat_StatDepositRevert.reason,
+            <<"externalId">> => Response#stat_StatDepositRevert.external_id
         },
-        unmarshal_status(Response#fistfulstat_StatDepositRevert.status)
+        unmarshal_status(Response#stat_StatDepositRevert.status)
     );
 unmarshal_response(deposit_adjustments, Response) ->
     merge_and_compact(
         #{
-            <<"id">> => Response#fistfulstat_StatDepositAdjustment.id,
-            <<"depositId">> => Response#fistfulstat_StatDepositAdjustment.deposit_id,
-            <<"changesPlan">> => unmarshal_changes_plan(Response#fistfulstat_StatDepositAdjustment.changes_plan),
-            <<"createdAt">> => Response#fistfulstat_StatDepositAdjustment.created_at,
-            <<"externalId">> => Response#fistfulstat_StatDepositAdjustment.external_id
+            <<"id">> => Response#stat_StatDepositAdjustment.id,
+            <<"depositId">> => Response#stat_StatDepositAdjustment.deposit_id,
+            <<"changesPlan">> => unmarshal_changes_plan(Response#stat_StatDepositAdjustment.changes_plan),
+            <<"createdAt">> => Response#stat_StatDepositAdjustment.created_at,
+            <<"externalId">> => Response#stat_StatDepositAdjustment.external_id
         },
-        unmarshal_status(Response#fistfulstat_StatDepositAdjustment.status)
+        unmarshal_status(Response#stat_StatDepositAdjustment.status)
     ).
 
 unmarshal_status({pending, _}) ->
@@ -315,12 +316,12 @@ unmarshal_revert_status(partial) ->
 unmarshal_revert_status(full) ->
     <<"Full"/utf8>>.
 
-unmarshal_changes_plan(#fistfulstat_DepositAdjustmentChangesPlan{new_cash = Cash, new_status = Status}) ->
+unmarshal_changes_plan(#stat_DepositAdjustmentChangesPlan{new_cash = Cash, new_status = Status}) ->
     maps:merge(#{<<"cash">> => unmarshal_cash_change_plan(Cash)}, unmarshal_status_change_plan(Status)).
 
 unmarshal_cash_change_plan(undefined) ->
     #{};
-unmarshal_cash_change_plan(#fistfulstat_DepositAdjustmentCashChangePlan{
+unmarshal_cash_change_plan(#stat_DepositAdjustmentCashChangePlan{
     amount = Amount,
     fee = Fee,
     provider_fee = ProviderFee
@@ -333,7 +334,7 @@ unmarshal_cash_change_plan(#fistfulstat_DepositAdjustmentCashChangePlan{
 
 unmarshal_status_change_plan(undefined) ->
     #{};
-unmarshal_status_change_plan(#fistfulstat_DepositAdjustmentStatusChangePlan{new_status = Status}) ->
+unmarshal_status_change_plan(#stat_DepositAdjustmentStatusChangePlan{new_status = Status}) ->
     unmarshal_status(Status).
 
 unmarshal_destination_stat_status(undefined) ->
@@ -349,21 +350,21 @@ unmarshal_cash(Amount, Currency) when is_bitstring(Currency) ->
 unmarshal_cash(#'fistful_base_Cash'{amount = Amount, currency = Currency}) ->
     unmarshal_cash(Amount, Currency#'fistful_base_CurrencyRef'.symbolic_code).
 
-unmarshal_withdrawal_stat_status({pending, #fistfulstat_WithdrawalPending{}}) ->
+unmarshal_withdrawal_stat_status({pending, #stat_WithdrawalPending{}}) ->
     #{<<"status">> => <<"Pending">>};
-unmarshal_withdrawal_stat_status({succeeded, #fistfulstat_WithdrawalSucceeded{}}) ->
+unmarshal_withdrawal_stat_status({succeeded, #stat_WithdrawalSucceeded{}}) ->
     #{<<"status">> => <<"Succeeded">>};
-unmarshal_withdrawal_stat_status({failed, #fistfulstat_WithdrawalFailed{failure = _Failure}}) ->
+unmarshal_withdrawal_stat_status({failed, #stat_WithdrawalFailed{failure = _Failure}}) ->
     #{
         <<"status">> => <<"Failed">>,
         <<"failure">> => #{<<"code">> => <<"failed">>}
     }.
 
-unmarshal_deposit_stat_status({pending, #fistfulstat_DepositPending{}}) ->
+unmarshal_deposit_stat_status({pending, #stat_DepositPending{}}) ->
     #{<<"status">> => <<"Pending">>};
-unmarshal_deposit_stat_status({succeeded, #fistfulstat_DepositSucceeded{}}) ->
+unmarshal_deposit_stat_status({succeeded, #stat_DepositSucceeded{}}) ->
     #{<<"status">> => <<"Succeeded">>};
-unmarshal_deposit_stat_status({failed, #fistfulstat_DepositFailed{failure = _Failure}}) ->
+unmarshal_deposit_stat_status({failed, #stat_DepositFailed{failure = _Failure}}) ->
     #{
         <<"status">> => <<"Failed">>,
         <<"failure">> => #{<<"code">> => <<"failed">>}

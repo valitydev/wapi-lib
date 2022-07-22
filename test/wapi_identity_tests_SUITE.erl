@@ -5,7 +5,9 @@
 
 -include_lib("wapi_wallet_dummy_data.hrl").
 
--include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_base_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_identity_thrift.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -29,10 +31,6 @@
     get_identity_withdrawal_methods/1,
     get_identity_withdrawal_methods_notfound/1
 ]).
-
-% common-api is used since it is the domain used in production RN
-% TODO: change to wallet-api (or just omit since it is the default one) when new tokens will be a thing
--define(DOMAIN, <<"common-api">>).
 
 -type test_case_name() :: atom().
 -type config() :: [{atom(), any()}].
@@ -111,7 +109,7 @@ create_identity(C) ->
     _ = wapi_ct_helper_bouncer:mock_assert_party_op_ctx(<<"CreateIdentity">>, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
-            {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
+            {bender, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
             {fistful_identity, fun('Create', _) -> {ok, ?IDENTITY(PartyID)} end}
         ],
         C
@@ -124,7 +122,7 @@ create_identity_provider_notfound(C) ->
     _ = wapi_ct_helper_bouncer:mock_assert_party_op_ctx(<<"CreateIdentity">>, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
-            {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
+            {bender, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
             {fistful_identity, fun('Create', _) -> {throwing, #fistful_ProviderNotFound{}} end}
         ],
         C
@@ -140,7 +138,7 @@ create_identity_party_notfound(C) ->
     _ = wapi_ct_helper_bouncer:mock_assert_party_op_ctx(<<"CreateIdentity">>, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
-            {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
+            {bender, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
             {fistful_identity, fun('Create', _) -> {throwing, #fistful_PartyNotFound{}} end}
         ],
         C
@@ -156,7 +154,7 @@ create_identity_party_inaccessible(C) ->
     _ = wapi_ct_helper_bouncer:mock_assert_party_op_ctx(<<"CreateIdentity">>, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
-            {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
+            {bender, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
             {fistful_identity, fun('Create', _) -> {throwing, #fistful_PartyInaccessible{}} end}
         ],
         C
@@ -172,7 +170,7 @@ create_identity_thrift_name(C) ->
     _ = wapi_ct_helper_bouncer:mock_assert_party_op_ctx(<<"CreateIdentity">>, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
-            {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
+            {bender, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
             {fistful_identity, fun('Create', _) -> {ok, ?IDENTITY(PartyID, ?DEFAULT_CONTEXT_NO_NAME(PartyID))} end}
         ],
         C

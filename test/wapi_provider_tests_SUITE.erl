@@ -4,7 +4,8 @@
 
 -include_lib("wapi_wallet_dummy_data.hrl").
 
--include_lib("fistful_proto/include/ff_proto_provider_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_provider_thrift.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -22,10 +23,6 @@
     get_provider_fail_notfound/1,
     list_providers/1
 ]).
-
-% common-api is used since it is the domain used in production RN
-% TODO: change to wallet-api (or just omit since it is the default one) when new tokens will be a thing
--define(DOMAIN, <<"common-api">>).
 
 -type test_case_name() :: atom().
 -type config() :: [{atom(), any()}].

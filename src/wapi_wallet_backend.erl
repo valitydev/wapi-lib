@@ -11,7 +11,10 @@
 -export([get_by_external_id/2]).
 -export([get_account/2]).
 
--include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_base_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_account_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_wallet_thrift.hrl").
 
 %% Pipeline
 
@@ -54,7 +57,7 @@ get_by_external_id(ExternalID, #{woody_context := WoodyContext} = HandlerContext
     PartyID = wapi_handler_utils:get_owner(HandlerContext),
     IdempotentKey = wapi_backend_utils:get_idempotent_key(wallet, PartyID, ExternalID),
     case bender_client:get_internal_id(IdempotentKey, WoodyContext) of
-        {ok, {WalletID, _}, _} ->
+        {ok, WalletID, _} ->
             get(WalletID, HandlerContext);
         {error, internal_id_not_found} ->
             {error, {external_id, {unknown_external_id, ExternalID}}}
@@ -104,7 +107,7 @@ marshal(
     }
 ) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
-    #wlt_WalletParams{
+    #wallet_WalletParams{
         id = marshal(id, ID),
         name = marshal(string, Name),
         account_params = marshal(account_params, {IdentityID, CurrencyID}),
@@ -122,7 +125,7 @@ marshal(T, V) ->
 
 %%
 
-unmarshal(wallet, #wlt_WalletState{
+unmarshal(wallet, #wallet_WalletState{
     id = WalletID,
     name = Name,
     blocking = Blocking,

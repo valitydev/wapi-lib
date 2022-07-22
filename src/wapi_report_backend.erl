@@ -1,9 +1,8 @@
 -module(wapi_report_backend).
 
--include_lib("fistful_reporter_proto/include/ff_reporter_reports_thrift.hrl").
--include_lib("file_storage_proto/include/fs_file_storage_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_base_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_identity_thrift.hrl").
+-include_lib("fistful_reporter_proto/include/ffreport_reports_thrift.hrl").
+-include_lib("file_storage_proto/include/filestore_storage_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_identity_thrift.hrl").
 
 -export([create_report/2]).
 -export([get_report/3]).
@@ -39,9 +38,9 @@ create_report(
             case wapi_handler_utils:service_call(Call, HandlerContext) of
                 {ok, ReportID} ->
                     get_report('contractID', ReportID, ContractID, HandlerContext);
-                {exception, #ff_reports_InvalidRequest{}} ->
+                {exception, #reports_InvalidRequest{}} ->
                     {error, invalid_request};
-                {exception, #ff_reports_ContractNotFound{}} ->
+                {exception, #reports_ContractNotFound{}} ->
                     {error, invalid_contract}
             end;
         {error, _} = Error ->
@@ -68,7 +67,7 @@ get_report('contractID', ReportID, ContractID, HandlerContext) ->
     case wapi_handler_utils:service_call(Call, HandlerContext) of
         {ok, Report} ->
             {ok, unmarshal_report(Report)};
-        {exception, #ff_reports_ReportNotFound{}} ->
+        {exception, #reports_ReportNotFound{}} ->
             {error, notfound}
     end.
 
@@ -90,9 +89,9 @@ get_reports(#{'identityID' := IdentityID} = Params, HandlerContext) ->
             case wapi_handler_utils:service_call(Call, HandlerContext) of
                 {ok, ReportList} ->
                     {ok, unmarshal_reports(ReportList)};
-                {exception, #ff_reports_InvalidRequest{}} ->
+                {exception, #reports_InvalidRequest{}} ->
                     {error, invalid_request};
-                {exception, #ff_reports_DatasetTooBig{limit = Limit}} ->
+                {exception, #reports_DatasetTooBig{limit = Limit}} ->
                     {error, {dataset_too_big, Limit}}
             end;
         {error, _} = Error ->
@@ -106,7 +105,7 @@ download_file(FileID, ExpiresAt, HandlerContext) ->
     Timestamp = wapi_utils:to_universal_time(ExpiresAt),
     Call = {file_storage, 'GenerateDownloadUrl', {FileID, Timestamp}},
     case wapi_handler_utils:service_call(Call, HandlerContext) of
-        {exception, #file_storage_FileNotFound{}} ->
+        {exception, #storage_FileNotFound{}} ->
             {error, notfound};
         Result ->
             Result
@@ -118,7 +117,7 @@ download_file(FileID, ExpiresAt, HandlerContext) ->
     Error :: {identity, notfound}.
 get_contract_id_from_identity(IdentityID, HandlerContext) ->
     case wapi_identity_backend:get_thrift_identity(IdentityID, HandlerContext) of
-        {ok, #idnt_IdentityState{contract_id = ContractID}} ->
+        {ok, #identity_IdentityState{contract_id = ContractID}} ->
             {ok, ContractID};
         {error, _} = Error ->
             Error
@@ -130,10 +129,10 @@ create_report_request(#{
     from_time := FromTime,
     to_time := ToTime
 }) ->
-    #'ff_reports_ReportRequest'{
+    #reports_ReportRequest{
         party_id = PartyID,
         contract_id = ContractID,
-        time_range = #'ff_reports_ReportTimeRange'{
+        time_range = #reports_ReportTimeRange{
             from_time = FromTime,
             to_time = ToTime
         }
@@ -152,7 +151,7 @@ get_time(Key, Req) ->
 unmarshal_reports(List) ->
     lists:map(fun(Report) -> unmarshal_report(Report) end, List).
 
-unmarshal_report(#ff_reports_Report{
+unmarshal_report(#reports_Report{
     report_id = ReportID,
     time_range = TimeRange,
     created_at = CreatedAt,
@@ -162,8 +161,8 @@ unmarshal_report(#ff_reports_Report{
 }) ->
     genlib_map:compact(#{
         <<"id">> => ReportID,
-        <<"fromTime">> => TimeRange#ff_reports_ReportTimeRange.from_time,
-        <<"toTime">> => TimeRange#ff_reports_ReportTimeRange.to_time,
+        <<"fromTime">> => TimeRange#reports_ReportTimeRange.from_time,
+        <<"toTime">> => TimeRange#reports_ReportTimeRange.to_time,
         <<"createdAt">> => CreatedAt,
         <<"status">> => unmarshal_report_status(Status),
         <<"type">> => Type,

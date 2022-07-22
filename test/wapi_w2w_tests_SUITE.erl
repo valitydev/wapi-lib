@@ -5,8 +5,13 @@
 
 -include_lib("wapi_wallet_dummy_data.hrl").
 
--include_lib("fistful_proto/include/ff_proto_w2w_transfer_thrift.hrl").
--include_lib("fistful_proto/include/ff_proto_wallet_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_base_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_account_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_cashflow_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_w2w_transfer_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_w2w_status_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_wallet_thrift.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -31,9 +36,6 @@
     get_fail_w2w_notfound_test/1
 ]).
 
-% common-api is used since it is the domain used in production RN
-% TODO: change to wallet-api (or just omit since it is the default one) when new tokens will be a thing
--define(DOMAIN, <<"common-api">>).
 -define(EMPTY_RESP(Code), {error, {Code, #{}}}).
 
 -type test_case_name() :: atom().
@@ -120,7 +122,7 @@ create_fail_unauthorized_wallet_test(C) ->
     _ = wapi_ct_helper_bouncer:mock_arbiter(wapi_ct_helper_bouncer:judge_always_forbidden(), C),
     _ = wapi_ct_helper:mock_services(
         [
-            {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
+            {bender, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
             {fistful_wallet, fun
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(<<"someotherparty">>)};
                 ('Get', _) -> {ok, ?WALLET(<<"someotherparty">>)}
@@ -256,7 +258,7 @@ create_w2_w_transfer_start_mocks(C, CreateResultFun) ->
     _ = wapi_ct_helper_bouncer:mock_assert_wallet_op_ctx(<<"CreateW2WTransfer">>, ?STRING, PartyID, C),
     wapi_ct_helper:mock_services(
         [
-            {bender_thrift, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
+            {bender, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
             {fistful_wallet, fun
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
                 ('Get', _) -> {ok, ?WALLET(PartyID)}

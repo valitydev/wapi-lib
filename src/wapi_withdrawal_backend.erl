@@ -1,6 +1,5 @@
 -module(wapi_withdrawal_backend).
 
--define(DOMAIN, <<"wallet-api">>).
 -define(EVENT(ID, Timestamp, Change), #wthd_Event{
     event_id = ID,
     occured_at = Timestamp,
@@ -48,7 +47,10 @@
 -export([get_events/2]).
 -export([get_event/3]).
 
--include_lib("fistful_proto/include/ff_proto_withdrawal_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_base_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_fistful_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_wthd_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_wthd_status_thrift.hrl").
 
 %% Pipeline
 
@@ -128,7 +130,7 @@ get_by_external_id(ExternalID, HandlerContext = #{woody_context := WoodyContext}
     PartyID = wapi_handler_utils:get_owner(HandlerContext),
     IdempotentKey = wapi_backend_utils:get_idempotent_key(withdrawal, PartyID, ExternalID),
     case bender_client:get_internal_id(IdempotentKey, WoodyContext) of
-        {ok, {WithdrawalID, _}, _CtxData} ->
+        {ok, WithdrawalID, _CtxData} ->
             get(WithdrawalID, HandlerContext);
         {error, internal_id_not_found} ->
             {error, {external_id, {unknown_external_id, ExternalID}}}
