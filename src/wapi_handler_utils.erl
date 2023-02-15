@@ -15,6 +15,7 @@
 -export([service_call/2]).
 
 -export([get_owner/1]).
+-export([get_auth_context/1]).
 
 -export([get_location/3]).
 -export([maybe_with/3]).
@@ -49,6 +50,7 @@
 get_owner(Context) ->
     wapi_auth:get_subject_id(get_auth_context(Context)).
 
+-spec get_auth_context(wapi_handler_utils:handler_context()) -> any().
 get_auth_context(#{swagger_context := #{auth_context := AuthContext}}) ->
     AuthContext.
 
