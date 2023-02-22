@@ -121,14 +121,15 @@ marshal(
             <<"name">> := Name,
             <<"provider">> := Provider
         },
-        Owner
+        OwnerID
     }
 ) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
+    PartyID = maps:get(<<"partyID">>, Params, OwnerID),
     #identity_IdentityParams{
         id = marshal(id, ID),
         name = marshal(string, Name),
-        party = marshal(id, Owner),
+        party = marshal(id, PartyID),
         provider = marshal(string, Provider),
         external_id = marshal(id, ExternalID)
     };
