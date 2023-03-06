@@ -25,7 +25,7 @@
 create_transfer(Params, HandlerContext) ->
     case wapi_backend_utils:gen_id(w2w_transfer, Params, HandlerContext) of
         {ok, ID} ->
-            Context = wapi_backend_utils:make_ctx(Params, HandlerContext),
+            Context = wapi_backend_utils:make_ctx(Params),
             create_transfer(ID, Params, Context, HandlerContext);
         {error, {external_id_conflict, _}} = Error ->
             Error

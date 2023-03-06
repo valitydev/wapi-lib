@@ -50,11 +50,8 @@ create_identity(Params, HandlerContext) ->
     end.
 
 create_identity(ID, Params, HandlerContext) ->
-    IdentityParams = marshal(identity_params, {
-        Params#{<<"id">> => ID},
-        wapi_handler_utils:get_owner(HandlerContext)
-    }),
-    Request = {fistful_identity, 'Create', {IdentityParams, marshal(context, create_context(Params, HandlerContext))}},
+    IdentityParams = marshal(identity_params, Params#{<<"id">> => ID}),
+    Request = {fistful_identity, 'Create', {IdentityParams, marshal(context, create_context(Params))}},
 
     case service_call(Request, HandlerContext) of
         {ok, Identity} ->
@@ -104,9 +101,9 @@ create_id(Type, Params, HandlerContext) ->
         HandlerContext
     ).
 
-create_context(Params, HandlerContext) ->
+create_context(Params) ->
     KV = {<<"name">>, maps:get(<<"name">>, Params, undefined)},
-    wapi_backend_utils:add_to_ctx(KV, wapi_backend_utils:make_ctx(Params, HandlerContext)).
+    wapi_backend_utils:add_to_ctx(KV, wapi_backend_utils:make_ctx(Params)).
 
 service_call(Params, Ctx) ->
     wapi_handler_utils:service_call(Params, Ctx).
@@ -115,17 +112,14 @@ service_call(Params, Ctx) ->
 
 marshal(
     identity_params,
-    {
-        Params = #{
-            <<"id">> := ID,
-            <<"name">> := Name,
-            <<"provider">> := Provider
-        },
-        OwnerID
+    Params = #{
+        <<"id">> := ID,
+        <<"name">> := Name,
+        <<"provider">> := Provider,
+        <<"partyID">> := PartyID
     }
 ) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
-    PartyID = maps:get(<<"partyID">>, Params, OwnerID),
     #identity_IdentityParams{
         id = marshal(id, ID),
         name = marshal(string, Name),

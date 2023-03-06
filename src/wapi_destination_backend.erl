@@ -70,7 +70,7 @@ create_request(ID, Params, ResourceThrift, HandlerContext) ->
         <<"id">> => ID,
         <<"resourceThrift">> => ResourceThrift
     }),
-    MarshaledContext = marshal(context, wapi_backend_utils:make_ctx(Params, HandlerContext)),
+    MarshaledContext = marshal(context, wapi_backend_utils:make_ctx(Params)),
     Request = {fistful_destination, 'Create', {MarshaledParams, MarshaledContext}},
     case service_call(Request, HandlerContext) of
         {ok, Destination} ->

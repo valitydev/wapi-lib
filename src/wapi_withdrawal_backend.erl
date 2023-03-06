@@ -60,7 +60,7 @@
 create(Params0, HandlerContext) ->
     case check_withdrawal_params(Params0, HandlerContext) of
         {ok, Params1} ->
-            Context = wapi_backend_utils:make_ctx(Params1, HandlerContext),
+            Context = wapi_backend_utils:make_ctx(Params1),
             WithdrawalContext = marshal(context, Context),
             WithdrawalParams = marshal(withdrawal_params, Params1),
             create(WithdrawalParams, WithdrawalContext, HandlerContext);
