@@ -163,14 +163,14 @@ prepare(OperationID = 'GetIdentity', #{'identityID' := IdentityId}, Context, _Op
     end,
     {ok, #{authorize => Authorize, process => Process}};
 prepare(OperationID = 'CreateIdentity', #{'Identity' := Params}, Context, Opts) ->
+    PartyID =
+        case maps:get(<<"partyID">>, Params, undefined) of
+            undefined ->
+                wapi_handler_utils:get_owner(Context);
+            OwnerID ->
+                OwnerID
+        end,
     Authorize = fun() ->
-        PartyID =
-            case maps:get(<<"partyID">>, Params, undefined) of
-                undefined ->
-                    wapi_handler_utils:get_owner(Context);
-                ID ->
-                    ID
-            end,
         Prototypes = [
             {
                 operation,
@@ -181,7 +181,7 @@ prepare(OperationID = 'CreateIdentity', #{'Identity' := Params}, Context, Opts) 
         {ok, Resolution}
     end,
     Process = fun() ->
-        case wapi_identity_backend:create_identity(Params, Context) of
+        case wapi_identity_backend:create_identity(Params#{<<"partyID">> => PartyID}, Context) of
             {ok, Identity = #{<<"id">> := IdentityId}} ->
                 wapi_handler_utils:reply_ok(201, Identity, get_location('GetIdentity', [IdentityId], Context, Opts));
             {error, {inaccessible, _}} ->
@@ -270,7 +270,8 @@ prepare(OperationID = 'GetWalletByExternalID', #{'externalID' := ExternalID}, Co
     end,
     {ok, #{authorize => Authorize, process => Process}};
 prepare(OperationID = 'CreateWallet', #{'Wallet' := Params = #{<<"identity">> := IdentityID}}, Context, Opts) ->
-    AuthContext = build_auth_context([{identity, IdentityID}], [], Context),
+    AuthContext = [IdentityAuthContext] = build_auth_context([{identity, IdentityID}], [], Context),
+    PartyID = get_party_id_from_auth_context(IdentityAuthContext),
     Authorize = fun() ->
         Prototypes = [
             {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},
@@ -280,7 +281,7 @@ prepare(OperationID = 'CreateWallet', #{'Wallet' := Params = #{<<"identity">> :=
         {ok, Resolution}
     end,
     Process = fun() ->
-        case wapi_wallet_backend:create(Params, Context) of
+        case wapi_wallet_backend:create(add_party_id_to(PartyID, Params), Context) of
             {ok, Wallet = #{<<"id">> := WalletId}} ->
                 wapi_handler_utils:reply_ok(201, Wallet, get_location('GetWallet', [WalletId], Context, Opts));
             {error, {identity, notfound}} ->
@@ -438,7 +439,8 @@ prepare(
     Context,
     Opts
 ) ->
-    AuthContext = build_auth_context([{identity, IdentityID}], [], Context),
+    AuthContext = [IdentityAuthContext] = build_auth_context([{identity, IdentityID}], [], Context),
+    PartyID = get_party_id_from_auth_context(IdentityAuthContext),
     Authorize = fun() ->
         Prototypes = [
             {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},
@@ -448,7 +450,7 @@ prepare(
         {ok, Resolution}
     end,
     Process = fun() ->
-        case wapi_destination_backend:create(Params, Context) of
+        case wapi_destination_backend:create(add_party_id_to(PartyID, Params), Context) of
             {ok, Destination = #{<<"id">> := DestinationId}} ->
                 wapi_handler_utils:reply_ok(
                     201, Destination, get_location('GetDestination', [DestinationId], Context, Opts)
@@ -514,7 +516,7 @@ prepare(
     end,
     {ok, #{authorize => Authorize, process => Process}};
 %% Withdrawals
-prepare(OperationID = 'CreateQuote', Req = #{'WithdrawalQuoteParams' := Params}, Context, _Opts) ->
+prepare(OperationID = 'CreateQuote', #{'WithdrawalQuoteParams' := Params}, Context, _Opts) ->
     AuthContext = build_auth_context(
         [
             wapi_handler_utils:maybe_with(<<"destinationID">>, Params, fun(DestinationID) ->
@@ -525,6 +527,7 @@ prepare(OperationID = 'CreateQuote', Req = #{'WithdrawalQuoteParams' := Params},
         [],
         Context
     ),
+    PartyID = find_party_id_for(wallet, AuthContext),
     Authorize = fun() ->
         Prototypes = [
             {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},
@@ -534,7 +537,7 @@ prepare(OperationID = 'CreateQuote', Req = #{'WithdrawalQuoteParams' := Params},
         {ok, Resolution}
     end,
     Process = fun() ->
-        case wapi_withdrawal_backend:create_quote(Req, Context) of
+        case wapi_withdrawal_backend:create_quote(add_party_id_to(PartyID, Params), Context) of
             {ok, Quote} ->
                 wapi_handler_utils:reply_ok(202, Quote);
             {error, {destination, notfound}} ->
@@ -591,6 +594,7 @@ prepare(OperationID = 'CreateWithdrawal', #{'WithdrawalParameters' := Params}, C
         [],
         Context
     ),
+    PartyID = find_party_id_for(wallet, AuthContext),
     Authorize = fun() ->
         Prototypes = [
             {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},
@@ -600,7 +604,7 @@ prepare(OperationID = 'CreateWithdrawal', #{'WithdrawalParameters' := Params}, C
         {ok, Resolution}
     end,
     Process = fun() ->
-        case wapi_withdrawal_backend:create(Params, Context) of
+        case wapi_withdrawal_backend:create(add_party_id_to(PartyID, Params), Context) of
             {ok, Withdrawal = #{<<"id">> := WithdrawalId}} ->
                 wapi_handler_utils:reply_ok(
                     202, Withdrawal, get_location('GetWithdrawal', [WithdrawalId], Context, Opts)
@@ -916,7 +920,8 @@ prepare(
     Context,
     _Opts
 ) ->
-    AuthContext = build_auth_context([{wallet, SenderID}], [], Context),
+    AuthContext = [WalletAuthContext] = build_auth_context([{wallet, SenderID}], [], Context),
+    PartyID = get_party_id_from_auth_context(WalletAuthContext),
     Authorize = fun() ->
         Prototypes = [
             {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},
@@ -926,7 +931,7 @@ prepare(
         {ok, Resolution}
     end,
     Process = fun() ->
-        case wapi_w2w_backend:create_transfer(Params, Context) of
+        case wapi_w2w_backend:create_transfer(add_party_id_to(PartyID, Params), Context) of
             {ok, W2WTransfer} ->
                 wapi_handler_utils:reply_ok(202, W2WTransfer);
             {error, {wallet_from, notfound}} ->
@@ -1351,6 +1356,17 @@ build_prototype_for(wallet, Entities, AuthContext) ->
         Entities,
         AuthContext
     ).
+
+find_party_id_for(Tag, [Context = {Tag, _} | _Rest]) -> get_party_id_from_auth_context(Context);
+find_party_id_for(Tag, [_H | Rest]) -> find_party_id_for(Tag, Rest).
+
+get_party_id_from_auth_context({identity, {_, _, PartyID}}) -> PartyID;
+get_party_id_from_auth_context({wallet, {_, _, PartyID}}) -> PartyID.
+
+add_party_id_to(undefined, Params) ->
+    Params;
+add_party_id_to(PartyID, Params) when is_map(Params) ->
+    Params#{<<"partyID">> => PartyID}.
 
 % seconds
 -define(DEFAULT_URL_LIFETIME, 60).

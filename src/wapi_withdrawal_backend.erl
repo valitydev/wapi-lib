@@ -60,7 +60,7 @@
 create(Params0, HandlerContext) ->
     case check_withdrawal_params(Params0, HandlerContext) of
         {ok, Params1} ->
-            Context = wapi_backend_utils:make_ctx(Params1, HandlerContext),
+            Context = wapi_backend_utils:make_ctx(Params1),
             WithdrawalContext = marshal(context, Context),
             WithdrawalParams = marshal(withdrawal_params, Params1),
             create(WithdrawalParams, WithdrawalContext, HandlerContext);
@@ -137,7 +137,7 @@ get_by_external_id(ExternalID, HandlerContext = #{woody_context := WoodyContext}
     end.
 
 -spec create_quote(request_data(), handler_context()) -> {ok, response_data()} | {error, create_quote_error()}.
-create_quote(#{'WithdrawalQuoteParams' := Params}, HandlerContext) ->
+create_quote(Params, HandlerContext) ->
     CreateQuoteParams = marshal(create_quote_params, Params),
     Request = {fistful_withdrawal, 'GetQuote', {CreateQuoteParams}},
     case service_call(Request, HandlerContext) of
@@ -146,7 +146,7 @@ create_quote(#{'WithdrawalQuoteParams' := Params}, HandlerContext) ->
                 QuoteThrift,
                 maps:get(<<"walletID">>, Params),
                 maps:get(<<"destinationID">>, Params, undefined),
-                wapi_handler_utils:get_owner(HandlerContext)
+                maps:get(<<"partyID">>, Params)
             ),
             UnmarshaledQuote = unmarshal(quote, QuoteThrift),
             {ok, UnmarshaledQuote#{<<"quoteToken">> => Token}};

@@ -54,7 +54,7 @@
 
 -export([gen_id/3]).
 -export([gen_id/4]).
--export([make_ctx/2]).
+-export([make_ctx/1]).
 -export([add_to_ctx/2]).
 -export([add_to_ctx/3]).
 -export([get_from_ctx/2]).
@@ -108,11 +108,11 @@ gen_sequence_id(Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
             {error, {external_id_conflict, ID}}
     end.
 
--spec make_ctx(params(), handler_context()) -> context().
-make_ctx(Params, Context) ->
+-spec make_ctx(params()) -> context().
+make_ctx(Params) ->
     #{
         ?CTX_NS => genlib_map:compact(#{
-            <<"owner">> => wapi_handler_utils:get_owner(Context),
+            <<"owner">> => maps:get(<<"partyID">>, Params),
             <<"metadata">> => maps:get(<<"metadata">>, Params, undefined)
         })
     }.

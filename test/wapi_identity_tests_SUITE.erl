@@ -22,6 +22,7 @@
 
 -export([
     create_identity/1,
+    create_identity_with_party_id/1,
     create_identity_provider_notfound/1,
     create_identity_party_notfound/1,
     create_identity_party_inaccessible/1,
@@ -53,6 +54,7 @@ groups() ->
     [
         {base, [], [
             create_identity,
+            create_identity_with_party_id,
             create_identity_provider_notfound,
             create_identity_party_notfound,
             create_identity_party_inaccessible,
@@ -115,6 +117,20 @@ create_identity(C) ->
         C
     ),
     {ok, _} = create_identity_call_api(C).
+
+-spec create_identity_with_party_id(config()) -> _.
+create_identity_with_party_id(C) ->
+    %% this works because party existence check is in fistful
+    PartyID = <<"Test">>,
+    _ = wapi_ct_helper_bouncer:mock_assert_party_op_ctx(<<"CreateIdentity">>, PartyID, C),
+    _ = wapi_ct_helper:mock_services(
+        [
+            {bender, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
+            {fistful_identity, fun('Create', _) -> {ok, ?IDENTITY(PartyID)} end}
+        ],
+        C
+    ),
+    {ok, _} = create_identity_call_api(PartyID, C).
 
 -spec create_identity_provider_notfound(config()) -> _.
 create_identity_provider_notfound(C) ->
@@ -239,16 +255,20 @@ get_identity_withdrawal_methods_notfound(C) ->
 %%
 
 create_identity_call_api(C) ->
+    create_identity_call_api(undefined, C).
+
+create_identity_call_api(PartyID, C) ->
     call_api(
         fun swag_client_wallet_identities_api:create_identity/3,
         #{
-            body => #{
+            body => genlib_map:compact(#{
                 <<"name">> => ?STRING,
                 <<"provider">> => ?STRING,
+                <<"partyID">> => PartyID,
                 <<"metadata">> => #{
                     <<"somedata">> => ?STRING
                 }
-            }
+            })
         },
         wapi_ct_helper:cfg(context, C)
     ).
