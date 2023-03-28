@@ -97,15 +97,14 @@ prepare(OperationID = 'GetProvider', #{'providerID' := Id}, Context, _Opts) ->
     {ok, #{authorize => Authorize, process => Process}};
 %% Identities
 prepare(OperationID = 'ListIdentities', Req, Context, _Opts) ->
+    PartyID = maybe_get_party_id_from_req(Req, Context),
     Authorize = fun() ->
-        %% TODO: Add party as arg to query
-        %% https://rbkmoney.atlassian.net/browse/ED-258
-        Prototypes = [{operation, #{party => wapi_handler_utils:get_owner(Context), id => OperationID}}],
+        Prototypes = [{operation, #{party => PartyID, id => OperationID}}],
         Resolution = wapi_auth:authorize_operation(Prototypes, Context),
         {ok, Resolution}
     end,
     Process = fun() ->
-        case wapi_stat_backend:list_identities(Req, Context) of
+        case wapi_stat_backend:list_identities(Req#{'partyID' => PartyID}, Context) of
             {ok, List} ->
                 wapi_handler_utils:reply_ok(200, List);
             {error, {invalid, Errors}} ->
@@ -199,6 +198,7 @@ prepare(OperationID = 'CreateIdentity', #{'Identity' := Params}, Context, Opts) 
     {ok, #{authorize => Authorize, process => Process}};
 %% Wallets
 prepare(OperationID = 'ListWallets', Req, Context, _Opts) ->
+    PartyID = maybe_get_party_id_from_req(Req, Context),
     AuthContext = build_auth_context(
         [wapi_handler_utils:maybe_with('identityID', Req, fun(IdentityID) -> {identity, IdentityID} end)],
         [],
@@ -206,14 +206,14 @@ prepare(OperationID = 'ListWallets', Req, Context, _Opts) ->
     ),
     Authorize = fun() ->
         Prototypes = [
-            {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},
+            {operation, build_prototype_for(operation, #{party => PartyID, id => OperationID}, AuthContext)},
             {wallet, build_prototype_for(wallet, [], AuthContext)}
         ],
         Resolution = wapi_auth:authorize_operation(Prototypes, Context),
         {ok, Resolution}
     end,
     Process = fun() ->
-        case wapi_stat_backend:list_wallets(Req, Context) of
+        case wapi_stat_backend:list_wallets(Req#{'partyID' => PartyID}, Context) of
             {ok, List} ->
                 wapi_handler_utils:reply_ok(200, List);
             {error, {invalid, Errors}} ->
@@ -348,6 +348,7 @@ prepare(
     {ok, #{authorize => Authorize, process => Process}};
 %% Destinations
 prepare(OperationID = 'ListDestinations', Req, Context, _Opts) ->
+    PartyID = maybe_get_party_id_from_req(Req, Context),
     AuthContext = build_auth_context(
         [wapi_handler_utils:maybe_with('identityID', Req, fun(IdentityID) -> {identity, IdentityID} end)],
         [],
@@ -355,14 +356,14 @@ prepare(OperationID = 'ListDestinations', Req, Context, _Opts) ->
     ),
     Authorize = fun() ->
         Prototypes = [
-            {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},
+            {operation, build_prototype_for(operation, #{party => PartyID, id => OperationID}, AuthContext)},
             {wallet, build_prototype_for(wallet, [], AuthContext)}
         ],
         Resolution = wapi_auth:authorize_operation(Prototypes, Context),
         {ok, Resolution}
     end,
     Process = fun() ->
-        case wapi_stat_backend:list_destinations(Req, Context) of
+        case wapi_stat_backend:list_destinations(Req#{'partyID' => PartyID}, Context) of
             {ok, StatResult} ->
                 wapi_handler_utils:reply_ok(200, StatResult);
             {error, {invalid, Errors}} ->
@@ -727,6 +728,7 @@ prepare(OperationID = 'GetWithdrawalByExternalID', #{'externalID' := ExternalID}
     end,
     {ok, #{authorize => Authorize, process => Process}};
 prepare(OperationID = 'ListWithdrawals', Req, Context, _Opts) ->
+    PartyID = maybe_get_party_id_from_req(Req, Context),
     AuthContext = build_auth_context(
         [
             wapi_handler_utils:maybe_with('identityID', Req, fun(IdentityID) -> {identity, IdentityID} end),
@@ -739,14 +741,14 @@ prepare(OperationID = 'ListWithdrawals', Req, Context, _Opts) ->
     ),
     Authorize = fun() ->
         Prototypes = [
-            {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},
+            {operation, build_prototype_for(operation, #{party => PartyID, id => OperationID}, AuthContext)},
             {wallet, build_prototype_for(wallet, [], AuthContext)}
         ],
         Resolution = wapi_auth:authorize_operation(Prototypes, Context),
         {ok, Resolution}
     end,
     Process = fun() ->
-        case wapi_stat_backend:list_withdrawals(Req, Context) of
+        case wapi_stat_backend:list_withdrawals(Req#{'partyID' => PartyID}, Context) of
             {ok, List} ->
                 wapi_handler_utils:reply_ok(200, List);
             {error, {invalid, Errors}} ->
@@ -812,6 +814,7 @@ prepare(
     {ok, #{authorize => Authorize, process => Process}};
 %% Deposits
 prepare(OperationID = 'ListDeposits', Req, Context, _Opts) ->
+    PartyID = maybe_get_party_id_from_req(Req, Context),
     AuthContext = build_auth_context(
         [
             wapi_handler_utils:maybe_with('identityID', Req, fun(IdentityID) -> {identity, IdentityID} end),
@@ -822,14 +825,14 @@ prepare(OperationID = 'ListDeposits', Req, Context, _Opts) ->
     ),
     Authorize = fun() ->
         Prototypes = [
-            {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},
+            {operation, build_prototype_for(operation, #{party => PartyID, id => OperationID}, AuthContext)},
             {wallet, build_prototype_for(wallet, [], AuthContext)}
         ],
         Resolution = wapi_auth:authorize_operation(Prototypes, Context),
         {ok, Resolution}
     end,
     Process = fun() ->
-        case wapi_stat_backend:list_deposits(Req, Context) of
+        case wapi_stat_backend:list_deposits(Req#{'partyID' => PartyID}, Context) of
             {ok, List} ->
                 wapi_handler_utils:reply_ok(200, List);
             {error, {invalid, Errors}} ->
@@ -846,6 +849,7 @@ prepare(OperationID = 'ListDeposits', Req, Context, _Opts) ->
     end,
     {ok, #{authorize => Authorize, process => Process}};
 prepare(OperationID = 'ListDepositReverts', Req, Context, _Opts) ->
+    PartyID = maybe_get_party_id_from_req(Req, Context),
     AuthContext = build_auth_context(
         [
             wapi_handler_utils:maybe_with('identityID', Req, fun(IdentityID) -> {identity, IdentityID} end),
@@ -856,14 +860,14 @@ prepare(OperationID = 'ListDepositReverts', Req, Context, _Opts) ->
     ),
     Authorize = fun() ->
         Prototypes = [
-            {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},
+            {operation, build_prototype_for(operation, #{party => PartyID, id => OperationID}, AuthContext)},
             {wallet, build_prototype_for(wallet, [], AuthContext)}
         ],
         Resolution = wapi_auth:authorize_operation(Prototypes, Context),
         {ok, Resolution}
     end,
     Process = fun() ->
-        case wapi_stat_backend:list_deposit_reverts(Req, Context) of
+        case wapi_stat_backend:list_deposit_reverts(Req#{'partyID' => PartyID}, Context) of
             {ok, List} ->
                 wapi_handler_utils:reply_ok(200, List);
             {error, {invalid, Errors}} ->
@@ -880,6 +884,7 @@ prepare(OperationID = 'ListDepositReverts', Req, Context, _Opts) ->
     end,
     {ok, #{authorize => Authorize, process => Process}};
 prepare(OperationID = 'ListDepositAdjustments', Req, Context, _Opts) ->
+    PartyID = maybe_get_party_id_from_req(Req, Context),
     AuthContext = build_auth_context(
         [
             wapi_handler_utils:maybe_with('identityID', Req, fun(IdentityID) -> {identity, IdentityID} end),
@@ -890,14 +895,14 @@ prepare(OperationID = 'ListDepositAdjustments', Req, Context, _Opts) ->
     ),
     Authorize = fun() ->
         Prototypes = [
-            {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},
+            {operation, build_prototype_for(operation, #{party => PartyID, id => OperationID}, AuthContext)},
             {wallet, build_prototype_for(wallet, [], AuthContext)}
         ],
         Resolution = wapi_auth:authorize_operation(Prototypes, Context),
         {ok, Resolution}
     end,
     Process = fun() ->
-        case wapi_stat_backend:list_deposit_adjustments(Req, Context) of
+        case wapi_stat_backend:list_deposit_adjustments(Req#{'partyID' => PartyID}, Context) of
             {ok, List} ->
                 wapi_handler_utils:reply_ok(200, List);
             {error, {invalid, Errors}} ->
@@ -1367,6 +1372,11 @@ add_party_id_to(undefined, Params) ->
     Params;
 add_party_id_to(PartyID, Params) when is_map(Params) ->
     Params#{<<"partyID">> => PartyID}.
+
+maybe_get_party_id_from_req(#{'partyID' := PartyID}, _Context) ->
+    PartyID;
+maybe_get_party_id_from_req(_, Context) ->
+    wapi_handler_utils:get_owner(Context).
 
 % seconds
 -define(DEFAULT_URL_LIFETIME, 60).
