@@ -52,7 +52,7 @@ list_deposit_adjustments(Params, Context) ->
 
 service_call(StatTag, Params, Context) ->
     Req = create_request(
-        create_dsl(StatTag, Params, Context),
+        create_dsl(StatTag, Params),
         maps:get('continuationToken', Params, undefined)
     ),
     process_result(
@@ -67,8 +67,8 @@ method(identities) -> 'GetIdentities';
 method(deposit_reverts) -> 'GetDepositReverts';
 method(deposit_adjustments) -> 'GetDepositAdjustments'.
 
-create_dsl(StatTag, Req, Context) ->
-    Query = create_query(StatTag, Req, Context),
+create_dsl(StatTag, Req) ->
+    Query = create_query(StatTag, Req),
     QueryParams = #{<<"size">> => genlib_map:get(limit, Req)},
     jsx:encode(#{
         <<"query">> => merge_and_compact(
@@ -77,9 +77,9 @@ create_dsl(StatTag, Req, Context) ->
         )
     }).
 
-create_query(withdrawals, Req, Context) ->
+create_query(withdrawals, Req) ->
     #{
-        <<"party_id">> => wapi_handler_utils:get_owner(Context),
+        <<"party_id">> => maps:get('partyID', Req),
         <<"wallet_id">> => genlib_map:get('walletID', Req),
         <<"identity_id">> => genlib_map:get('identityID', Req),
         <<"withdrawal_id">> => genlib_map:get('withdrawalID', Req),
@@ -91,9 +91,9 @@ create_query(withdrawals, Req, Context) ->
         <<"amount_to">> => genlib_map:get('amountTo', Req),
         <<"currency_code">> => genlib_map:get('currencyID', Req)
     };
-create_query(deposits, Req, Context) ->
+create_query(deposits, Req) ->
     #{
-        <<"party_id">> => wapi_handler_utils:get_owner(Context),
+        <<"party_id">> => maps:get('partyID', Req),
         <<"wallet_id">> => genlib_map:get('walletID', Req),
         <<"identity_id">> => genlib_map:get('identityID', Req),
         <<"deposit_id">> => genlib_map:get('depositID', Req),
@@ -106,28 +106,28 @@ create_query(deposits, Req, Context) ->
         <<"currency_code">> => genlib_map:get('currencyID', Req),
         <<"revert_status">> => genlib_map:get('revertStatus', Req)
     };
-create_query(wallets, Req, Context) ->
+create_query(wallets, Req) ->
     #{
-        <<"party_id">> => wapi_handler_utils:get_owner(Context),
+        <<"party_id">> => maps:get('partyID', Req),
         <<"identity_id">> => genlib_map:get('identityID', Req),
         <<"currency_code">> => genlib_map:get('currencyID', Req)
     };
-create_query(destinations, Req, Context) ->
+create_query(destinations, Req) ->
     #{
-        <<"party_id">> => wapi_handler_utils:get_owner(Context),
+        <<"party_id">> => maps:get('partyID', Req),
         <<"identity_id">> => genlib_map:get('identityID', Req),
         <<"currency_code">> => genlib_map:get('currencyID', Req)
     };
-create_query(identities, Req, Context) ->
+create_query(identities, Req) ->
     #{
-        <<"party_id">> => wapi_handler_utils:get_owner(Context),
+        <<"party_id">> => maps:get('partyID', Req),
         <<"provider_id">> => genlib_map:get('providerID', Req),
         <<"class">> => genlib_map:get(class, Req),
         <<"level">> => genlib_map:get(level, Req)
     };
-create_query(deposit_reverts, Req, Context) ->
+create_query(deposit_reverts, Req) ->
     #{
-        <<"party_id">> => wapi_handler_utils:get_owner(Context),
+        <<"party_id">> => maps:get('partyID', Req),
         <<"identity_id">> => genlib_map:get('identityID', Req),
         <<"source_id">> => genlib_map:get('sourceID', Req),
         <<"wallet_id">> => genlib_map:get('walletID', Req),
@@ -141,9 +141,9 @@ create_query(deposit_reverts, Req, Context) ->
         <<"from_time">> => get_time('createdAtFrom', Req),
         <<"to_time">> => get_time('createdAtTo', Req)
     };
-create_query(deposit_adjustments, Req, Context) ->
+create_query(deposit_adjustments, Req) ->
     #{
-        <<"party_id">> => wapi_handler_utils:get_owner(Context),
+        <<"party_id">> => maps:get('partyID', Req),
         <<"identity_id">> => genlib_map:get('identityID', Req),
         <<"source_id">> => genlib_map:get('sourceID', Req),
         <<"wallet_id">> => genlib_map:get('walletID', Req),
