@@ -86,10 +86,11 @@ authorize_token_by_type(bearer, Token, TokenContext, WoodyContext) ->
 authorize_operation(Prototypes, Context) ->
     AuthContext = extract_auth_context(Context),
     #{swagger_context := SwagContext, woody_context := WoodyContext} = Context,
+    IPAddress = get_ip_address(SwagContext),
     Fragments = wapi_bouncer:gather_context_fragments(
         get_token_keeper_fragment(AuthContext),
         get_user_id(AuthContext),
-        SwagContext,
+        IPAddress,
         WoodyContext
     ),
     Fragments1 = wapi_bouncer_context:build(Prototypes, Fragments),
@@ -119,3 +120,81 @@ get_metadata_mapped_key(Key) ->
 get_meta_mappings() ->
     AuthConfig = genlib_app:env(?APP, auth_config),
     maps:get(metadata_mappings, AuthConfig).
+
+get_ip_address(SwagContext) ->
+    Request = maps:get(cowboy_req, SwagContext, #{}),
+    case get_ip_address_from_request(Request) of
+        {ok, IPAddress} ->
+            IPAddress;
+        {error, _Error} ->
+            %% Ignore error, add logging if needed
+            undefined
+    end.
+
+get_ip_address_from_request(Request) ->
+    IPAddressHeader = genlib_app:env(capi, ip_address_header, <<"x-forwarded-for">>),
+    case Request of
+        #{headers := #{IPAddressHeader := IPAddress}} ->
+            parse_header_ip_address(IPAddress);
+        #{peer := {IPAddress, _Port}} ->
+            {ok, IPAddress};
+        _ ->
+            {error, no_req_in_swag_context}
+    end.
+
+parse_header_ip_address(IPAddress0) ->
+    IPAddress1 = erlang:binary_to_list(IPAddress0),
+    IPs = [L || L <- string:lexemes(IPAddress1, ", ")],
+    Valid = lists:all(fun check_ip/1, IPs),
+    case IPs of
+        [ClientIP | _Proxies] when Valid ->
+            inet:parse_strict_address(ClientIP);
+        _ ->
+            % empty or malformed value
+            {error, malformed}
+    end.
+
+check_ip(IP) ->
+    case inet:parse_strict_address(IP) of
+        {ok, _} ->
+            true;
+        _Error ->
+            % unparseable ip address
+            false
+    end.
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+-spec test() -> _.
+
+-spec determine_peer_test_() -> [_TestGen].
+determine_peer_test_() ->
+    [
+        ?_assertEqual(
+            {ok, {10, 10, 10, 10}},
+            parse_header_ip_address(<<"10.10.10.10">>)
+        ),
+        ?_assertEqual(
+            {ok, {17, 71, 0, 1}},
+            parse_header_ip_address(<<"17.71.0.1">>)
+        ),
+        ?_assertEqual(
+            {ok, {17, 71, 0, 1}},
+            parse_header_ip_address(<<" 17.71.0.1,123.123.123.123 ">>)
+        ),
+        ?_assertEqual(
+            {error, malformed},
+            parse_header_ip_address(<<",,,,">>)
+        ),
+        ?_assertEqual(
+            {ok, {1, 1, 1, 1}},
+            parse_header_ip_address(<<"1.1.1.1,,, ,,,">>)
+        ),
+        ?_assertEqual(
+            {error, malformed},
+            parse_header_ip_address(<<"1.,1.,1.1,">>)
+        )
+    ].
+
+-endif.
