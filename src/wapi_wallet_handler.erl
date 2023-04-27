@@ -1373,7 +1373,7 @@ add_party_id_to(undefined, Params) ->
 add_party_id_to(PartyID, Params) when is_map(Params) ->
     Params#{<<"partyID">> => PartyID}.
 
-maybe_get_party_id_from_req(#{'partyID' := PartyID}, _Context) ->
+maybe_get_party_id_from_req(#{'partyID' := PartyID}, _Context) when PartyID =/= undefined ->
     PartyID;
 maybe_get_party_id_from_req(_, Context) ->
     wapi_handler_utils:get_owner(Context).

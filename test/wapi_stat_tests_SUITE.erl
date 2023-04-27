@@ -20,6 +20,8 @@
 
 -export([
     list_wallets/1,
+    list_wallets_optional_party_id_undefined/1,
+    list_wallets_optional_party_id_passed/1,
     list_wallets_invalid_error/1,
     list_wallets_bad_token_error/1,
     list_withdrawals/1,
@@ -64,6 +66,8 @@ groups() ->
     [
         {base, [], [
             list_wallets,
+            list_wallets_optional_party_id_undefined,
+            list_wallets_optional_party_id_passed,
             list_wallets_invalid_error,
             list_wallets_bad_token_error,
             list_withdrawals,
@@ -130,7 +134,37 @@ end_per_testcase(_Name, C) ->
 
 -spec list_wallets(config()) -> _.
 list_wallets(C) ->
-    _ = wapi_ct_helper_bouncer:mock_assert_op_ctx(<<"ListWallets">>, C),
+    PartyID = wapi_ct_helper:cfg(party, C),
+    Params = #{
+        qs_val => #{
+            <<"limit">> => <<"123">>
+        }
+    },
+    _ = assert_list_wallets_party_id(PartyID, Params, C).
+
+-spec list_wallets_optional_party_id_undefined(config()) -> _.
+list_wallets_optional_party_id_undefined(C) ->
+    PartyID = wapi_ct_helper:cfg(party, C),
+    Params = #{
+        qs_val => #{
+            <<"limit">> => <<"123">>
+        }
+    },
+    _ = assert_list_wallets_party_id(PartyID, Params, C).
+
+-spec list_wallets_optional_party_id_passed(config()) -> _.
+list_wallets_optional_party_id_passed(C) ->
+    PartyID = genlib:bsuuid(),
+    Params = #{
+        qs_val => #{
+            <<"partyID">> => PartyID,
+            <<"limit">> => <<"123">>
+        }
+    },
+    _ = assert_list_wallets_party_id(PartyID, Params, C).
+
+assert_list_wallets_party_id(PartyID, Params, C) ->
+    _ = wapi_ct_helper_bouncer:mock_assert_party_op_ctx(<<"ListWallets">>, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
             {fistful_stat, fun('GetWallets', _) -> {ok, ?STAT_RESPONSE(?STAT_WALLETS)} end}
@@ -139,11 +173,7 @@ list_wallets(C) ->
     ),
     {ok, _} = call_api(
         fun swag_client_wallet_wallets_api:list_wallets/3,
-        #{
-            qs_val => #{
-                <<"limit">> => <<"123">>
-            }
-        },
+        Params,
         wapi_ct_helper:cfg(context, C)
     ).
 
