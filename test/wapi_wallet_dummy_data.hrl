@@ -67,15 +67,26 @@
     undefined
 }).
 
--define(WITHDRAWAL_STATUS, {pending, #wthd_status_Pending{}}).
+-define(BASE_FAILURE, #'fistful_base_Failure'{
+    code = <<"account_limit_exceeded:amount:">>,
+    sub = #'fistful_base_SubFailure'{
+        code = <<"sub_code_level_1">>,
+        sub = #'fistful_base_SubFailure'{code = <<"sub_code_level_2">>}
+    }
+}).
 
--define(WITHDRAWAL(PartyID), #wthd_WithdrawalState{
+-define(WITHDRAWAL_STATUS, {pending, #wthd_status_Pending{}}).
+-define(WITHDRAWAL_STATUS_FAILED, {failed, #wthd_status_Failed{failure = ?BASE_FAILURE}}).
+
+-define(WITHDRAWAL_FAILED(PartyID), ?WITHDRAWAL(PartyID, ?WITHDRAWAL_STATUS_FAILED)).
+-define(WITHDRAWAL(PartyID), ?WITHDRAWAL(PartyID, ?WITHDRAWAL_STATUS)).
+-define(WITHDRAWAL(PartyID, Status), #wthd_WithdrawalState{
     id = ?STRING,
     wallet_id = ?STRING,
     destination_id = ?STRING,
     body = ?CASH,
     external_id = ?STRING,
-    status = ?WITHDRAWAL_STATUS,
+    status = Status,
     created_at = ?TIMESTAMP,
     effective_final_cash_flow = #cashflow_FinalCashFlow{postings = []},
     sessions = [],
