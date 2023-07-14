@@ -354,11 +354,8 @@ unmarshal_withdrawal_stat_status({pending, #stat_WithdrawalPending{}}) ->
     #{<<"status">> => <<"Pending">>};
 unmarshal_withdrawal_stat_status({succeeded, #stat_WithdrawalSucceeded{}}) ->
     #{<<"status">> => <<"Succeeded">>};
-unmarshal_withdrawal_stat_status({failed, #stat_WithdrawalFailed{failure = _Failure}}) ->
-    #{
-        <<"status">> => <<"Failed">>,
-        <<"failure">> => #{<<"code">> => <<"failed">>}
-    }.
+unmarshal_withdrawal_stat_status({failed, #stat_WithdrawalFailed{failure = _Failure, base_failure = BaseFailure}}) ->
+    wapi_withdrawal_backend:unmarshal_failure(BaseFailure).
 
 unmarshal_deposit_stat_status({pending, #stat_DepositPending{}}) ->
     #{<<"status">> => <<"Pending">>};
