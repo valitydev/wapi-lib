@@ -468,6 +468,7 @@ unmarshal_status({succeeded, _}) ->
 unmarshal_status({failed, #wthd_status_Failed{failure = BaseFailure}}) ->
     unmarshal_failure(BaseFailure).
 
+-spec unmarshal_failure(undefined | fistful_fistful_base_thrift:'Failure'()) -> map().
 unmarshal_failure(undefined) ->
     #{
         <<"status">> => <<"Failed">>,
