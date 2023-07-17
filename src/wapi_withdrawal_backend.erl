@@ -460,23 +460,7 @@ unmarshal_currency_ref(#'fistful_base_CurrencyRef'{
 }) ->
     Currency.
 
-unmarshal_status({pending, _}) ->
-    #{<<"status">> => <<"Pending">>};
-unmarshal_status({succeeded, _}) ->
-    #{<<"status">> => <<"Succeeded">>};
-unmarshal_status({failed, #wthd_status_Failed{failure = #'fistful_base_Failure'{code = Code, sub = Sub}}}) ->
-    #{
-        <<"status">> => <<"Failed">>,
-        <<"failure">> => genlib_map:compact(#{
-            <<"code">> => Code,
-            <<"subError">> => unmarshal_subfailure(Sub)
-        })
-    }.
-
-unmarshal_subfailure(undefined) ->
-    undefined;
-unmarshal_subfailure(#'fistful_base_SubFailure'{code = Code, sub = Sub}) ->
-    genlib_map:compact(#{
-        <<"code">> => Code,
-        <<"subError">> => unmarshal_subfailure(Sub)
-    }).
+unmarshal_status({failed, #wthd_status_Failed{failure = BaseFailure}}) ->
+    wapi_codec:convert(withdrawal_status, {failed, BaseFailure});
+unmarshal_status(Status) ->
+    wapi_codec:convert(withdrawal_status, Status).

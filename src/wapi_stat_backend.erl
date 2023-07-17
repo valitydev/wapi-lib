@@ -350,15 +350,10 @@ unmarshal_cash(Amount, Currency) when is_bitstring(Currency) ->
 unmarshal_cash(#'fistful_base_Cash'{amount = Amount, currency = Currency}) ->
     unmarshal_cash(Amount, Currency#'fistful_base_CurrencyRef'.symbolic_code).
 
-unmarshal_withdrawal_stat_status({pending, #stat_WithdrawalPending{}}) ->
-    #{<<"status">> => <<"Pending">>};
-unmarshal_withdrawal_stat_status({succeeded, #stat_WithdrawalSucceeded{}}) ->
-    #{<<"status">> => <<"Succeeded">>};
-unmarshal_withdrawal_stat_status({failed, #stat_WithdrawalFailed{failure = _Failure}}) ->
-    #{
-        <<"status">> => <<"Failed">>,
-        <<"failure">> => #{<<"code">> => <<"failed">>}
-    }.
+unmarshal_withdrawal_stat_status({failed, #stat_WithdrawalFailed{base_failure = BaseFailure}}) ->
+    wapi_codec:convert(withdrawal_status, {failed, BaseFailure});
+unmarshal_withdrawal_stat_status(Status) ->
+    wapi_codec:convert(withdrawal_status, Status).
 
 unmarshal_deposit_stat_status({pending, #stat_DepositPending{}}) ->
     #{<<"status">> => <<"Pending">>};
