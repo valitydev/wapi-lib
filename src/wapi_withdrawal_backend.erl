@@ -46,7 +46,6 @@
 -export([create_quote/2]).
 -export([get_events/2]).
 -export([get_event/3]).
--export([unmarshal_failure/1]).
 
 -include_lib("fistful_proto/include/fistful_fistful_base_thrift.hrl").
 -include_lib("fistful_proto/include/fistful_fistful_thrift.hrl").
@@ -461,46 +460,7 @@ unmarshal_currency_ref(#'fistful_base_CurrencyRef'{
 }) ->
     Currency.
 
-unmarshal_status({pending, _}) ->
-    #{<<"status">> => <<"Pending">>};
-unmarshal_status({succeeded, _}) ->
-    #{<<"status">> => <<"Succeeded">>};
 unmarshal_status({failed, #wthd_status_Failed{failure = BaseFailure}}) ->
-    unmarshal_failure(BaseFailure).
-
--spec unmarshal_failure(undefined | fistful_fistful_base_thrift:'Failure'()) -> map().
-unmarshal_failure(undefined) ->
-    #{
-        <<"status">> => <<"Failed">>,
-        <<"failure">> => #{<<"code">> => <<"failed">>}
-    };
-%% Transform code format "Code:SubCode1:SubCode2" to
-%% #{code => Code, subError => #{code => SubCode1, subError => #{code => SubCode2}}}
-unmarshal_failure(#'fistful_base_Failure'{code = Code, sub = Sub}) ->
-    [MainCode | SubCodes] = binary:split(Code, <<":">>, [global]),
-    #{
-        <<"status">> => <<"Failed">>,
-        <<"failure">> => genlib_map:compact(#{
-            <<"code">> => MainCode,
-            <<"subError">> => unmarshal_subfailure(SubCodes, Sub)
-        })
-    }.
-
-unmarshal_subfailure([Code | Tail], SubFailure) when Tail =:= [<<>>] orelse Tail =:= [] ->
-    genlib_map:compact(#{
-        <<"code">> => Code,
-        <<"subError">> => unmarshal_subfailure(SubFailure)
-    });
-unmarshal_subfailure([Code | Tail], SubFailure) ->
-    genlib_map:compact(#{
-        <<"code">> => Code,
-        <<"subError">> => unmarshal_subfailure(Tail, SubFailure)
-    }).
-
-unmarshal_subfailure(undefined) ->
-    undefined;
-unmarshal_subfailure(#'fistful_base_SubFailure'{code = Code, sub = Sub}) ->
-    genlib_map:compact(#{
-        <<"code">> => Code,
-        <<"subError">> => unmarshal_subfailure(Sub)
-    }).
+    wapi_codec:convert(withdrawal_status, {failed, BaseFailure});
+unmarshal_status(Status) ->
+    wapi_codec:convert(withdrawal_status, Status).

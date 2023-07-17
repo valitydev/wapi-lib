@@ -3,11 +3,16 @@
 -include_lib("fistful_proto/include/fistful_fistful_base_thrift.hrl").
 -include_lib("fistful_proto/include/fistful_account_thrift.hrl").
 
+%% thrift record to internal map
 -export([unmarshal/2]).
 -export([unmarshal/3]).
 
+%% internal map to thrift record
 -export([marshal/2]).
 -export([marshal/3]).
+
+%% internal map to REST map
+-export([convert/2]).
 
 %% Types
 
@@ -399,6 +404,50 @@ maybe_marshal(_Type, undefined) ->
     undefined;
 maybe_marshal(Type, Value) ->
     marshal(Type, Value).
+
+-spec convert(Type :: atom(), Value :: any()) -> map().
+convert(withdrawal_status, {pending, _}) ->
+    #{<<"status">> => <<"Pending">>};
+convert(withdrawal_status, {succeeded, _}) ->
+    #{<<"status">> => <<"Succeeded">>};
+convert(withdrawal_status, {failed, BaseFailure}) ->
+    convert_failure(BaseFailure).
+
+convert_failure(undefined) ->
+    #{
+        <<"status">> => <<"Failed">>,
+        <<"failure">> => #{<<"code">> => <<"failed">>}
+    };
+%% Transform code format "Code:SubCode1:SubCode2" to
+%% #{code => Code, subError => #{code => SubCode1, subError => #{code => SubCode2}}}
+convert_failure(#'fistful_base_Failure'{code = Code, sub = Sub}) ->
+    [MainCode | SubCodes] = binary:split(Code, <<":">>, [global]),
+    #{
+        <<"status">> => <<"Failed">>,
+        <<"failure">> => genlib_map:compact(#{
+            <<"code">> => MainCode,
+            <<"subError">> => convert_subfailure(SubCodes, Sub)
+        })
+    }.
+
+convert_subfailure([Code | Tail], SubFailure) when Tail =:= [<<>>] orelse Tail =:= [] ->
+    genlib_map:compact(#{
+        <<"code">> => Code,
+        <<"subError">> => convert_subfailure(SubFailure)
+    });
+convert_subfailure([Code | Tail], SubFailure) ->
+    genlib_map:compact(#{
+        <<"code">> => Code,
+        <<"subError">> => convert_subfailure(Tail, SubFailure)
+    }).
+
+convert_subfailure(undefined) ->
+    undefined;
+convert_subfailure(#'fistful_base_SubFailure'{code = Code, sub = Sub}) ->
+    genlib_map:compact(#{
+        <<"code">> => Code,
+        <<"subError">> => convert_subfailure(Sub)
+    }).
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
