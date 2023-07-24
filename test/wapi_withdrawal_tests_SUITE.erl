@@ -347,9 +347,9 @@ get_failed_wo_colon(C) ->
     _ = wapi_ct_helper:mock_services(
         [
             {fistful_withdrawal, fun
-                                     ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-                                     ('Get', _) -> {ok, ?WITHDRAWAL_FAILED_WO_COLON(PartyID)}
-                                 end}
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
+                ('Get', _) -> {ok, ?WITHDRAWAL_FAILED_WO_COLON(PartyID)}
+            end}
         ],
         C
     ),
