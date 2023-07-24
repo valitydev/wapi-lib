@@ -41,6 +41,7 @@
     create_fail_wallet_inaccessible/1,
     get_ok/1,
     get_failed/1,
+    get_failed_wo_colon/1,
     get_fail_withdrawal_notfound/1,
     get_by_external_id_ok/1,
     create_quote_ok/1,
@@ -92,6 +93,7 @@ groups() ->
             create_fail_wallet_inaccessible,
             get_ok,
             get_failed,
+            get_failed_wo_colon,
             get_fail_withdrawal_notfound,
             get_by_external_id_ok,
             create_quote_ok,
@@ -326,6 +328,37 @@ get_failed(C) ->
                         <<"code">> := <<"sub_code_level_2">>
                     }
                 }
+            }
+        }
+    }} = call_api(
+        fun swag_client_wallet_withdrawals_api:get_withdrawal/3,
+        #{
+            binding => #{
+                <<"withdrawalID">> => ?STRING
+            }
+        },
+        wapi_ct_helper:cfg(context, C)
+    ).
+
+-spec get_failed_wo_colon(config()) -> _.
+get_failed_wo_colon(C) ->
+    PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_withdrawal_op_ctx(<<"GetWithdrawal">>, ?STRING, PartyID, C),
+    _ = wapi_ct_helper:mock_services(
+        [
+            {fistful_withdrawal, fun
+                                     ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
+                                     ('Get', _) -> {ok, ?WITHDRAWAL_FAILED_WO_COLON(PartyID)}
+                                 end}
+        ],
+        C
+    ),
+    {ok, #{
+        <<"status">> := <<"Failed">>,
+        <<"failure">> := #{
+            <<"code">> := <<"authorization_failed">>,
+            <<"subError">> := #{
+                <<"code">> := <<"unknown">>
             }
         }
     }} = call_api(

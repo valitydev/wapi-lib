@@ -74,11 +74,19 @@
         sub = #'fistful_base_SubFailure'{code = <<"sub_code_level_2">>}
     }
 }).
+-define(BASE_FAILURE_WO_COLON, #'fistful_base_Failure'{
+    code = <<"authorization_failed">>,
+    sub = #'fistful_base_SubFailure'{
+        code = <<"unknown">>
+    }
+}).
 
 -define(WITHDRAWAL_STATUS, {pending, #wthd_status_Pending{}}).
 -define(WITHDRAWAL_STATUS_FAILED, {failed, #wthd_status_Failed{failure = ?BASE_FAILURE}}).
+-define(WITHDRAWAL_STATUS_FAILED_WO_COLON, {failed, #wthd_status_Failed{failure = ?BASE_FAILURE_WO_COLON}}).
 
 -define(WITHDRAWAL_FAILED(PartyID), ?WITHDRAWAL(PartyID, ?WITHDRAWAL_STATUS_FAILED)).
+-define(WITHDRAWAL_FAILED_WO_COLON(PartyID), ?WITHDRAWAL(PartyID, ?WITHDRAWAL_STATUS_FAILED_WO_COLON)).
 -define(WITHDRAWAL(PartyID), ?WITHDRAWAL(PartyID, ?WITHDRAWAL_STATUS)).
 -define(WITHDRAWAL(PartyID, Status), #wthd_WithdrawalState{
     id = ?STRING,
