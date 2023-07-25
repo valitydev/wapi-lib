@@ -430,6 +430,8 @@ convert_failure(#'fistful_base_Failure'{code = Code, sub = Sub}) ->
         })
     }.
 
+convert_subfailure([], SubFailure) ->
+    convert_subfailure(SubFailure);
 convert_subfailure([Code | Tail], SubFailure) when Tail =:= [<<>>] orelse Tail =:= [] ->
     genlib_map:compact(#{
         <<"code">> => Code,
