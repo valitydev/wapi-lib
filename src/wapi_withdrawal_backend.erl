@@ -287,9 +287,9 @@ is_id_unknown(
         {ok,
             #{
                 <<"id">> := ID,
-                <<"wallet">> => WalletID,
-                <<"destination">> => DestinationID,
-                <<"body">> => Body
+                <<"wallet">> := WalletID,
+                <<"destination">> := DestinationID,
+                <<"body">> := Body
             },
             _Owner} ->
             true;
