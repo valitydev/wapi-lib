@@ -46,7 +46,7 @@ is_id_unknown(
     HandlerContext
 ) ->
     case get(ID, HandlerContext) of
-        {error, {identity, {w2w_transfer, {unknown_w2w_transfer, ID}}}} ->
+        {error, {w2w_transfer, {unknown_w2w_transfer, ID}}} ->
             true;
         {ok,
             #{
