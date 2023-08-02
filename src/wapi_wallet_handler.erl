@@ -122,7 +122,7 @@ prepare(OperationID = 'ListIdentities', Req, Context, _Opts) ->
     {ok, #{authorize => Authorize, process => Process}};
 prepare(OperationID = 'GetWithdrawalMethods', #{'identityID' := IdentityId}, Context, _Opts) ->
     {ResultIdentity, ResultOwner} =
-        case wapi_identity_backend:get_identity(IdentityId, Context) of
+        case wapi_identity_backend:get(IdentityId, Context) of
             {ok, Identity, Owner} -> {Identity, Owner};
             {error, {identity, notfound}} -> {undefined, undefined}
         end,
@@ -145,7 +145,7 @@ prepare(OperationID = 'GetWithdrawalMethods', #{'identityID' := IdentityId}, Con
     {ok, #{authorize => Authorize, process => Process}};
 prepare(OperationID = 'GetIdentity', #{'identityID' := IdentityId}, Context, _Opts) ->
     {ResultIdentity, ResultOwner} =
-        case wapi_identity_backend:get_identity(IdentityId, Context) of
+        case wapi_identity_backend:get(IdentityId, Context) of
             {ok, Identity, Owner} -> {Identity, Owner};
             {error, {identity, notfound}} -> {undefined, undefined}
         end,
@@ -180,7 +180,7 @@ prepare(OperationID = 'CreateIdentity', #{'Identity' := Params}, Context, Opts) 
         {ok, Resolution}
     end,
     Process = fun() ->
-        case wapi_identity_backend:create_identity(Params#{<<"partyID">> => PartyID}, Context) of
+        case wapi_identity_backend:create(Params#{<<"partyID">> => PartyID}, Context) of
             {ok, Identity = #{<<"id">> := IdentityId}} ->
                 wapi_handler_utils:reply_ok(201, Identity, get_location('GetIdentity', [IdentityId], Context, Opts));
             {error, {inaccessible, _}} ->
@@ -936,7 +936,7 @@ prepare(
         {ok, Resolution}
     end,
     Process = fun() ->
-        case wapi_w2w_backend:create_transfer(add_party_id_to(PartyID, Params), Context) of
+        case wapi_w2w_transfer_backend:create(add_party_id_to(PartyID, Params), Context) of
             {ok, W2WTransfer} ->
                 wapi_handler_utils:reply_ok(202, W2WTransfer);
             {error, {wallet_from, notfound}} ->
@@ -979,7 +979,7 @@ prepare(
     {ok, #{authorize => Authorize, process => Process}};
 prepare(OperationID = 'GetW2WTransfer', #{'w2wTransferID' := W2WTransferId}, Context, _Opts) ->
     {ResultW2WTransfer, ResultW2WTransferOwner} =
-        case wapi_w2w_backend:get_transfer(W2WTransferId, Context) of
+        case wapi_w2w_transfer_backend:get(W2WTransferId, Context) of
             {ok, W2WTransfer, Owner} -> {W2WTransfer, Owner};
             {error, {w2w_transfer, {unknown_w2w_transfer, _ID}}} -> {undefined, undefined}
         end,
@@ -1293,7 +1293,7 @@ build_auth_context([H | T], Acc, Context) ->
 
 build_auth_context({identity, IdentityID}, Context) ->
     {ResultIdentity, ResultIdentityOwner} =
-        case wapi_identity_backend:get_identity(IdentityID, Context) of
+        case wapi_identity_backend:get(IdentityID, Context) of
             {ok, Identity, Owner} -> {Identity, Owner};
             {error, {identity, notfound}} -> {undefined, undefined}
         end,

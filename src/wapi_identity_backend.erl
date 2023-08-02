@@ -9,8 +9,8 @@
 
 -export_type([identity_state/0]).
 
--export([create_identity/2]).
--export([get_identity/2]).
+-export([create/2]).
+-export([get/2]).
 
 -export([get_thrift_identity/2]).
 -export([get_identity_withdrawal_methods/2]).
@@ -21,10 +21,10 @@
 
 %% Pipeline
 
--spec get_identity(id(), handler_context()) ->
+-spec get(id(), handler_context()) ->
     {ok, response_data(), id()}
     | {error, {identity, notfound}}.
-get_identity(IdentityID, HandlerContext) ->
+get(IdentityID, HandlerContext) ->
     case get_thrift_identity(IdentityID, HandlerContext) of
         {ok, IdentityThrift} ->
             {ok, Owner} = wapi_backend_utils:get_entity_owner(identity, IdentityThrift),
@@ -33,7 +33,7 @@ get_identity(IdentityID, HandlerContext) ->
             Error
     end.
 
--spec create_identity(params(), handler_context()) ->
+-spec create(params(), handler_context()) ->
     result(
         map(),
         {provider, notfound}
@@ -41,12 +41,40 @@ get_identity(IdentityID, HandlerContext) ->
         | inaccessible
         | _Unexpected
     ).
-create_identity(Params, HandlerContext) ->
-    case create_id(identity, Params, HandlerContext) of
+create(Params, HandlerContext) ->
+    case wapi_backend_utils:gen_id(identity, Params, HandlerContext) of
         {ok, ID} ->
-            create_identity(ID, Params, HandlerContext);
+            case is_id_unknown(ID, Params, HandlerContext) of
+                true ->
+                    create_identity(ID, Params, HandlerContext);
+                false ->
+                    create(Params, HandlerContext)
+            end;
         {error, {external_id_conflict, _}} = Error ->
             Error
+    end.
+
+is_id_unknown(
+    ID,
+    #{
+        <<"name">> := Name,
+        <<"provider">> := Provider
+    },
+    HandlerContext
+) ->
+    case get(ID, HandlerContext) of
+        {error, {identity, notfound}} ->
+            true;
+        {ok,
+            #{
+                <<"id">> := ID,
+                <<"name">> := Name,
+                <<"provider">> := Provider
+            },
+            _Owner} ->
+            true;
+        {ok, _NonMatchingIdentity, _Owner} ->
+            false
     end.
 
 create_identity(ID, Params, HandlerContext) ->
@@ -93,13 +121,6 @@ get_identity_withdrawal_methods(IdentityID, HandlerContext) ->
 %%
 %% Internal
 %%
-
-create_id(Type, Params, HandlerContext) ->
-    wapi_backend_utils:gen_id(
-        Type,
-        Params,
-        HandlerContext
-    ).
 
 create_context(Params) ->
     KV = {<<"name">>, maps:get(<<"name">>, Params, undefined)},

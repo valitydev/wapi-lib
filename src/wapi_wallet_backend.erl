@@ -27,10 +27,40 @@
 create(Params, HandlerContext) ->
     case wapi_backend_utils:gen_id(wallet, Params, HandlerContext) of
         {ok, ID} ->
-            Context = wapi_backend_utils:make_ctx(Params),
-            create(ID, Params, Context, HandlerContext);
+            case is_id_unknown(ID, Params, HandlerContext) of
+                true ->
+                    Context = wapi_backend_utils:make_ctx(Params),
+                    create(ID, Params, Context, HandlerContext);
+                false ->
+                    create(Params, HandlerContext)
+            end;
         {error, {external_id_conflict, _}} = Error ->
             Error
+    end.
+
+is_id_unknown(
+    ID,
+    #{
+        <<"name">> := Name,
+        <<"identity">> := IdentityID,
+        <<"currency">> := CurrencyID
+    },
+    HandlerContext
+) ->
+    case get(ID, HandlerContext) of
+        {error, {wallet, notfound}} ->
+            true;
+        {ok,
+            #{
+                <<"id">> := ID,
+                <<"name">> := Name,
+                <<"identity">> := IdentityID,
+                <<"currency">> := CurrencyID
+            },
+            _Owner} ->
+            true;
+        {ok, _NonMatchingIdentity, _Owner} ->
+            false
     end.
 
 create(WalletID, Params, Context, HandlerContext) ->
