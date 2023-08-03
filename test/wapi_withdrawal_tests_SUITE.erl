@@ -644,7 +644,10 @@ create_withdrawal_start_mocks(C, CreateWithdrawalResultFun) ->
                 ('Get', _) -> {ok, ?DESTINATION(PartyID)};
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)}
             end},
-            {fistful_withdrawal, fun('Create', _) -> CreateWithdrawalResultFun() end}
+            {fistful_withdrawal, fun
+                ('Create', _) -> CreateWithdrawalResultFun();
+                ('Get', _) -> {throwing, #fistful_WithdrawalNotFound{}}
+            end}
         ],
         C
     ).
