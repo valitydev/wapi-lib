@@ -1,4 +1,5 @@
 -define(STRING, <<"TEST">>).
+-define(STRING2, <<"TEST2">>).
 -define(RUB, <<"RUB">>).
 -define(USD, <<"USD">>).
 -define(BANKID_RU, <<"PUTIN">>).
@@ -60,9 +61,11 @@
     undefined
 }).
 
--define(GENERATE_ID_RESULT, {
+-define(GENERATE_ID_RESULT, ?GENERATE_ID_RESULT(?STRING)).
+
+-define(GENERATE_ID_RESULT(ID), {
     'bender_GenerationResult',
-    ?STRING,
+    ID,
     undefined,
     undefined
 }).

@@ -38,6 +38,7 @@
 -export([bitcoin_resource_test/1]).
 -export([digital_wallet_resource_test/1]).
 -export([digital_wallet_w_token_resource_test/1]).
+-export([check_unknown_destination_id/1]).
 
 -define(GENERIC_RESOURCE_TYPE, <<"BankTransferGeneric">>).
 -define(GENERIC_RESOURCE_NAME, <<"GenericBankAccount">>).
@@ -76,7 +77,8 @@ groups() ->
             bank_card_resource_test,
             bitcoin_resource_test,
             digital_wallet_resource_test,
-            digital_wallet_w_token_resource_test
+            digital_wallet_w_token_resource_test,
+            check_unknown_destination_id
         ]}
     ].
 
@@ -386,6 +388,45 @@ digital_wallet_w_token_resource_test(C) ->
     after 1000 ->
         error('missing token storage interaction')
     end.
+
+-spec check_unknown_destination_id(config()) -> _.
+check_unknown_destination_id(C) ->
+    PartyID = ?config(party, C),
+
+    _ = wapi_ct_helper_bouncer:mock_assert_identity_op_ctx(<<"CreateDestination">>, ?STRING, PartyID, C),
+
+    CounterRef = counters:new(1, []),
+    ID0 = <<"Test0">>,
+    ID1 = <<"Test1">>,
+    Destination0 = ?DESTINATION(PartyID)#destination_DestinationState{id = ID1},
+    Destination1 = Destination0#destination_DestinationState{id = ID0, name = ?STRING2},
+    wapi_ct_helper:mock_services(
+        [
+            {bender, fun('GenerateID', _) ->
+                CID = counters:get(CounterRef, 1),
+                BinaryCID = erlang:integer_to_binary(CID),
+                ok = counters:add(CounterRef, 1, 1),
+                {ok, ?GENERATE_ID_RESULT(<<"Test", BinaryCID/binary>>)}
+            end},
+            {fistful_identity, fun
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
+                ('Get', _) -> {ok, ?IDENTITY(PartyID)}
+            end},
+            {fistful_destination, fun
+                ('Create', _) ->
+                    {ok, Destination0};
+                ('Get', {WID, _}) when WID =:= ID0 ->
+                    {ok, Destination1};
+                ('Get', {WID, _}) when WID =:= ID1 ->
+                    {throwing, #fistful_DestinationNotFound{}}
+            end}
+        ],
+        C
+    ),
+    ?assertMatch(
+        {ok, #{<<"id">> := ID1}},
+        create_destination_call_api(C, Destination0)
+    ).
 
 %%
 

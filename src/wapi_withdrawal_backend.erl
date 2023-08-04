@@ -69,6 +69,7 @@ create(Params0, HandlerContext) ->
     end.
 
 create(Params, Context, HandlerContext) ->
+    ct:log("Create params: ~p", [Params]),
     Request = {fistful_withdrawal, 'Create', {Params, Context}},
     case service_call(Request, HandlerContext) of
         {ok, Withdrawal} ->
@@ -258,8 +259,7 @@ check_withdrawal_params(Params0, HandlerContext) ->
     do(fun() ->
         Params1 = unwrap(try_decode_quote_token(Params0)),
         Params2 = unwrap(maybe_check_quote_token(Params1, HandlerContext)),
-        ID = unwrap(generate_id(Params0, HandlerContext)),
-        Params2#{<<"id">> => ID}
+        unwrap(generate_id(Params2, HandlerContext))
     end).
 
 generate_id(Params, HandlerContext) ->
@@ -267,9 +267,9 @@ generate_id(Params, HandlerContext) ->
         {ok, GenID} ->
             case is_id_unknown(GenID, Params, HandlerContext) of
                 true ->
-                    {ok, GenID};
+                    {ok, Params#{<<"id">> => GenID}};
                 false ->
-                    check_withdrawal_params(Params, HandlerContext)
+                    generate_id(Params, HandlerContext)
             end;
         {error, E} ->
             {error, E}

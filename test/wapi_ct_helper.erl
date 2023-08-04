@@ -254,6 +254,7 @@ mock_services_(Services, SupPid) when is_pid(SupPid) ->
     {_IP, Port} = woody_server:get_addr(ServerID, WoodyOpts),
     lists:foldl(
         fun(Service, Acc) ->
+            ct:log("mocking: ~p", [Service]),
             ServiceName = get_service_name(Service),
             case ServiceName of
                 bouncer ->

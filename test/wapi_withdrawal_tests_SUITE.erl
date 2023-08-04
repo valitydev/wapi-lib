@@ -56,7 +56,8 @@
     get_quote_fail_identity_provider_mismatch/1,
     get_event_ok/1,
     get_events_ok/1,
-    get_events_fail_withdrawal_notfound/1
+    get_events_fail_withdrawal_notfound/1,
+    check_unknown_withdrawal_id/1
 ]).
 
 -type test_case_name() :: atom().
@@ -108,7 +109,8 @@ groups() ->
             get_quote_fail_identity_provider_mismatch,
             get_event_ok,
             get_events_ok,
-            get_events_fail_withdrawal_notfound
+            get_events_fail_withdrawal_notfound,
+            check_unknown_withdrawal_id
         ]}
     ].
 
@@ -126,7 +128,7 @@ end_per_suite(C) ->
     ok.
 
 -spec init_per_group(group_name(), config()) -> config().
-init_per_group(Group, Config) when Group =:= base ->
+init_per_group(Group, Config) when Group =:= base; Group =:= base2 ->
     Party = genlib:bsuuid(),
     Config1 = [{party, Party} | Config],
     GroupSup = wapi_ct_helper:start_mocked_service_sup(?MODULE),
@@ -576,6 +578,57 @@ get_events_fail_withdrawal_notfound(C) ->
             wapi_ct_helper:cfg(context, C)
         )
     ).
+
+-spec check_unknown_withdrawal_id(config()) -> _.
+check_unknown_withdrawal_id(C) ->
+    PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_generic_op_ctx(
+        [
+            {destination, ?STRING, PartyID},
+            {wallet, ?STRING, PartyID}
+        ],
+        ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
+            id = <<"CreateWithdrawal">>,
+            destination = ?STRING,
+            wallet = ?STRING
+        }),
+        C
+    ),
+    CounterRef = counters:new(1, []),
+    ID0 = <<"Test0">>,
+    ID1 = <<"Test1">>,
+    Withdrawal0 = ?WITHDRAWAL(PartyID)#wthd_WithdrawalState{id = ID1},
+    Withdrawal1 = Withdrawal0#wthd_WithdrawalState{id = ID0, wallet_id = ?STRING2},
+    wapi_ct_helper:mock_services(
+        [
+            {bender, fun('GenerateID', _) ->
+                CID = counters:get(CounterRef, 1),
+                BinaryCID = erlang:integer_to_binary(CID),
+                ok = counters:add(CounterRef, 1, 1),
+                {ok, ?GENERATE_ID_RESULT(<<"Test", BinaryCID/binary>>)}
+            end},
+            {fistful_wallet, fun
+                ('Get', _) -> {ok, ?WALLET(PartyID)};
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)}
+            end},
+            {fistful_destination, fun
+                ('Get', _) -> {ok, ?DESTINATION(PartyID)};
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)}
+            end},
+            {fistful_withdrawal, fun
+                ('Create', _) ->
+                    {ok, Withdrawal0};
+                ('Get', {WID, _}) when WID =:= ID0 ->
+                    {ok, Withdrawal1};
+                ('Get', {WID, _}) when WID =:= ID1 ->
+                    {throwing, #fistful_WithdrawalNotFound{}}
+            end}
+        ],
+        C
+    ),
+    {ok, #{
+        <<"id">> := ID1
+    }} = create_withdrawal_call_api(C).
 
 %%
 

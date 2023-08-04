@@ -30,7 +30,8 @@
     get_identity/1,
     get_identity_notfound/1,
     get_identity_withdrawal_methods/1,
-    get_identity_withdrawal_methods_notfound/1
+    get_identity_withdrawal_methods_notfound/1,
+    check_unknown_identity_id/1
 ]).
 
 -type test_case_name() :: atom().
@@ -62,7 +63,8 @@ groups() ->
             get_identity,
             get_identity_notfound,
             get_identity_withdrawal_methods,
-            get_identity_withdrawal_methods_notfound
+            get_identity_withdrawal_methods_notfound,
+            check_unknown_identity_id
         ]}
     ].
 
@@ -269,6 +271,38 @@ get_identity_withdrawal_methods_notfound(C) ->
         {error, {404, #{}}},
         get_identity_call_api(C)
     ).
+
+-spec check_unknown_identity_id(config()) -> _.
+check_unknown_identity_id(C) ->
+    PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_party_op_ctx(<<"CreateIdentity">>, PartyID, C),
+    CounterRef = counters:new(1, []),
+    ID0 = <<"Test0">>,
+    ID1 = <<"Test1">>,
+    Identity0 = ?IDENTITY(PartyID)#identity_IdentityState{id = ID1},
+    Identity1 = Identity0#identity_IdentityState{id = ID0, name = ?STRING2},
+    _ = wapi_ct_helper:mock_services(
+        [
+            {bender, fun('GenerateID', _) ->
+                CID = counters:get(CounterRef, 1),
+                BinaryCID = erlang:integer_to_binary(CID),
+                ok = counters:add(CounterRef, 1, 1),
+                {ok, ?GENERATE_ID_RESULT(<<"Test", BinaryCID/binary>>)}
+            end},
+            {fistful_identity, fun
+                ('Create', _) ->
+                    {ok, Identity0};
+                ('Get', {WID, _}) when WID =:= ID0 ->
+                    {ok, Identity1};
+                ('Get', {WID, _}) when WID =:= ID1 ->
+                    {throwing, #fistful_IdentityNotFound{}}
+            end}
+        ],
+        C
+    ),
+    {ok, #{
+        <<"id">> := ID1
+    }} = create_identity_call_api(C).
 
 %%
 
