@@ -258,20 +258,22 @@ check_withdrawal_params(Params0, HandlerContext) ->
     do(fun() ->
         Params1 = unwrap(try_decode_quote_token(Params0)),
         Params2 = unwrap(maybe_check_quote_token(Params1, HandlerContext)),
-        ID =
-            case wapi_backend_utils:gen_id(withdrawal, Params2, HandlerContext) of
-                {ok, GenID} ->
-                    case is_id_unknown(GenID, Params2, HandlerContext) of
-                        true ->
-                            check_withdrawal_params(Params0, HandlerContext);
-                        false ->
-                            GenID
-                    end;
-                {error, E} ->
-                    throw(E)
-            end,
+        ID = unwrap(generate_id(Params0, HandlerContext)),
         Params2#{<<"id">> => ID}
     end).
+
+generate_id(Params, HandlerContext) ->
+    case wapi_backend_utils:gen_id(withdrawal, Params, HandlerContext) of
+        {ok, GenID} ->
+            case is_id_unknown(GenID, Params, HandlerContext) of
+                true ->
+                    {ok, GenID};
+                false ->
+                    check_withdrawal_params(Params, HandlerContext)
+            end;
+        {error, E} ->
+            {error, E}
+    end.
 
 is_id_unknown(
     ID,

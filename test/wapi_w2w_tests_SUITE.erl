@@ -263,7 +263,10 @@ create_w2_w_transfer_start_mocks(C, CreateResultFun) ->
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
                 ('Get', _) -> {ok, ?WALLET(PartyID)}
             end},
-            {fistful_w2w_transfer, fun('Create', _) -> CreateResultFun() end}
+            {fistful_w2w_transfer, fun
+                ('Create', _) -> CreateResultFun();
+                ('Get', _) -> {throwing, #fistful_W2WNotFound{}}
+            end}
         ],
         C
     ).

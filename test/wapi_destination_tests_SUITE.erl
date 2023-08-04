@@ -363,8 +363,11 @@ digital_wallet_w_token_resource_test(C) ->
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
                 ('Get', _) -> {ok, ?IDENTITY(PartyID)}
             end},
-            {fistful_destination, fun('Create', _) ->
-                {ok, ?DESTINATION(PartyID, ?RESOURCE_DIGITAL_WALLET)}
+            {fistful_destination, fun
+                ('Create', _) ->
+                    {ok, ?DESTINATION(PartyID, ?RESOURCE_DIGITAL_WALLET)};
+                ('Get', _) ->
+                    {throwing, #fistful_DestinationNotFound{}}
             end}
         ],
         C
@@ -621,7 +624,10 @@ create_destination_start_mocks(C, CreateDestinationResult) ->
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
                 ('Get', _) -> {ok, ?IDENTITY(PartyID)}
             end},
-            {fistful_destination, fun('Create', _) -> CreateDestinationResult end}
+            {fistful_destination, fun
+                ('Create', _) -> CreateDestinationResult;
+                ('Get', _) -> {throwing, #fistful_DestinationNotFound{}}
+            end}
         ],
         C
     ).

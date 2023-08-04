@@ -298,7 +298,10 @@ create_wallet_start_mocks(C, CreateResultFun) ->
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
                 ('Get', _) -> {ok, ?IDENTITY(PartyID)}
             end},
-            {fistful_wallet, fun('Create', _) -> CreateResultFun() end}
+            {fistful_wallet, fun
+                ('Create', _) -> CreateResultFun();
+                ('Get', _) -> {throwing, #fistful_WalletNotFound{}}
+            end}
         ],
         C
     ).
