@@ -599,7 +599,7 @@ check_unknown_withdrawal_id(C) ->
     ID1 = <<"Test1">>,
     Withdrawal0 = ?WITHDRAWAL(PartyID)#wthd_WithdrawalState{id = ID1},
     Withdrawal1 = Withdrawal0#wthd_WithdrawalState{id = ID0, wallet_id = ?STRING2},
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {bender, fun('GenerateID', _) ->
                 CID = counters:get(CounterRef, 1),

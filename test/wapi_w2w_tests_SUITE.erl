@@ -229,7 +229,7 @@ check_unknown_w2w_id(C) ->
     ID1 = <<"Test1">>,
     W2WTransfer0 = ?W2W_TRANSFER(PartyID)#w2w_transfer_W2WTransferState{id = ID1},
     W2WTransfer1 = W2WTransfer0#w2w_transfer_W2WTransferState{id = ID0, wallet_from_id = ?STRING2},
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {bender, fun('GenerateID', _) ->
                 CID = counters:get(CounterRef, 1),

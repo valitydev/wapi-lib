@@ -400,7 +400,7 @@ check_unknown_destination_id(C) ->
     ID1 = <<"Test1">>,
     Destination0 = ?DESTINATION(PartyID)#destination_DestinationState{id = ID1},
     Destination1 = Destination0#destination_DestinationState{id = ID0, name = ?STRING2},
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {bender, fun('GenerateID', _) ->
                 CID = counters:get(CounterRef, 1),

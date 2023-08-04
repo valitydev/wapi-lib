@@ -253,7 +253,7 @@ check_unknown_wallet_id(C) ->
     ID1 = <<"Test1">>,
     Wallet0 = ?WALLET(PartyID)#wallet_WalletState{id = ID1},
     Wallet1 = Wallet0#wallet_WalletState{id = ID0, name = ?STRING2},
-    wapi_ct_helper:mock_services(
+    _ = wapi_ct_helper:mock_services(
         [
             {bender, fun('GenerateID', _) ->
                 CID = counters:get(CounterRef, 1),
