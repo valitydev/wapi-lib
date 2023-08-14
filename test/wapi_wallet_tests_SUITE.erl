@@ -32,7 +32,8 @@
     get_by_external_id_ok/1,
     get_account_ok/1,
     get_account_fail_get_context_wallet_notfound/1,
-    get_account_fail_get_accountbalance_wallet_notfound/1
+    get_account_fail_get_accountbalance_wallet_notfound/1,
+    check_unknown_wallet_id/1
 ]).
 
 -define(EMPTY_RESP(Code), {error, {Code, #{}}}).
@@ -66,7 +67,8 @@ groups() ->
             get_by_external_id_ok,
             get_account_ok,
             get_account_fail_get_context_wallet_notfound,
-            get_account_fail_get_accountbalance_wallet_notfound
+            get_account_fail_get_accountbalance_wallet_notfound,
+            check_unknown_wallet_id
         ]}
     ].
 
@@ -242,6 +244,42 @@ get_account_fail_get_accountbalance_wallet_notfound(C) ->
         get_account_call_api(C)
     ).
 
+-spec check_unknown_wallet_id(config()) -> _.
+check_unknown_wallet_id(C) ->
+    PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_identity_op_ctx(<<"CreateWallet">>, ?STRING, PartyID, C),
+    CounterRef = counters:new(1, []),
+    ID0 = <<"Test0">>,
+    ID1 = <<"Test1">>,
+    Wallet0 = ?WALLET(PartyID)#wallet_WalletState{id = ID1},
+    Wallet1 = Wallet0#wallet_WalletState{id = ID0, name = ?STRING2},
+    _ = wapi_ct_helper:mock_services(
+        [
+            {bender, fun('GenerateID', _) ->
+                CID = counters:get(CounterRef, 1),
+                BinaryCID = erlang:integer_to_binary(CID),
+                ok = counters:add(CounterRef, 1, 1),
+                {ok, ?GENERATE_ID_RESULT(<<"Test", BinaryCID/binary>>)}
+            end},
+            {fistful_identity, fun
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
+                ('Get', _) -> {ok, ?IDENTITY(PartyID)}
+            end},
+            {fistful_wallet, fun
+                ('Create', _) ->
+                    {ok, Wallet0};
+                ('Get', {WID, _}) when WID =:= ID0 ->
+                    {ok, Wallet1};
+                ('Get', {WID, _}) when WID =:= ID1 ->
+                    {throwing, #fistful_WalletNotFound{}}
+            end}
+        ],
+        C
+    ),
+    {ok, #{
+        <<"id">> := ID1
+    }} = create_wallet_call_api(C).
+
 %%
 
 -spec call_api(function(), map(), wapi_client_lib:context()) -> {ok, term()} | {error, term()}.
@@ -298,7 +336,10 @@ create_wallet_start_mocks(C, CreateResultFun) ->
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
                 ('Get', _) -> {ok, ?IDENTITY(PartyID)}
             end},
-            {fistful_wallet, fun('Create', _) -> CreateResultFun() end}
+            {fistful_wallet, fun
+                ('Create', _) -> CreateResultFun();
+                ('Get', _) -> {throwing, #fistful_WalletNotFound{}}
+            end}
         ],
         C
     ).

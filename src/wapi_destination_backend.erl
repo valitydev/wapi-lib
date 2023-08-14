@@ -47,7 +47,12 @@ generate_id(Params, ResourceThrift, HandlerContext) ->
     },
     case wapi_backend_utils:gen_id(destination, NewParams, HandlerContext) of
         {ok, ID} ->
-            {ok, ID};
+            case is_id_unknown(ID, Params, HandlerContext) of
+                true ->
+                    {ok, ID};
+                false ->
+                    generate_id(Params, ResourceThrift, HandlerContext)
+            end;
         {error, {external_id_conflict, ID}} ->
             % Delete after deploy
             ExternalID = maps:get(<<"externalID">>, Params, undefined),
@@ -58,10 +63,40 @@ generate_id(Params, ResourceThrift, HandlerContext) ->
 generate_id_legacy(Params, HandlerContext) ->
     case wapi_backend_utils:gen_id(destination, Params, HandlerContext) of
         {ok, ID} ->
-            {ok, ID};
+            case is_id_unknown(ID, Params, HandlerContext) of
+                true ->
+                    {ok, ID};
+                false ->
+                    generate_id_legacy(Params, HandlerContext)
+            end;
         {error, {external_id_conflict, ID}} ->
             ExternalID = maps:get(<<"externalID">>, Params, undefined),
             {error, {external_id_conflict, {ID, ExternalID}}}
+    end.
+
+is_id_unknown(
+    ID,
+    #{
+        <<"identity">> := IdentityID,
+        <<"currency">> := CurrencyID,
+        <<"name">> := Name
+    },
+    HandlerContext
+) ->
+    case get(ID, HandlerContext) of
+        {error, {destination, notfound}} ->
+            true;
+        {ok,
+            #{
+                <<"id">> := ID,
+                <<"identity">> := IdentityID,
+                <<"currency">> := CurrencyID,
+                <<"name">> := Name
+            },
+            _Owner} ->
+            true;
+        {ok, _NonMatchingDestination, _Owner} ->
+            false
     end.
 
 create_request(ID, Params, ResourceThrift, HandlerContext) ->

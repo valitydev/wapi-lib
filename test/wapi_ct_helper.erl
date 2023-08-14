@@ -135,8 +135,8 @@ start_app({dmt_client = AppName, SupPid}) ->
     Urls = mock_services_(
         [
             {domain_config, fun
-                ('Checkout', _) -> #domain_conf_Snapshot{version = 1, domain = #{}};
-                ('PullRange', _) -> #{}
+                ('Checkout', _) -> {ok, #domain_conf_Snapshot{version = 1, domain = #{}}};
+                ('PullRange', _) -> {ok, #{}}
             end}
         ],
         SupPid
@@ -254,6 +254,7 @@ mock_services_(Services, SupPid) when is_pid(SupPid) ->
     {_IP, Port} = woody_server:get_addr(ServerID, WoodyOpts),
     lists:foldl(
         fun(Service, Acc) ->
+            ct:log("mocking: ~p", [Service]),
             ServiceName = get_service_name(Service),
             case ServiceName of
                 bouncer ->

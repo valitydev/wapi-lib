@@ -1,4 +1,4 @@
--module(wapi_w2w_backend).
+-module(wapi_w2w_transfer_backend).
 
 -type request_data() :: wapi_wallet_handler:request_data().
 -type handler_context() :: wapi_handler_utils:handler_context().
@@ -7,31 +7,61 @@
 -type id() :: binary().
 -type external_id() :: id().
 
--export([create_transfer/2]).
--export([get_transfer/2]).
+-export([create/2]).
+-export([get/2]).
 
 -include_lib("fistful_proto/include/fistful_fistful_base_thrift.hrl").
 -include_lib("fistful_proto/include/fistful_fistful_thrift.hrl").
 -include_lib("fistful_proto/include/fistful_w2w_transfer_thrift.hrl").
 -include_lib("fistful_proto/include/fistful_w2w_status_thrift.hrl").
 
--spec create_transfer(request_data(), handler_context()) -> {ok, response_data()} | {error, CreateError} when
+-spec create(request_data(), handler_context()) -> {ok, response_data()} | {error, CreateError} when
     CreateError ::
         {external_id_conflict, external_id()}
         | {wallet_from | wallet_to, notfound | inaccessible}
         | bad_w2w_transfer_amount
         | not_allowed_currency
         | inconsistent_currency.
-create_transfer(Params, HandlerContext) ->
+create(Params, HandlerContext) ->
     case wapi_backend_utils:gen_id(w2w_transfer, Params, HandlerContext) of
         {ok, ID} ->
-            Context = wapi_backend_utils:make_ctx(Params),
-            create_transfer(ID, Params, Context, HandlerContext);
+            case is_id_unknown(ID, Params, HandlerContext) of
+                true ->
+                    Context = wapi_backend_utils:make_ctx(Params),
+                    create(ID, Params, Context, HandlerContext);
+                false ->
+                    create(Params, HandlerContext)
+            end;
         {error, {external_id_conflict, _}} = Error ->
             Error
     end.
 
-create_transfer(ID, Params, Context, HandlerContext) ->
+is_id_unknown(
+    ID,
+    #{
+        <<"sender">> := SenderID,
+        <<"receiver">> := ReceiverID,
+        <<"body">> := Body
+    },
+    HandlerContext
+) ->
+    case get(ID, HandlerContext) of
+        {error, {w2w_transfer, {unknown_w2w_transfer, ID}}} ->
+            true;
+        {ok,
+            #{
+                <<"id">> := ID,
+                <<"sender">> := SenderID,
+                <<"receiver">> := ReceiverID,
+                <<"body">> := Body
+            },
+            _Owner} ->
+            true;
+        {ok, _NonMatchingIdentity, _Owner} ->
+            false
+    end.
+
+create(ID, Params, Context, HandlerContext) ->
     TransferParams = marshal(transfer_params, Params#{<<"id">> => ID}),
     Request = {fistful_w2w_transfer, 'Create', {TransferParams, marshal(context, Context)}},
     case service_call(Request, HandlerContext) of
@@ -49,9 +79,9 @@ create_transfer(ID, Params, Context, HandlerContext) ->
             {error, bad_w2w_transfer_amount}
     end.
 
--spec get_transfer(id(), handler_context()) -> {ok, response_data(), id()} | {error, GetError} when
+-spec get(id(), handler_context()) -> {ok, response_data(), id()} | {error, GetError} when
     GetError :: {w2w_transfer, {unknown_w2w_transfer, id()}}.
-get_transfer(ID, HandlerContext) ->
+get(ID, HandlerContext) ->
     EventRange = #'fistful_base_EventRange'{},
     Request = {fistful_w2w_transfer, 'Get', {ID, EventRange}},
     case service_call(Request, HandlerContext) of

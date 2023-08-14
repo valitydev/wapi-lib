@@ -69,6 +69,7 @@ create(Params0, HandlerContext) ->
     end.
 
 create(Params, Context, HandlerContext) ->
+    ct:log("Create params: ~p", [Params]),
     Request = {fistful_withdrawal, 'Create', {Params, Context}},
     case service_call(Request, HandlerContext) of
         {ok, Withdrawal} ->
@@ -258,9 +259,46 @@ check_withdrawal_params(Params0, HandlerContext) ->
     do(fun() ->
         Params1 = unwrap(try_decode_quote_token(Params0)),
         Params2 = unwrap(maybe_check_quote_token(Params1, HandlerContext)),
-        ID = unwrap(wapi_backend_utils:gen_id(withdrawal, Params2, HandlerContext)),
-        Params2#{<<"id">> => ID}
+        unwrap(generate_id(Params2, HandlerContext))
     end).
+
+generate_id(Params, HandlerContext) ->
+    case wapi_backend_utils:gen_id(withdrawal, Params, HandlerContext) of
+        {ok, GenID} ->
+            case is_id_unknown(GenID, Params, HandlerContext) of
+                true ->
+                    {ok, Params#{<<"id">> => GenID}};
+                false ->
+                    generate_id(Params, HandlerContext)
+            end;
+        {error, E} ->
+            {error, E}
+    end.
+
+is_id_unknown(
+    ID,
+    #{
+        <<"wallet">> := WalletID,
+        <<"destination">> := DestinationID,
+        <<"body">> := Body
+    },
+    HandlerContext
+) ->
+    case get(ID, HandlerContext) of
+        {error, {withdrawal, notfound}} ->
+            true;
+        {ok,
+            #{
+                <<"id">> := ID,
+                <<"wallet">> := WalletID,
+                <<"destination">> := DestinationID,
+                <<"body">> := Body
+            },
+            _Owner} ->
+            true;
+        {ok, _NonMatchingIdentity, _Owner} ->
+            false
+    end.
 
 try_decode_quote_token(Params = #{<<"quoteToken">> := QuoteToken}) ->
     do(fun() ->

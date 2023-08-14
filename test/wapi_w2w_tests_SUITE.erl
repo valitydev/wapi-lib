@@ -33,7 +33,8 @@
     create_fail_inconsistent_w2w_transfer_currency_test/1,
     create_fail_wallet_inaccessible_test/1,
     get_ok_test/1,
-    get_fail_w2w_notfound_test/1
+    get_fail_w2w_notfound_test/1,
+    check_unknown_w2w_id/1
 ]).
 
 -define(EMPTY_RESP(Code), {error, {Code, #{}}}).
@@ -66,7 +67,8 @@ groups() ->
             create_fail_inconsistent_w2w_transfer_currency_test,
             create_fail_wallet_inaccessible_test,
             get_ok_test,
-            get_fail_w2w_notfound_test
+            get_fail_w2w_notfound_test,
+            check_unknown_w2w_id
         ]}
     ].
 
@@ -218,6 +220,42 @@ get_fail_w2w_notfound_test(C) ->
         get_w2_w_transfer_call_api(C)
     ).
 
+-spec check_unknown_w2w_id(config()) -> _.
+check_unknown_w2w_id(C) ->
+    PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_wallet_op_ctx(<<"CreateW2WTransfer">>, ?STRING, PartyID, C),
+    CounterRef = counters:new(1, []),
+    ID0 = <<"Test0">>,
+    ID1 = <<"Test1">>,
+    W2WTransfer0 = ?W2W_TRANSFER(PartyID)#w2w_transfer_W2WTransferState{id = ID1},
+    W2WTransfer1 = W2WTransfer0#w2w_transfer_W2WTransferState{id = ID0, wallet_from_id = ?STRING2},
+    _ = wapi_ct_helper:mock_services(
+        [
+            {bender, fun('GenerateID', _) ->
+                CID = counters:get(CounterRef, 1),
+                BinaryCID = erlang:integer_to_binary(CID),
+                ok = counters:add(CounterRef, 1, 1),
+                {ok, ?GENERATE_ID_RESULT(<<"Test", BinaryCID/binary>>)}
+            end},
+            {fistful_wallet, fun
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
+                ('Get', _) -> {ok, ?WALLET(PartyID)}
+            end},
+            {fistful_w2w_transfer, fun
+                ('Create', _) ->
+                    {ok, W2WTransfer0};
+                ('Get', {WID, _}) when WID =:= ID0 ->
+                    {ok, W2WTransfer1};
+                ('Get', {WID, _}) when WID =:= ID1 ->
+                    {throwing, #fistful_W2WNotFound{}}
+            end}
+        ],
+        C
+    ),
+    {ok, #{
+        <<"id">> := ID1
+    }} = create_w2_w_transfer_call_api(C).
+
 %%
 
 -spec call_api(function(), map(), wapi_client_lib:context()) -> {ok, term()} | {error, term()}.
@@ -263,7 +301,10 @@ create_w2_w_transfer_start_mocks(C, CreateResultFun) ->
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
                 ('Get', _) -> {ok, ?WALLET(PartyID)}
             end},
-            {fistful_w2w_transfer, fun('Create', _) -> CreateResultFun() end}
+            {fistful_w2w_transfer, fun
+                ('Create', _) -> CreateResultFun();
+                ('Get', _) -> {throwing, #fistful_W2WNotFound{}}
+            end}
         ],
         C
     ).
