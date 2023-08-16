@@ -69,7 +69,6 @@ create(Params0, HandlerContext) ->
     end.
 
 create(Params, Context, HandlerContext) ->
-    ct:log("Create params: ~p", [Params]),
     Request = {fistful_withdrawal, 'Create', {Params, Context}},
     case service_call(Request, HandlerContext) of
         {ok, Withdrawal} ->
