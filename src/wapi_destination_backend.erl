@@ -197,8 +197,7 @@ construct_resource(
     #{
         <<"type">> := <<"DigitalWalletDestinationResource">>,
         <<"id">> := DigitalWalletID,
-        <<"provider">> := Provider,
-        <<"accountNumber">> := AccountNumber
+        <<"provider">> := Provider
     } = Resource,
     _Context
 ) ->
@@ -208,7 +207,7 @@ construct_resource(
                 id => marshal(string, DigitalWalletID),
                 payment_service => #{id => marshal(string, Provider)},
                 token => maybe_marshal(string, maps:get(<<"token">>, Resource, undefined)),
-                account_number => marshal(string, AccountNumber)
+                account_number => maybe_marshal(string, maps:get(<<"accountNumber">>, Resource, undefined))
             }
         }},
     {ok, wapi_codec:marshal(resource, ConstructedResource)};
@@ -375,12 +374,12 @@ unmarshal(
         }
     }}
 ) ->
-    #{
+    genlib_map:compact(#{
         <<"type">> => <<"DigitalWalletDestinationResource">>,
         <<"id">> => unmarshal(string, DigitalWalletID),
         <<"provider">> => unmarshal(string, Provider),
-        <<"accountNumber">> => unmarshal(string, AccountNumber)
-    };
+        <<"accountNumber">> => maybe_unmarshal(string, AccountNumber)
+    });
 unmarshal(
     resource,
     {generic, #'fistful_base_ResourceGeneric'{

@@ -399,9 +399,9 @@ unmarshal_digital_wallet(#'fistful_base_DigitalWallet'{
     payment_service = #'fistful_base_PaymentServiceRef'{id = Provider},
     account_number = AccountNumber
 }) ->
-    #{
+    genlib_map:compact(#{
         <<"type">> => <<"DigitalWalletDestinationResource">>,
         <<"id">> => DigitalWalletID,
         <<"provider">> => Provider,
         <<"accountNumber">> => AccountNumber
-    }.
+    }).

@@ -174,8 +174,8 @@
 -define(DIGITAL_WALLET, #'fistful_base_DigitalWallet'{
     id = ?STRING,
     token = ?STRING,
-    payment_service = #'fistful_base_PaymentServiceRef'{id = <<"nomoney">>},
-    account_number = ?STRING
+    payment_service = #'fistful_base_PaymentServiceRef'{id = <<"nomoney">>}
+%%    account_number = ?STRING
 }).
 
 -define(RESOURCE_DIGITAL_WALLET,
