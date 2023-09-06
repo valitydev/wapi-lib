@@ -343,7 +343,8 @@ digital_wallet_w_token_resource_test(C) ->
         <<"type">> => <<"DigitalWalletDestinationResource">>,
         <<"id">> => ?STRING,
         <<"provider">> => Provider,
-        <<"token">> => Token
+        <<"token">> => Token,
+        <<"accountName">> => ?STRING
     },
     Destination = #{
         <<"name">> => ?STRING,
