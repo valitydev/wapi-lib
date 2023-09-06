@@ -175,7 +175,7 @@
     id = ?STRING,
     token = ?STRING,
     payment_service = #'fistful_base_PaymentServiceRef'{id = <<"nomoney">>}
-%%    account_number = ?STRING
+    %%    account_number = ?STRING
 }).
 
 -define(RESOURCE_DIGITAL_WALLET,
