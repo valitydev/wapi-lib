@@ -329,6 +329,7 @@ digital_wallet_resource_test(C) ->
     {ok, Resource, SwagResource} = do_destination_lifecycle(digital_wallet, C),
     ?assertEqual(<<"DigitalWalletDestinationResource">>, maps:get(<<"type">>, SwagResource)),
     ?assertEqual(<<"nomoney">>, maps:get(<<"provider">>, SwagResource)),
+    ?assertEqual(<<"AccountNAME">>, maps:get(<<"accountName">>, SwagResource)),
     {digital_wallet, #'fistful_base_ResourceDigitalWallet'{digital_wallet = #'fistful_base_DigitalWallet'{id = ID}}} =
         Resource,
     ?assertEqual(ID, maps:get(<<"id">>, SwagResource)).
@@ -343,7 +344,8 @@ digital_wallet_w_token_resource_test(C) ->
         <<"type">> => <<"DigitalWalletDestinationResource">>,
         <<"id">> => ?STRING,
         <<"provider">> => Provider,
-        <<"token">> => Token
+        <<"token">> => Token,
+        <<"accountName">> => ?STRING
     },
     Destination = #{
         <<"name">> => ?STRING,
@@ -640,7 +642,8 @@ generate_resource(digital_wallet) ->
     {digital_wallet, #'fistful_base_ResourceDigitalWallet'{
         digital_wallet = #'fistful_base_DigitalWallet'{
             id = uniq(),
-            payment_service = #'fistful_base_PaymentServiceRef'{id = generate_digital_wallet_provider()}
+            payment_service = #'fistful_base_PaymentServiceRef'{id = generate_digital_wallet_provider()},
+            account_name = <<"AccountNAME">>
         }
     }}.
 
