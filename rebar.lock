@@ -37,7 +37,7 @@
   0},
  {<<"fistful_proto">>,
   {git,"https://github.com/valitydev/fistful-proto.git",
-       {ref,"b7a4508fd79d66381d8d219e0e7777385ca5ab4d"}},
+       {ref,"c9c3aa00f075ecf774c2befc57284aeffbeea1fe"}},
   0},
  {<<"fistful_reporter_proto">>,
   {git,"https://github.com/valitydev/fistful-reporter-proto.git",

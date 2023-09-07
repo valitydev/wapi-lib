@@ -207,7 +207,7 @@ construct_resource(
                 id => marshal(string, DigitalWalletID),
                 payment_service => #{id => marshal(string, Provider)},
                 token => maybe_marshal(string, maps:get(<<"token">>, Resource, undefined)),
-                account_number => maybe_marshal(string, maps:get(<<"accountNumber">>, Resource, undefined))
+                account_name => maybe_marshal(string, maps:get(<<"accountName">>, Resource, undefined))
             }
         }},
     {ok, wapi_codec:marshal(resource, ConstructedResource)};
@@ -370,7 +370,7 @@ unmarshal(
         digital_wallet = #'fistful_base_DigitalWallet'{
             id = DigitalWalletID,
             payment_service = #'fistful_base_PaymentServiceRef'{id = Provider},
-            account_number = AccountNumber
+            account_name = AccountName
         }
     }}
 ) ->
@@ -378,7 +378,7 @@ unmarshal(
         <<"type">> => <<"DigitalWalletDestinationResource">>,
         <<"id">> => unmarshal(string, DigitalWalletID),
         <<"provider">> => unmarshal(string, Provider),
-        <<"accountNumber">> => maybe_unmarshal(string, AccountNumber)
+        <<"accountName">> => maybe_unmarshal(string, AccountName)
     });
 unmarshal(
     resource,
