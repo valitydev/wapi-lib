@@ -13,7 +13,7 @@
 -define(TIMESTAMP, <<"2016-03-22T06:12:27Z">>).
 -define(URL, <<"https://example.com">>).
 -define(API_TOKEN, <<"letmein">>).
--define(CTX_NS, <<"com.rbkmoney.wapi">>).
+-define(CTX_NS, <<"com.chelomey.wapi">>).
 -define(DEFAULT_CONTEXT(PartyID), #{
     ?CTX_NS =>
         {obj, #{
