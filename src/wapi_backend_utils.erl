@@ -136,7 +136,9 @@ add_to_ctx(Key, Value, Context = #{?CTX_NS := Ctx}) ->
     Context#{?CTX_NS => Ctx#{Key => Value}}.
 
 -spec get_from_ctx(md(), context()) -> md().
-get_from_ctx(Key, #{?CTX_NS := Ctx}) ->
+get_from_ctx(Key, #{<<"com.rbkmoney.wapi">> := Ctx}) ->
+    maps:get(Key, Ctx, undefined);
+get_from_ctx(Key, #{<<"com.valitydev.wapi">> := Ctx}) ->
     maps:get(Key, Ctx, undefined).
 
 -spec issue_grant_token(_, binary(), handler_context()) -> {ok, binary()} | {error, expired}.
