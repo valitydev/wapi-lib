@@ -24,7 +24,8 @@
         token_keeper_client,
         thrift,
         dmt_client,
-        tds_proto
+        tds_proto,
+        opentelemetry_api
     ]},
     {env, []}
 ]}.
