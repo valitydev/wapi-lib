@@ -8,7 +8,7 @@
 -include_lib("fistful_proto/include/fistful_wthd_thrift.hrl").
 
 -define(EXTERNAL_ID, <<"externalID">>).
--define(CTX_NS, <<"com.chelomey.wapi">>).
+-define(CTX_NS, <<"wapi">>).
 -define(BENDER_DOMAIN, <<"wapi">>).
 -define(BENDER_SCHEMA_VER1, 1).
 
