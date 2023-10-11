@@ -8,7 +8,7 @@
 -include_lib("fistful_proto/include/fistful_wthd_thrift.hrl").
 
 -define(EXTERNAL_ID, <<"externalID">>).
--define(CTX_NS, <<"com.rbkmoney.wapi">>).
+-define(CTX_NS, <<"wapi">>).
 -define(BENDER_DOMAIN, <<"wapi">>).
 -define(BENDER_SCHEMA_VER1, 1).
 
@@ -137,7 +137,21 @@ add_to_ctx(Key, Value, Context = #{?CTX_NS := Ctx}) ->
 
 -spec get_from_ctx(md(), context()) -> md().
 get_from_ctx(Key, #{?CTX_NS := Ctx}) ->
-    maps:get(Key, Ctx, undefined).
+    maps:get(Key, Ctx, undefined);
+get_from_ctx(Key, Ctx) ->
+    LegacyNSs = genlib_app:env(wapi_lib, legacy_context_namespaces, []),
+    genlib_list:foldl_while(
+        fun(NS, Acc) ->
+            case Ctx of
+                #{NS := #{Key := Value}} ->
+                    {halt, Value};
+                _ ->
+                    {cont, Acc}
+            end
+        end,
+        undefined,
+        LegacyNSs
+    ).
 
 -spec issue_grant_token(_, binary(), handler_context()) -> {ok, binary()} | {error, expired}.
 issue_grant_token(TokenSpec, Expiration, Context) ->
