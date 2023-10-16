@@ -15,7 +15,7 @@
 
 -spec call_service(service_name(), woody:func(), woody:args(), woody_context:ctx()) -> woody:result().
 call_service(ServiceName, Function, Args, Context) ->
-    call_service(ServiceName, Function, Args, Context, scoper_woody_event_handler).
+    call_service(ServiceName, Function, Args, Context, wapi_woody_event_handler).
 
 -spec call_service(service_name(), woody:func(), woody:args(), woody_context:ctx(), woody:ev_handler()) ->
     woody:result().
