@@ -10,7 +10,7 @@
 -spec put(token(), woody_context:ctx()) -> id().
 put(Token, WoodyContext) ->
     ID = wapi_utils:get_random_id(),
-    EventHandler = wapi_redact_event_handler:new([Token], wapi_woody_event_handler),
+    EventHandler = wapi_redact_event_handler:new([Token], scoper_woody_event_handler),
     % NOTE
     % Collisions are possible here yet extremely unlikely.
     % Given a good source of entropy the probability is N / (2 ^ 128) where N is the number of
