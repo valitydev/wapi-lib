@@ -5,7 +5,7 @@
 -include_lib("fistful_proto/include/fistful_identity_thrift.hrl").
 
 -export([create_report/2]).
--export([get_report/3]).
+-export([get_report/4]).
 -export([get_reports/2]).
 -export([download_file/3]).
 
@@ -22,6 +22,7 @@
 create_report(
     #{
         'identityID' := IdentityID,
+        'partyID' := PartyID,
         'ReportParams' := ReportParams
     },
     HandlerContext
@@ -29,7 +30,7 @@ create_report(
     case get_contract_id_from_identity(IdentityID, HandlerContext) of
         {ok, ContractID} ->
             Req = create_report_request(#{
-                party_id => wapi_handler_utils:get_owner(HandlerContext),
+                party_id => PartyID,
                 contract_id => ContractID,
                 from_time => get_time(<<"fromTime">>, ReportParams),
                 to_time => get_time(<<"toTime">>, ReportParams)
@@ -37,7 +38,7 @@ create_report(
             Call = {fistful_report, 'GenerateReport', {Req, maps:get(<<"reportType">>, ReportParams)}},
             case wapi_handler_utils:service_call(Call, HandlerContext) of
                 {ok, ReportID} ->
-                    get_report('contractID', ReportID, ContractID, HandlerContext);
+                    get_report('contractID', ReportID, ContractID, PartyID, HandlerContext);
                 {exception, #reports_InvalidRequest{}} ->
                     {error, invalid_request};
                 {exception, #reports_ContractNotFound{}} ->
@@ -47,22 +48,21 @@ create_report(
             Error
     end.
 
--spec get_report(integer(), binary(), handler_context()) -> {ok, response_data()} | {error, Error} when
+-spec get_report(integer(), binary(), binary(), handler_context()) -> {ok, response_data()} | {error, Error} when
     Error ::
         {identity, notfound}
         | notfound.
-get_report(ReportID, IdentityID, HandlerContext) ->
-    get_report('identityID', ReportID, IdentityID, HandlerContext).
+get_report(ReportID, IdentityID, PartyID, HandlerContext) ->
+    get_report('identityID', ReportID, IdentityID, PartyID, HandlerContext).
 
-get_report('identityID', ReportID, IdentityID, HandlerContext) ->
+get_report('identityID', ReportID, IdentityID, PartyID, HandlerContext) ->
     case get_contract_id_from_identity(IdentityID, HandlerContext) of
         {ok, ContractID} ->
-            get_report('contractID', ReportID, ContractID, HandlerContext);
+            get_report('contractID', ReportID, ContractID, PartyID, HandlerContext);
         {error, _} = Error ->
             Error
     end;
-get_report('contractID', ReportID, ContractID, HandlerContext) ->
-    PartyID = wapi_handler_utils:get_owner(HandlerContext),
+get_report('contractID', ReportID, ContractID, PartyID, HandlerContext) ->
     Call = {fistful_report, 'GetReport', {PartyID, ContractID, ReportID}},
     case wapi_handler_utils:service_call(Call, HandlerContext) of
         {ok, Report} ->
@@ -76,11 +76,11 @@ get_report('contractID', ReportID, ContractID, HandlerContext) ->
         {identity, notfound}
         | invalid_request
         | {dataset_too_big, integer()}.
-get_reports(#{'identityID' := IdentityID} = Params, HandlerContext) ->
+get_reports(#{'identityID' := IdentityID, 'partyID' := PartyID} = Params, HandlerContext) ->
     case get_contract_id_from_identity(IdentityID, HandlerContext) of
         {ok, ContractID} ->
             Req = create_report_request(#{
-                party_id => wapi_handler_utils:get_owner(HandlerContext),
+                party_id => PartyID,
                 contract_id => ContractID,
                 from_time => get_time('fromTime', Params),
                 to_time => get_time('toTime', Params)
