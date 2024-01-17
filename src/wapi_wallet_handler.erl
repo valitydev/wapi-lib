@@ -97,7 +97,7 @@ prepare(OperationID = 'GetProvider', #{'providerID' := Id}, Context, _Opts) ->
     {ok, #{authorize => Authorize, process => Process}};
 %% Identities
 prepare(OperationID = 'ListIdentities', Req0, Context, _Opts) ->
-    {Req, PartyID} = patch_party_req([], Context, Req0),
+    {Req, PartyID} = patch_party_req(Context, Req0),
     Authorize = fun() ->
         Prototypes = [{operation, #{party => PartyID, id => OperationID}}],
         Resolution = wapi_auth:authorize_operation(Prototypes, Context),
@@ -203,7 +203,7 @@ prepare(OperationID = 'ListWallets', Req0, Context, _Opts) ->
         [],
         Context
     ),
-    {Req, PartyID} = patch_party_req(AuthContext, Context, Req0),
+    {Req, PartyID} = patch_party_req(Context, Req0),
     Authorize = fun() ->
         Prototypes = [
             {operation, build_prototype_for(operation, #{party => PartyID, id => OperationID}, AuthContext)},
@@ -353,7 +353,7 @@ prepare(OperationID = 'ListDestinations', Req0, Context, _Opts) ->
         [],
         Context
     ),
-    {Req, PartyID} = patch_party_req(AuthContext, Context, Req0),
+    {Req, PartyID} = patch_party_req(Context, Req0),
     Authorize = fun() ->
         Prototypes = [
             {operation, build_prototype_for(operation, #{party => PartyID, id => OperationID}, AuthContext)},
@@ -738,7 +738,7 @@ prepare(OperationID = 'ListWithdrawals', Req0, Context, _Opts) ->
         [],
         Context
     ),
-    {Req, PartyID} = patch_party_req(AuthContext, Context, Req0),
+    {Req, PartyID} = patch_party_req(Context, Req0),
     Authorize = fun() ->
         Prototypes = [
             {operation, build_prototype_for(operation, #{party => PartyID, id => OperationID}, AuthContext)},
@@ -822,7 +822,7 @@ prepare(OperationID = 'ListDeposits', Req0, Context, _Opts) ->
         [],
         Context
     ),
-    {Req, PartyID} = patch_party_req(AuthContext, Context, Req0),
+    {Req, PartyID} = patch_party_req(Context, Req0),
     Authorize = fun() ->
         Prototypes = [
             {operation, build_prototype_for(operation, #{party => PartyID, id => OperationID}, AuthContext)},
@@ -857,7 +857,7 @@ prepare(OperationID = 'ListDepositReverts', Req0, Context, _Opts) ->
         [],
         Context
     ),
-    {Req, PartyID} = patch_party_req(AuthContext, Context, Req0),
+    {Req, PartyID} = patch_party_req(Context, Req0),
     Authorize = fun() ->
         Prototypes = [
             {operation, build_prototype_for(operation, #{party => PartyID, id => OperationID}, AuthContext)},
@@ -892,7 +892,7 @@ prepare(OperationID = 'ListDepositAdjustments', Req0, Context, _Opts) ->
         [],
         Context
     ),
-    {Req, PartyID} = patch_party_req(AuthContext, Context, Req0),
+    {Req, PartyID} = patch_party_req(Context, Req0),
     Authorize = fun() ->
         Prototypes = [
             {operation, build_prototype_for(operation, #{party => PartyID, id => OperationID}, AuthContext)},
@@ -1111,7 +1111,7 @@ prepare(
 %% Reports
 prepare(OperationID = 'CreateReport', Req0 = #{'identityID' := IdentityID}, Context, _Opts) ->
     AuthContext = build_auth_context([{identity, IdentityID}], [], Context),
-    {Req, _PartyID} = patch_party_req(AuthContext, Context, Req0),
+    {Req, _PartyID} = patch_party_req(Context, Req0),
     Authorize = fun() ->
         Prototypes = [
             {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},
@@ -1155,7 +1155,7 @@ prepare(
     _Opts
 ) ->
     AuthContext = build_auth_context([{identity, IdentityID}], [], Context),
-    {_Req, PartyID} = patch_party_req(AuthContext, Context, Req0),
+    {_Req, PartyID} = patch_party_req(Context, Req0),
     ResultReport =
         case wapi_report_backend:get_report(ReportId, IdentityID, PartyID, Context) of
             {ok, Report} ->
@@ -1184,7 +1184,7 @@ prepare(
     {ok, #{authorize => Authorize, process => Process}};
 prepare(OperationID = 'GetReports', Req0 = #{'identityID' := IdentityID}, Context, _Opts) ->
     AuthContext = build_auth_context([{identity, IdentityID}], [], Context),
-    {Req, _PartyID} = patch_party_req(AuthContext, Context, Req0),
+    {Req, _PartyID} = patch_party_req(Context, Req0),
     Authorize = fun() ->
         Prototypes = [
             {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},
@@ -1376,28 +1376,11 @@ add_party_id_to(undefined, Params) ->
 add_party_id_to(PartyID, Params) when is_map(Params) ->
     Params#{<<"partyID">> => PartyID}.
 
-%% @doc Adds 'partyID' to request if it is not defined yet.
-%%
-%%      Elsewise it tries to extract owner of authorized entites and use it as
-%%      party id. And if none provide it, then use subject id from operation
-%%      auth-context.
-patch_party_req(_Entities, _Context, Req = #{'partyID' := PartyID}) when PartyID =/= undefined ->
+patch_party_req(_Context, Req = #{'partyID' := PartyID}) when PartyID =/= undefined ->
     {Req, PartyID};
-patch_party_req([], Context, Req) ->
+patch_party_req(Context, Req) ->
     PartyID = wapi_handler_utils:get_owner(Context),
-    {Req#{'partyID' => PartyID}, PartyID};
-patch_party_req([Entity | Entities], Context, Req) ->
-    case Entity of
-        {Type, {_ID, _Res, Owner}} when
-            Type =:= identity orelse
-                Type =:= wallet orelse
-                Type =:= desitnation orelse
-                Type =:= withdrawal
-        ->
-            {Req#{'partyID' => Owner}, Owner};
-        _ ->
-            patch_party_req(Entities, Context, Req)
-    end.
+    {Req#{'partyID' => PartyID}, PartyID}.
 
 % seconds
 -define(DEFAULT_URL_LIFETIME, 60).
