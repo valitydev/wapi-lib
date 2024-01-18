@@ -99,12 +99,21 @@ end_per_testcase(_Name, C) ->
 -spec create_report_ok_test(config()) -> _.
 create_report_ok_test(C) ->
     PartyID = ?config(party, C),
+    ParamPartyID = genlib:bsuuid(),
     _ = wapi_ct_helper_bouncer:mock_assert_identity_op_ctx(<<"CreateReport">>, ?STRING, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
             {fistful_report, fun
-                ('GenerateReport', _) -> {ok, ?REPORT_ID};
-                ('GetReport', _) -> {ok, ?REPORT}
+                ('GenerateReport', {#reports_ReportRequest{party_id = ExpectedPartyID}, _}) when
+                    ExpectedPartyID =:= ParamPartyID
+                ->
+                    {ok, ?REPORT_ID};
+                ('GenerateReport', _) ->
+                    erlang:throw("Unexpected party id");
+                ('GetReport', {ExpectedPartyID, _, _}) when ExpectedPartyID =:= ParamPartyID ->
+                    {ok, ?REPORT};
+                ('GetReport', _) ->
+                    erlang:throw("Unexpected party id")
             end},
             {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)} end}
         ],
@@ -115,6 +124,9 @@ create_report_ok_test(C) ->
         #{
             binding => #{
                 <<"identityID">> => ?STRING
+            },
+            qs_val => #{
+                <<"partyID">> => ParamPartyID
             },
             body => #{
                 <<"reportType">> => <<"withdrawalRegistry">>,
@@ -128,6 +140,7 @@ create_report_ok_test(C) ->
 -spec get_report_ok_test(config()) -> _.
 get_report_ok_test(C) ->
     PartyID = ?config(party, C),
+    ParamPartyID = genlib:bsuuid(),
     _ = wapi_ct_helper_bouncer:mock_assert_generic_op_ctx(
         [
             {report, genlib:to_binary(?INTEGER), #{identity => ?STRING, files => [?STRING, ?STRING, ?STRING]}},
@@ -142,7 +155,12 @@ get_report_ok_test(C) ->
     ),
     _ = wapi_ct_helper:mock_services(
         [
-            {fistful_report, fun('GetReport', _) -> {ok, ?REPORT} end},
+            {fistful_report, fun
+                ('GetReport', {ExpectedPartyID, _, _}) when ExpectedPartyID =:= ParamPartyID ->
+                    {ok, ?REPORT};
+                ('GetReport', _) ->
+                    erlang:throw("Unexpected party id")
+            end},
             {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)} end}
         ],
         C
@@ -153,6 +171,9 @@ get_report_ok_test(C) ->
             binding => #{
                 <<"identityID">> => ?STRING,
                 <<"reportID">> => ?INTEGER
+            },
+            qs_val => #{
+                <<"partyID">> => ParamPartyID
             }
         },
         wapi_ct_helper:cfg(context, C)
@@ -161,15 +182,21 @@ get_report_ok_test(C) ->
 -spec get_reports_ok_test(config()) -> _.
 get_reports_ok_test(C) ->
     PartyID = ?config(party, C),
+    ParamPartyID = genlib:bsuuid(),
     _ = wapi_ct_helper_bouncer:mock_assert_identity_op_ctx(<<"GetReports">>, ?STRING, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
-            {fistful_report, fun('GetReports', _) ->
-                {ok, [
-                    ?REPORT_EXT(pending, []),
-                    ?REPORT_EXT(created, undefined),
-                    ?REPORT_WITH_STATUS(canceled)
-                ]}
+            {fistful_report, fun
+                ('GetReports', {#reports_ReportRequest{party_id = ExpectedPartyID}, _}) when
+                    ExpectedPartyID =:= ParamPartyID
+                ->
+                    {ok, [
+                        ?REPORT_EXT(pending, []),
+                        ?REPORT_EXT(created, undefined),
+                        ?REPORT_WITH_STATUS(canceled)
+                    ]};
+                ('GetReports', _) ->
+                    erlang:throw("Unexpected party id")
             end},
             {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)} end}
         ],
@@ -182,6 +209,7 @@ get_reports_ok_test(C) ->
                 <<"identityID">> => ?STRING
             },
             qs_val => #{
+                <<"partyID">> => ParamPartyID,
                 <<"fromTime">> => ?TIMESTAMP,
                 <<"toTime">> => ?TIMESTAMP,
                 <<"type">> => <<"withdrawalRegistry">>
