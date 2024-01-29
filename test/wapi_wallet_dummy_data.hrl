@@ -292,8 +292,7 @@
             amount = ?INTEGER,
             fee = ?INTEGER,
             currency_symbolic_code = ?RUB,
-            status = {pending, #stat_DepositPending{}},
-            description = ?STRING
+            status = {pending, #stat_DepositPending{}}
         }
     ]}
 ).

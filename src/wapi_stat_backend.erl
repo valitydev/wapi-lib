@@ -238,8 +238,7 @@ unmarshal_response(deposits, Response) ->
                 Response#stat_StatDeposit.fee,
                 Response#stat_StatDeposit.currency_symbolic_code
             ),
-            <<"revertStatus">> => unmarshal_revert_status(Response#stat_StatDeposit.revert_status),
-            <<"desc">> => Response#stat_StatDeposit.description
+            <<"revertStatus">> => unmarshal_revert_status(Response#stat_StatDeposit.revert_status)
         },
         unmarshal_deposit_stat_status(Response#stat_StatDeposit.status)
     );
