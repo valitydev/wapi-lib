@@ -190,7 +190,8 @@ list_withdrawals(C) ->
         fun swag_client_wallet_withdrawals_api:list_withdrawals/3,
         #{
             qs_val => #{
-                <<"limit">> => <<"123">>
+                <<"limit">> => <<"123">>,
+                <<"externalID">> => <<"something">>
             }
         },
         wapi_ct_helper:cfg(context, C)
