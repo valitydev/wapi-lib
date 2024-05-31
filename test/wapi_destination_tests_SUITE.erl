@@ -524,7 +524,12 @@ build_destination_spec(D, Resource) ->
         <<"currency">> =>
             D#destination_DestinationState.account#account_Account.currency#fistful_base_CurrencyRef.symbolic_code,
         <<"externalID">> => D#destination_DestinationState.external_id,
-        <<"resource">> => build_resource_spec(Resource)
+        <<"resource">> => build_resource_spec(Resource),
+        <<"additionalAuthData">> => #{
+            <<"type">> => <<"SenderReceiverDestinationAuthData">>,
+            <<"senderToken">> => <<"SenderToken">>,
+            <<"receiverToken">> => <<"ReceiverToken">>
+        }
     }.
 
 build_resource_spec({bank_card, R}) ->
@@ -599,7 +604,11 @@ generate_destination(IdentityID, Resource, Context) ->
         created_at = <<"2016-03-22T06:12:27Z">>,
         blocking = unblocked,
         metadata = #{<<"key">> => {str, <<"val">>}},
-        context = Context
+        context = Context,
+        auth_data = {sender_receiver, #destination_SenderReceiverAuthData{
+            sender = <<"SenderToken">>,
+            receiver = <<"ReceiverToken">>
+        }}
     }.
 
 generate_resource(generic) ->
