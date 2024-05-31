@@ -605,10 +605,11 @@ generate_destination(IdentityID, Resource, Context) ->
         blocking = unblocked,
         metadata = #{<<"key">> => {str, <<"val">>}},
         context = Context,
-        auth_data = {sender_receiver, #destination_SenderReceiverAuthData{
-            sender = <<"SenderToken">>,
-            receiver = <<"ReceiverToken">>
-        }}
+        auth_data =
+            {sender_receiver, #destination_SenderReceiverAuthData{
+                sender = <<"SenderToken">>,
+                receiver = <<"ReceiverToken">>
+            }}
     }.
 
 generate_resource(generic) ->
