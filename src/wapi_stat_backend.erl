@@ -84,6 +84,7 @@ create_query(withdrawals, Req) ->
         <<"identity_id">> => genlib_map:get('identityID', Req),
         <<"withdrawal_id">> => genlib_map:get('withdrawalID', Req),
         <<"destination_id">> => genlib_map:get('destinationID', Req),
+        <<"external_id">> => genlib_map:get('externalID', Req),
         <<"status">> => genlib_map:get(status, Req),
         <<"from_time">> => get_time('createdAtFrom', Req),
         <<"to_time">> => get_time('createdAtTo', Req),
