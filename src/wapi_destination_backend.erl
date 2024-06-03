@@ -278,16 +278,27 @@ marshal(
     }
 ) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
+    AuthData = maps:get(<<"additionalAuthData">>, Params, undefined),
     #destination_DestinationParams{
         id = marshal(id, ID),
         identity = marshal(id, IdentityID),
         name = marshal(string, Name),
         currency = marshal(string, CurrencyID),
         external_id = maybe_marshal(id, ExternalID),
-        resource = Resource
+        resource = Resource,
+        auth_data = maybe_marshal(auth_data, AuthData)
     };
 marshal(context, Context) ->
     wapi_codec:marshal(context, Context);
+marshal(auth_data, #{
+    <<"type">> := <<"SenderReceiverDestinationAuthData">>,
+    <<"senderToken">> := SenderToken,
+    <<"receiverToken">> := ReceiverToken
+}) ->
+    {sender_receiver, #destination_SenderReceiverAuthData{
+        sender = SenderToken,
+        receiver = ReceiverToken
+    }};
 marshal(T, V) ->
     wapi_codec:marshal(T, V).
 
