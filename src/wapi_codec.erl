@@ -138,7 +138,8 @@ marshal(digital_wallet, Wallet = #{id := ID, payment_service := PaymentService})
         id = marshal(string, ID),
         token = maybe_marshal(string, maps:get(token, Wallet, undefined)),
         payment_service = marshal(payment_service, PaymentService),
-        account_name = maps:get(account_name, Wallet, undefined)
+        account_name = maps:get(account_name, Wallet, undefined),
+        account_identity_number = maps:get(account_identity_number, Wallet, undefined)
     };
 marshal(generic_resource, Resource = #{payment_service := PaymentService}) ->
     Data = maybe_marshal(content, maps:get(data, Resource, undefined)),
@@ -342,13 +343,15 @@ unmarshal(digital_wallet, #'fistful_base_DigitalWallet'{
     id = ID,
     token = Token,
     payment_service = PaymentService,
-    account_name = AccountName
+    account_name = AccountName,
+    account_identity_number = AccountIdentityNumber
 }) ->
     genlib_map:compact(#{
         id => unmarshal(string, ID),
         token => maybe_marshal(string, Token),
         payment_service => unmarshal(payment_service, PaymentService),
-        account_name => unmarshal(string, AccountName)
+        account_name => unmarshal(string, AccountName),
+        account_identity_number => unmarshal(string, AccountIdentityNumber)
     });
 unmarshal(generic_resource, #'fistful_base_ResourceGenericData'{
     provider = PaymentService,
