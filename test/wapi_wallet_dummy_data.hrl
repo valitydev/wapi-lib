@@ -103,7 +103,8 @@
     sessions = [],
     adjustments = [],
     metadata = ?DEFAULT_METADATA(),
-    context = ?DEFAULT_CONTEXT(PartyID)
+    context = ?DEFAULT_CONTEXT(PartyID),
+    quote = ?WITHDRAWAL_QUOTE
 }).
 
 -define(WITHDRAWAL_QUOTE, #wthd_Quote{

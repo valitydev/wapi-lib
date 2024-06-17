@@ -435,7 +435,8 @@ unmarshal(withdrawal, #wthd_WithdrawalState{
     external_id = ExternalID,
     status = Status,
     created_at = CreatedAt,
-    metadata = Metadata
+    metadata = Metadata,
+    quote = Quote
 }) ->
     UnmarshaledMetadata = maybe_unmarshal(context, Metadata),
     genlib_map:compact(
@@ -447,7 +448,8 @@ unmarshal(withdrawal, #wthd_WithdrawalState{
                 <<"body">> => unmarshal_body(Body),
                 <<"createdAt">> => CreatedAt,
                 <<"externalID">> => ExternalID,
-                <<"metadata">> => UnmarshaledMetadata
+                <<"metadata">> => UnmarshaledMetadata,
+                <<"quote">> => maybe_unmarshal(quote, Quote)
             },
             unmarshal_status(Status)
         )
