@@ -209,7 +209,8 @@ construct_resource(
                 token => maybe_marshal(string, maps:get(<<"token">>, Resource, undefined)),
                 account_name => maybe_marshal(string, maps:get(<<"accountName">>, Resource, undefined)),
                 account_identity_number => maybe_marshal(
-                  string, maps:get(<<"accountIdentityNumber">>, Resource, undefined)
+                    string,
+                    maps:get(<<"accountIdentityNumber">>, Resource, undefined)
                 )
             }
         }},
