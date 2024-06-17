@@ -449,12 +449,24 @@ unmarshal(withdrawal, #wthd_WithdrawalState{
                 <<"createdAt">> => CreatedAt,
                 <<"externalID">> => ExternalID,
                 <<"metadata">> => UnmarshaledMetadata,
-                <<"quote">> => maybe_unmarshal(quote, Quote)
+                <<"quote">> => maybe_unmarshal(quote_state, Quote)
             },
             unmarshal_status(Status)
         )
     );
 unmarshal(quote, #wthd_Quote{
+    cash_from = CashFrom,
+    cash_to = CashTo,
+    created_at = CreatedAt,
+    expires_on = ExpiresOn
+}) ->
+    #{
+        <<"cashFrom">> => unmarshal_body(CashFrom),
+        <<"cashTo">> => unmarshal_body(CashTo),
+        <<"createdAt">> => CreatedAt,
+        <<"expiresOn">> => ExpiresOn
+    };
+unmarshal(quote_state, #wthd_QuoteState{
     cash_from = CashFrom,
     cash_to = CashTo,
     created_at = CreatedAt,
