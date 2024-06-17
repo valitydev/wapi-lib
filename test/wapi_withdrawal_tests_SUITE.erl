@@ -295,10 +295,14 @@ get_ok(C) ->
         ],
         C
     ),
+    Cash = #{
+        <<"amount">> => 10000,
+        <<"currency">> => <<"RUB">>
+    },
     {ok, #{
         <<"quote">> := #{
-            <<"cashFrom">> := ?CASH,
-            <<"cashTo">> := ?CASH,
+            <<"cashFrom">> := Cash,
+            <<"cashTo">> := Cash,
             <<"createdAt">> := ?TIMESTAMP,
             <<"expiresOn">> := ?TIMESTAMP
         }
