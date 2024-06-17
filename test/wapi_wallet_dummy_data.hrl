@@ -104,7 +104,14 @@
     adjustments = [],
     metadata = ?DEFAULT_METADATA(),
     context = ?DEFAULT_CONTEXT(PartyID),
-    quote = ?WITHDRAWAL_QUOTE
+    quote = ?WITHDRAWAL_QUOTE_STATE
+}).
+
+-define(WITHDRAWAL_QUOTE_STATE, #wthd_QuoteState{
+    cash_from = ?CASH,
+    cash_to = ?CASH,
+    created_at = ?TIMESTAMP,
+    expires_on = ?TIMESTAMP
 }).
 
 -define(WITHDRAWAL_QUOTE, #wthd_Quote{
