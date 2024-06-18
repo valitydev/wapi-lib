@@ -295,7 +295,18 @@ get_ok(C) ->
         ],
         C
     ),
-    {ok, _} = call_api(
+    Cash = #{
+        <<"amount">> => 10000,
+        <<"currency">> => <<"RUB">>
+    },
+    {ok, #{
+        <<"quote">> := #{
+            <<"cashFrom">> := Cash,
+            <<"cashTo">> := Cash,
+            <<"createdAt">> := ?TIMESTAMP,
+            <<"expiresOn">> := ?TIMESTAMP
+        }
+    }} = call_api(
         fun swag_client_wallet_withdrawals_api:get_withdrawal/3,
         #{
             binding => #{
