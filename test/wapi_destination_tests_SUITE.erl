@@ -656,7 +656,7 @@ generate_resource(digital_wallet) ->
             id = uniq(),
             payment_service = #'fistful_base_PaymentServiceRef'{id = generate_digital_wallet_provider()},
             account_name = <<"AccountNAME">>,
-            account_identity_number = <<"ACCOUNT_IDENTITY_NUMBER">>
+            account_identity_number = <<"AccountIdentityNumber">>
         }
     }}.
 
