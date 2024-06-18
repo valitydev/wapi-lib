@@ -330,7 +330,7 @@ digital_wallet_resource_test(C) ->
     ?assertEqual(<<"DigitalWalletDestinationResource">>, maps:get(<<"type">>, SwagResource)),
     ?assertEqual(<<"nomoney">>, maps:get(<<"provider">>, SwagResource)),
     ?assertEqual(<<"AccountNAME">>, maps:get(<<"accountName">>, SwagResource)),
-    ?assertEqual(<<"ACCOUNT_IDENTITY_NUMBER">>, maps:get(<<"accountIdentityNumber">>, SwagResource)),
+    ?assertEqual(<<"AccountIdentityNumber">>, maps:get(<<"accountIdentityNumber">>, SwagResource)),
     {digital_wallet, #'fistful_base_ResourceDigitalWallet'{digital_wallet = #'fistful_base_DigitalWallet'{id = ID}}} =
         Resource,
     ?assertEqual(ID, maps:get(<<"id">>, SwagResource)).
