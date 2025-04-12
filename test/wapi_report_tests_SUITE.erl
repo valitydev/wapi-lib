@@ -5,7 +5,6 @@
 -include_lib("fistful_reporter_proto/include/ffreport_reports_thrift.hrl").
 -include_lib("wapi_wallet_dummy_data.hrl").
 -include_lib("fistful_proto/include/fistful_fistful_thrift.hrl").
--include_lib("fistful_proto/include/fistful_identity_thrift.hrl").
 -include_lib("wapi_bouncer_data.hrl").
 
 -export([all/0]).
@@ -114,8 +113,7 @@ create_report_ok_test(C) ->
                     {ok, ?REPORT};
                 ('GetReport', _) ->
                     erlang:throw("Unexpected party id")
-            end},
-            {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)} end}
+            end}
         ],
         C
     ),
@@ -160,8 +158,7 @@ get_report_ok_test(C) ->
                     {ok, ?REPORT};
                 ('GetReport', _) ->
                     erlang:throw("Unexpected party id")
-            end},
-            {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)} end}
+            end}
         ],
         C
     ),
@@ -197,8 +194,7 @@ get_reports_ok_test(C) ->
                     ]};
                 ('GetReports', _) ->
                     erlang:throw("Unexpected party id")
-            end},
-            {fistful_identity, fun('Get', _) -> {ok, ?IDENTITY(PartyID)} end}
+            end}
         ],
         C
     ),
@@ -228,8 +224,7 @@ reports_with_wrong_identity_ok_test(C) ->
                 ('GenerateReport', _) -> {ok, ?REPORT_ID};
                 ('GetReport', _) -> {ok, ?REPORT};
                 ('GetReports', _) -> {ok, [?REPORT, ?REPORT, ?REPORT]}
-            end},
-            {fistful_identity, fun('Get', _) -> {throwing, #fistful_IdentityNotFound{}} end}
+            end}
         ],
         C
     ),

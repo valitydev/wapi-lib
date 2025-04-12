@@ -205,8 +205,6 @@ marshal(sub_failure, Failure) ->
     };
 marshal(domain_revision, V) when is_integer(V) ->
     V;
-marshal(party_revision, V) when is_integer(V) ->
-    V;
 marshal(string, V) when is_binary(V) ->
     V;
 marshal(integer, V) when is_integer(V) ->
@@ -394,8 +392,6 @@ unmarshal(sub_failure, Failure) ->
         sub => maybe_unmarshal(sub_failure, Failure#'fistful_base_SubFailure'.sub)
     });
 unmarshal(domain_revision, V) when is_integer(V) ->
-    V;
-unmarshal(party_revision, V) when is_integer(V) ->
     V;
 unmarshal(string, V) when is_binary(V) ->
     V;

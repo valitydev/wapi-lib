@@ -102,8 +102,7 @@ payload_symmetry_test() ->
                 bin_data_id = {obj, #{{arr, [{nl, {'msgp_Nil'}}]} => {arr, [{nl, {'msgp_Nil'}}]}}}
             }},
         operation_timestamp = <<"1970-01-01T00:00:00.234Z">>,
-        domain_revision = 1,
-        party_revision = 2
+        domain_revision = 1
     },
     Payload = create_token_payload(ThriftQuote, WalletID, DestinationID, PartyID),
     {ok, {Decoded, WalletID, DestinationID, PartyID}} = decode_token_payload(Payload),
@@ -140,8 +139,7 @@ payload_v2_decoding_test() ->
                 bin_data_id = {obj, #{{arr, [{nl, {'msgp_Nil'}}]} => {arr, [{nl, {'msgp_Nil'}}]}}}
             }},
         operation_timestamp = <<"1970-01-01T00:00:00.234Z">>,
-        domain_revision = 1,
-        party_revision = 2
+        domain_revision = 1
     },
     Payload = #{
         <<"version">> => 2,
@@ -183,8 +181,7 @@ payload_v1_decoding_test() ->
             <<"terminal_id">> => 2,
             <<"resource_id">> => #{<<"bank_card">> => 5},
             <<"timestamp">> => 234,
-            <<"domain_revision">> => 1,
-            <<"party_revision">> => 2
+            <<"domain_revision">> => 1
         }
     },
     ?assertEqual(

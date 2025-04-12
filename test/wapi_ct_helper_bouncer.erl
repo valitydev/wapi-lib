@@ -132,7 +132,7 @@ make_entity({report, ID, Data = #{party := PartyID}}) ->
         id = ID,
         type = <<"WalletReport">>,
         wallet = #base_WalletAttrs{
-            party = PartyID,
+            identity = PartyID,
             report = wapi_handler_utils:maybe_with(files, Data, fun build_report_attrs/1)
         }
     };
@@ -141,7 +141,7 @@ make_entity({webhook, ID, Data = #{party := PartyID}}) ->
         id = ID,
         type = <<"WalletWebhook">>,
         wallet = #base_WalletAttrs{
-            party = PartyID,
+            identity = PartyID,
             wallet = maps:get(wallet, Data, undefined)
         }
     }.

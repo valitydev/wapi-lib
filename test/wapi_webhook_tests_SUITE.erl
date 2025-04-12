@@ -8,8 +8,6 @@
 -include_lib("fistful_proto/include/fistful_fistful_base_thrift.hrl").
 -include_lib("fistful_proto/include/fistful_fistful_thrift.hrl").
 -include_lib("fistful_proto/include/fistful_account_thrift.hrl").
--include_lib("fistful_proto/include/fistful_identity_thrift.hrl").
--include_lib("fistful_proto/include/fistful_wallet_thrift.hrl").
 -include_lib("fistful_proto/include/fistful_webhooker_thrift.hrl").
 
 -export([all/0]).
@@ -114,11 +112,7 @@ create_webhook_ok_test(C) ->
     ),
     _ = wapi_ct_helper:mock_services(
         [
-            {webhook_manager, fun('Create', _) -> {ok, ?WEBHOOK(?DESTINATION_EVENT_FILTER)} end},
-            {fistful_identity, fun
-                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-                ('Get', _) -> {ok, ?IDENTITY(PartyID)}
-            end}
+            {webhook_manager, fun('Create', _) -> {ok, ?WEBHOOK(?DESTINATION_EVENT_FILTER)} end}
         ],
         C
     ),
@@ -155,15 +149,7 @@ create_withdrawal_webhook_ok_test(C) ->
     ),
     _ = wapi_ct_helper:mock_services(
         [
-            {webhook_manager, fun('Create', _) -> {ok, ?WEBHOOK_WITH_WALLET(?WITHDRAWAL_EVENT_FILTER, WalletID)} end},
-            {fistful_identity, fun
-                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-                ('Get', _) -> {ok, ?IDENTITY(PartyID)}
-            end},
-            {fistful_wallet, fun
-                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-                ('Get', _) -> {ok, ?WALLET(PartyID)}
-            end}
+            {webhook_manager, fun('Create', _) -> {ok, ?WEBHOOK_WITH_WALLET(?WITHDRAWAL_EVENT_FILTER, WalletID)} end}
         ],
         C
     ),
@@ -191,10 +177,6 @@ get_webhooks_ok_test(C) ->
         [
             {webhook_manager, fun('GetList', _) ->
                 {ok, [?WEBHOOK(?WITHDRAWAL_EVENT_FILTER), ?WEBHOOK(?DESTINATION_EVENT_FILTER)]}
-            end},
-            {fistful_identity, fun
-                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-                ('Get', _) -> {ok, ?IDENTITY(PartyID)}
             end}
         ],
         C
@@ -226,11 +208,7 @@ get_webhook_ok_test(C) ->
     ),
     _ = wapi_ct_helper:mock_services(
         [
-            {webhook_manager, fun('Get', _) -> {ok, ?WEBHOOK(?WITHDRAWAL_EVENT_FILTER)} end},
-            {fistful_identity, fun
-                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-                ('Get', _) -> {ok, ?IDENTITY(PartyID)}
-            end}
+            {webhook_manager, fun('Get', _) -> {ok, ?WEBHOOK(?WITHDRAWAL_EVENT_FILTER)} end}
         ],
         C
     ),
@@ -267,10 +245,6 @@ delete_webhook_ok_test(C) ->
             {webhook_manager, fun
                 ('Get', _) -> {ok, ?WEBHOOK(?WITHDRAWAL_EVENT_FILTER)};
                 ('Delete', _) -> {ok, ok}
-            end},
-            {fistful_identity, fun
-                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-                ('Get', _) -> {ok, ?IDENTITY(PartyID)}
             end}
         ],
         C
