@@ -42,10 +42,10 @@ mock_assert_party_op_ctx(Op, PartyID, Config) ->
     ).
 
 -spec mock_assert_identity_op_ctx(_, _, _, _) -> _.
-mock_assert_identity_op_ctx(Op, IdentityID, PartyID, Config) ->
+mock_assert_identity_op_ctx(Op, PartyID, PartyID, Config) ->
     mock_assert_generic_op_ctx(
-        [{identity, IdentityID, PartyID}],
-        ?CTX_WAPI(?CTX_IDENTITY_OP(Op, IdentityID)),
+        [{party, PartyID, PartyID}],
+        ?CTX_WAPI(?CTX_IDENTITY_OP(Op, PartyID)),
         Config
     ).
 
@@ -96,10 +96,10 @@ mock_assert_generic_op_ctx(Entities, WapiContext, Config) ->
 
 %%
 
-make_entity({identity, ID, OwnerID}) ->
+make_entity({party, ID, OwnerID}) ->
     #base_Entity{
         id = ID,
-        type = <<"Identity">>,
+        type = <<"Party">>,
         party = OwnerID
     };
 make_entity({wallet, ID, OwnerID}) ->
@@ -127,21 +127,21 @@ make_entity({destination, ID, OwnerID}) ->
         type = <<"Destination">>,
         party = OwnerID
     };
-make_entity({report, ID, Data = #{identity := IdentityID}}) ->
+make_entity({report, ID, Data = #{party := PartyID}}) ->
     #base_Entity{
         id = ID,
         type = <<"WalletReport">>,
         wallet = #base_WalletAttrs{
-            identity = IdentityID,
+            party = PartyID,
             report = wapi_handler_utils:maybe_with(files, Data, fun build_report_attrs/1)
         }
     };
-make_entity({webhook, ID, Data = #{identity := IdentityID}}) ->
+make_entity({webhook, ID, Data = #{party := PartyID}}) ->
     #base_Entity{
         id = ID,
         type = <<"WalletWebhook">>,
         wallet = #base_WalletAttrs{
-            identity = IdentityID,
+            party = PartyID,
             wallet = maps:get(wallet, Data, undefined)
         }
     }.

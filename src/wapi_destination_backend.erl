@@ -22,10 +22,9 @@
     DestinationError ::
         {invalid_resource_token, binary()}
         | {invalid_generic_resource, {binary(), unknown_resource}}
-        | {identity, notfound}
+        | {party, notfound}
         | {currency, notfound}
         | inaccessible
-        | forbidden_withdrawal_method
         | {external_id_conflict, {id(), external_id()}}.
 create(Params, HandlerContext) ->
     do(fun() ->
@@ -77,7 +76,7 @@ generate_id_legacy(Params, HandlerContext) ->
 is_id_unknown(
     ID,
     #{
-        <<"identity">> := IdentityID,
+        <<"party">> := PartyID,
         <<"currency">> := CurrencyID,
         <<"name">> := Name
     },
@@ -89,7 +88,7 @@ is_id_unknown(
         {ok,
             #{
                 <<"id">> := ID,
-                <<"identity">> := IdentityID,
+                <<"party">> := PartyID,
                 <<"currency">> := CurrencyID,
                 <<"name">> := Name
             },
@@ -110,8 +109,8 @@ create_request(ID, Params, ResourceThrift, HandlerContext) ->
     case service_call(Request, HandlerContext) of
         {ok, Destination} ->
             {ok, unmarshal(destination, Destination)};
-        {exception, #fistful_IdentityNotFound{}} ->
-            {error, {identity, notfound}};
+        {exception, #fistful_PartyNotFound{}} ->
+            {error, {party, notfound}};
         {exception, #fistful_CurrencyNotFound{}} ->
             {error, {currency, notfound}};
         {exception, #fistful_PartyInaccessible{}} ->
@@ -275,7 +274,8 @@ marshal(
     destination_params,
     #{
         <<"id">> := ID,
-        <<"identity">> := IdentityID,
+        <<"partyID">> := PartyID,
+        <<"realm">> := Realm,
         <<"currency">> := CurrencyID,
         <<"name">> := Name,
         <<"resourceThrift">> := Resource
@@ -285,7 +285,8 @@ marshal(
     AuthData = maps:get(<<"additionalAuthData">>, Params, undefined),
     #destination_DestinationParams{
         id = marshal(id, ID),
-        identity = marshal(id, IdentityID),
+        party_id = marshal(id, PartyID),
+        realm = marshal(realm, Realm),
         name = marshal(string, Name),
         currency = marshal(string, CurrencyID),
         external_id = maybe_marshal(id, ExternalID),
@@ -313,26 +314,26 @@ maybe_marshal(T, V) ->
 
 unmarshal(destination, #destination_DestinationState{
     id = DestinationID,
+    party_id = PartyID,
+    realm = Realm,
     name = Name,
     account = Account,
     external_id = ExternalID,
     created_at = CreatedAt,
     resource = Resource,
-    status = Status,
     blocking = Blocking,
     context = Context
 }) ->
     #{
-        identity := Identity,
         currency := Currency
     } = unmarshal(account, Account),
     UnmarshaledContext = unmarshal(context, Context),
     genlib_map:compact(#{
         <<"id">> => unmarshal(id, DestinationID),
         <<"name">> => unmarshal(string, Name),
-        <<"status">> => unmarshal(status, Status),
+        <<"realm">> => unmarshal(realm, Realm),
         <<"isBlocked">> => maybe_unmarshal(blocking, Blocking),
-        <<"identity">> => Identity,
+        <<"partyID">> => PartyID,
         <<"currency">> => Currency,
         <<"createdAt">> => CreatedAt,
         <<"resource">> => unmarshal(resource, Resource),
@@ -343,10 +344,6 @@ unmarshal(blocking, unblocked) ->
     false;
 unmarshal(blocking, blocked) ->
     true;
-unmarshal(status, {authorized, #destination_Authorized{}}) ->
-    <<"Authorized">>;
-unmarshal(status, {unauthorized, #destination_Unauthorized{}}) ->
-    <<"Unauthorized">>;
 unmarshal(
     resource,
     {bank_card, #'fistful_base_ResourceBankCard'{

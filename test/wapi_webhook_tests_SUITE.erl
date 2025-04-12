@@ -104,11 +104,11 @@ create_webhook_ok_test(C) ->
     PartyID = ?config(party, C),
     _ = wapi_ct_helper_bouncer:mock_assert_generic_op_ctx(
         [
-            {identity, ?STRING, PartyID}
+            {party, ?STRING, PartyID}
         ],
         ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
             id = <<"CreateWebhook">>,
-            identity = ?STRING
+            party = ?STRING
         }),
         C
     ),
@@ -143,12 +143,12 @@ create_withdrawal_webhook_ok_test(C) ->
     WalletID = ?STRING,
     _ = wapi_ct_helper_bouncer:mock_assert_generic_op_ctx(
         [
-            {identity, ?STRING, PartyID},
+            {party, ?STRING, PartyID},
             {wallet, ?STRING, PartyID}
         ],
         ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
             id = <<"CreateWebhook">>,
-            identity = ?STRING,
+            party = ?STRING,
             wallet = ?STRING
         }),
         C
@@ -214,12 +214,12 @@ get_webhook_ok_test(C) ->
     PartyID = ?config(party, C),
     _ = wapi_ct_helper_bouncer:mock_assert_generic_op_ctx(
         [
-            {webhook, integer_to_binary(?INTEGER), #{identity => ?STRING}},
-            {identity, ?STRING, PartyID}
+            {webhook, integer_to_binary(?INTEGER), #{party => ?STRING}},
+            {party, ?STRING, PartyID}
         ],
         ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
             id = <<"GetWebhookByID">>,
-            identity = ?STRING,
+            party = ?STRING,
             webhook = integer_to_binary(?INTEGER)
         }),
         C
@@ -252,12 +252,12 @@ delete_webhook_ok_test(C) ->
     PartyID = ?config(party, C),
     _ = wapi_ct_helper_bouncer:mock_assert_generic_op_ctx(
         [
-            {webhook, integer_to_binary(?INTEGER), #{identity => ?STRING}},
-            {identity, ?STRING, PartyID}
+            {webhook, integer_to_binary(?INTEGER), #{party => ?STRING}},
+            {party, ?STRING, PartyID}
         ],
         ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
             id = <<"DeleteWebhookByID">>,
-            identity = ?STRING,
+            party = ?STRING,
             webhook = integer_to_binary(?INTEGER)
         }),
         C

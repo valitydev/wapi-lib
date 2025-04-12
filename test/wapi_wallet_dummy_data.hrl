@@ -141,7 +141,7 @@
 
 -define(ACCOUNT, #account_Account{
     id = ?STRING,
-    identity = ?STRING,
+    party = ?STRING,
     currency = #'fistful_base_CurrencyRef'{
         symbolic_code = ?RUB
     },
@@ -265,7 +265,7 @@
     {wallets, [
         #stat_StatWallet{
             id = ?STRING,
-            identity_id = ?STRING,
+            party_id = ?STRING,
             name = ?STRING,
             created_at = ?TIMESTAMP,
             currency_symbolic_code = ?RUB
@@ -278,7 +278,7 @@
         #stat_StatWithdrawal{
             id = ?STRING,
             created_at = ?TIMESTAMP,
-            identity_id = ?STRING,
+            party_id = ?STRING,
             source_id = ?STRING,
             destination_id = ?STRING,
             external_id = ?STRING,
@@ -295,7 +295,7 @@
         #stat_StatDeposit{
             id = ?STRING,
             created_at = ?TIMESTAMP,
-            identity_id = ?STRING,
+            party_id = ?STRING,
             source_id = ?STRING,
             destination_id = ?STRING,
             amount = ?INTEGER,
@@ -314,7 +314,7 @@
             name = ?STRING,
             created_at = ?TIMESTAMP,
             is_blocked = ?BOOLEAN,
-            identity = ?STRING,
+            party = ?STRING,
             currency_symbolic_code = ?RUB,
             resource = {bank_card, ?BANK_CARD},
             external_id = ?STRING,
@@ -325,7 +325,7 @@
             name = ?STRING,
             created_at = ?TIMESTAMP,
             is_blocked = ?BOOLEAN,
-            identity = ?STRING,
+            party = ?STRING,
             currency_symbolic_code = ?RUB,
             resource = {digital_wallet, ?DIGITAL_WALLET},
             external_id = ?STRING,
@@ -447,7 +447,7 @@
 
 -define(WEBHOOK_WITH_WALLET(EventFilter, WalletID), #webhooker_Webhook{
     id = ?INTEGER,
-    identity_id = ?STRING,
+    party_id = ?STRING,
     wallet_id = WalletID,
     event_filter = EventFilter,
     url = ?URL,

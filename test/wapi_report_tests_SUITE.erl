@@ -143,12 +143,12 @@ get_report_ok_test(C) ->
     ParamPartyID = genlib:bsuuid(),
     _ = wapi_ct_helper_bouncer:mock_assert_generic_op_ctx(
         [
-            {report, genlib:to_binary(?INTEGER), #{identity => ?STRING, files => [?STRING, ?STRING, ?STRING]}},
-            {identity, ?STRING, PartyID}
+            {report, genlib:to_binary(?INTEGER), #{party => ?STRING, files => [?STRING, ?STRING, ?STRING]}},
+            {party, ?STRING, PartyID}
         ],
         ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
             id = <<"GetReport">>,
-            identity = ?STRING,
+            party = ?STRING,
             report = genlib:to_binary(?INTEGER)
         }),
         C
@@ -220,7 +220,7 @@ get_reports_ok_test(C) ->
 
 -spec reports_with_wrong_identity_ok_test(config()) -> _.
 reports_with_wrong_identity_ok_test(C) ->
-    IdentityID = <<"WrongIdentity">>,
+    PartyID = <<"WrongIdentity">>,
     _ = wapi_ct_helper_bouncer:mock_arbiter(_ = wapi_ct_helper_bouncer:judge_always_forbidden(), C),
     _ = wapi_ct_helper:mock_services(
         [
@@ -237,7 +237,7 @@ reports_with_wrong_identity_ok_test(C) ->
         fun swag_client_wallet_reports_api:create_report/3,
         #{
             binding => #{
-                <<"identityID">> => IdentityID
+                <<"identityID">> => PartyID
             },
             body => #{
                 <<"reportType">> => <<"withdrawalRegistry">>,
@@ -251,7 +251,7 @@ reports_with_wrong_identity_ok_test(C) ->
         fun swag_client_wallet_reports_api:get_report/3,
         #{
             binding => #{
-                <<"identityID">> => IdentityID,
+                <<"identityID">> => PartyID,
                 <<"reportID">> => ?INTEGER
             }
         },
@@ -261,7 +261,7 @@ reports_with_wrong_identity_ok_test(C) ->
         fun swag_client_wallet_reports_api:get_reports/3,
         #{
             binding => #{
-                <<"identityID">> => IdentityID
+                <<"identityID">> => PartyID
             },
             qs_val => #{
                 <<"fromTime">> => ?TIMESTAMP,

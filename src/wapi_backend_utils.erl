@@ -1,10 +1,7 @@
 -module(wapi_backend_utils).
 
 -include_lib("fistful_proto/include/fistful_fistful_base_thrift.hrl").
--include_lib("fistful_proto/include/fistful_identity_thrift.hrl").
--include_lib("fistful_proto/include/fistful_wallet_thrift.hrl").
 -include_lib("fistful_proto/include/fistful_destination_thrift.hrl").
--include_lib("fistful_proto/include/fistful_w2w_transfer_thrift.hrl").
 -include_lib("fistful_proto/include/fistful_wthd_thrift.hrl").
 
 -define(EXTERNAL_ID, <<"externalID">>).
@@ -33,23 +30,13 @@
 -type hash() :: integer().
 -type params() :: map().
 -type gen_type() ::
-    identity
-    | identity_challenge
-    | wallet
-    | destination
-    | withdrawal
-    | w2w_transfer.
+    destination
+    | withdrawal.
 -type entity_type() ::
-    identity
-    | wallet
-    | destination
-    | withdrawal
-    | w2w_transfer.
+    destination
+    | withdrawal.
 -type entity_state() ::
-    fistful_identity_thrift:'IdentityState'()
-    | fistful_wallet_thrift:'WalletState'()
-    | fistful_destination_thrift:'DestinationState'()
-    | fistful_w2w_transfer_thrift:'W2WTransferState'()
+    fistful_destination_thrift:'DestinationState'()
     | fistful_wthd_thrift:'WithdrawalState'().
 
 -export([gen_id/3]).
@@ -112,7 +99,6 @@ gen_sequence_id(Type, IdempotentKey, Hash, #{woody_context := WoodyCtx}) ->
 make_ctx(Params) ->
     #{
         ?CTX_NS => genlib_map:compact(#{
-            <<"owner">> => maps:get(<<"partyID">>, Params),
             <<"metadata">> => maps:get(<<"metadata">>, Params, undefined)
         })
     }.
@@ -213,19 +199,9 @@ tokenize_resource(Value) ->
 
 -spec get_entity_owner(entity_type(), entity_state()) -> {ok, id()}.
 get_entity_owner(Type, State) ->
-    {ok, get_context_owner(get_context_from_state(Type, State))}.
+    {ok, get_owner(Type, State)}.
 
-get_context_from_state(identity, #identity_IdentityState{context = Context}) ->
-    Context;
-get_context_from_state(wallet, #wallet_WalletState{context = Context}) ->
-    Context;
-get_context_from_state(destination, #destination_DestinationState{context = Context}) ->
-    Context;
-get_context_from_state(w2w_transfer, #w2w_transfer_W2WTransferState{context = Context}) ->
-    Context;
-get_context_from_state(withdrawal, #wthd_WithdrawalState{context = Context}) ->
-    Context.
-
-get_context_owner(ContextThrift) ->
-    Context = wapi_codec:unmarshal(context, ContextThrift),
-    wapi_backend_utils:get_from_ctx(<<"owner">>, Context).
+get_owner(destination, #destination_DestinationState{party_id = PartyID}) ->
+    PartyID;
+get_owner(withdrawal, #wthd_WithdrawalState{party_id = PartyID}) ->
+    PartyID.

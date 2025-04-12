@@ -62,6 +62,10 @@ marshal(provider_id, V) ->
     marshal(integer, V);
 marshal(terminal_id, V) ->
     marshal(integer, V);
+marshal(realm, <<"test">>) ->
+    test;
+marshal(realm, <<"live">>) ->
+    live;
 marshal(blocking, blocked) ->
     blocked;
 marshal(blocking, unblocked) ->
@@ -69,16 +73,15 @@ marshal(blocking, unblocked) ->
 marshal(account_change, {created, Account}) ->
     {created, marshal(account, Account)};
 marshal(account, #{
-    id := ID,
-    identity := IdentityID,
+    realm := Realm,
     currency := CurrencyID,
-    accounter_account_id := AAID
-}) ->
+    account_id := AID
+} = Account) ->
     #'account_Account'{
-        id = marshal(id, ID),
-        identity = marshal(id, IdentityID),
+        realm = Realm,
+        party_id = maybe_marshal(id, maps:get(party_id, Account, undefined)),
         currency = marshal(currency_ref, CurrencyID),
-        accounter_account_id = marshal(event_id, AAID)
+        account_id = marshal(integer, AID)
     };
 marshal(resource, {bank_card, #{bank_card := BankCard} = ResourceBankCard}) ->
     {bank_card, #'fistful_base_ResourceBankCard'{
@@ -231,6 +234,10 @@ unmarshal(provider_id, V) ->
     unmarshal(integer, V);
 unmarshal(terminal_id, V) ->
     unmarshal(integer, V);
+unmarshal(realm, test) ->
+    <<"test">>;
+unmarshal(realm, live) ->
+    <<"live">>;
 unmarshal(blocking, blocked) ->
     blocked;
 unmarshal(blocking, unblocked) ->
@@ -238,16 +245,16 @@ unmarshal(blocking, unblocked) ->
 unmarshal(account_change, {created, Account}) ->
     {created, unmarshal(account, Account)};
 unmarshal(account, #'account_Account'{
-    id = ID,
-    identity = IdentityID,
+    party_id = PartyID,
+    realm = Realm,
     currency = CurrencyRef,
-    accounter_account_id = AAID
+    account_id = AID
 }) ->
     #{
-        id => unmarshal(id, ID),
-        identity => unmarshal(id, IdentityID),
+        realm => Realm,
+        party_id => maybe_unmarshal(id, PartyID),
         currency => unmarshal(currency_ref, CurrencyRef),
-        accounter_account_id => unmarshal(accounter_account_id, AAID)
+        account_id => unmarshal(account_id, AID)
     };
 unmarshal(accounter_account_id, V) ->
     unmarshal(integer, V);

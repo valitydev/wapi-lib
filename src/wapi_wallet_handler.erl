@@ -71,230 +71,7 @@ mask_notfound(Resolution) ->
 
 %% Providers
 -spec prepare(operation_id(), request_data(), handler_context(), handler_opts()) -> {ok, request_state()}.
-prepare('ListProviders' = OperationID, #{'residence' := Residence}, Context, _Opts) ->
-    Authorize = fun() ->
-        Prototypes = [{operation, #{id => OperationID}}],
-        Resolution = wapi_auth:authorize_operation(Prototypes, Context),
-        {ok, Resolution}
-    end,
-    Process = fun() ->
-        Providers = wapi_provider_backend:get_providers(maybe_to_list(Residence), Context),
-        wapi_handler_utils:reply_ok(200, Providers)
-    end,
-    {ok, #{authorize => Authorize, process => Process}};
-prepare('GetProvider' = OperationID, #{'providerID' := ID}, Context, _Opts) ->
-    Authorize = fun() ->
-        Prototypes = [{operation, #{id => OperationID}}],
-        Resolution = wapi_auth:authorize_operation(Prototypes, Context),
-        {ok, Resolution}
-    end,
-    Process = fun() ->
-        case wapi_provider_backend:get_provider(ID, Context) of
-            {ok, Provider} -> wapi_handler_utils:reply_ok(200, Provider);
-            {error, notfound} -> wapi_handler_utils:reply_ok(404)
-        end
-    end,
-    {ok, #{authorize => Authorize, process => Process}};
-%% Identities
-prepare('ListIdentities' = OperationID, Req0, Context, _Opts) ->
-    {Req, PartyID} = patch_party_req(Context, Req0),
-    Authorize = fun() ->
-        Prototypes = [{operation, #{party => PartyID, id => OperationID}}],
-        Resolution = wapi_auth:authorize_operation(Prototypes, Context),
-        {ok, Resolution}
-    end,
-    Process = fun() ->
-        case wapi_stat_backend:list_identities(Req, Context) of
-            {ok, List} ->
-                wapi_handler_utils:reply_ok(200, List);
-            {error, {invalid, Errors}} ->
-                wapi_handler_utils:reply_ok(400, #{
-                    <<"errorType">> => <<"NoMatch">>,
-                    <<"description">> => Errors
-                });
-            {error, {bad_token, Reason}} ->
-                wapi_handler_utils:reply_ok(400, #{
-                    <<"errorType">> => <<"InvalidToken">>,
-                    <<"description">> => Reason
-                })
-        end
-    end,
-    {ok, #{authorize => Authorize, process => Process}};
-prepare('GetWithdrawalMethods' = OperationID, #{'identityID' := IdentityID}, Context, _Opts) ->
-    {ResultIdentity, ResultOwner} =
-        case wapi_identity_backend:get(IdentityID, Context) of
-            {ok, Identity, Owner} -> {Identity, Owner};
-            {error, {identity, notfound}} -> {undefined, undefined}
-        end,
-    Authorize = fun() ->
-        Prototypes = [
-            {operation, #{identity => IdentityID, id => OperationID}},
-            {wallet, [wapi_bouncer_context:build_wallet_entity(identity, ResultIdentity, {party, ResultOwner})]}
-        ],
-        Resolution = mask_notfound(wapi_auth:authorize_operation(Prototypes, Context)),
-        {ok, Resolution}
-    end,
-    Process = fun() ->
-        case wapi_identity_backend:get_identity_withdrawal_methods(IdentityID, Context) of
-            {ok, WithdrawalMethods} ->
-                wapi_handler_utils:reply_ok(200, WithdrawalMethods);
-            {error, {identity, notfound}} ->
-                wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>))
-        end
-    end,
-    {ok, #{authorize => Authorize, process => Process}};
-prepare('GetIdentity' = OperationID, #{'identityID' := IdentityID}, Context, _Opts) ->
-    {ResultIdentity, ResultOwner} =
-        case wapi_identity_backend:get(IdentityID, Context) of
-            {ok, Identity, Owner} -> {Identity, Owner};
-            {error, {identity, notfound}} -> {undefined, undefined}
-        end,
-    Authorize = fun() ->
-        Prototypes = [
-            {operation, #{identity => IdentityID, id => OperationID}},
-            {wallet, [wapi_bouncer_context:build_wallet_entity(identity, ResultIdentity, {party, ResultOwner})]}
-        ],
-        Resolution = mask_notfound(wapi_auth:authorize_operation(Prototypes, Context)),
-        {ok, Resolution}
-    end,
-    Process = fun() ->
-        wapi_handler_utils:reply_ok(200, ResultIdentity)
-    end,
-    {ok, #{authorize => Authorize, process => Process}};
-prepare('CreateIdentity' = OperationID, #{'Identity' := Params}, Context, Opts) ->
-    PartyID =
-        case maps:get(<<"partyID">>, Params, undefined) of
-            undefined ->
-                wapi_handler_utils:get_owner(Context);
-            OwnerID ->
-                OwnerID
-        end,
-    Authorize = fun() ->
-        Prototypes = [
-            {
-                operation,
-                #{party => PartyID, id => OperationID}
-            }
-        ],
-        Resolution = wapi_auth:authorize_operation(Prototypes, Context),
-        {ok, Resolution}
-    end,
-    Process = fun() ->
-        case wapi_identity_backend:create(Params#{<<"partyID">> => PartyID}, Context) of
-            {ok, Identity = #{<<"id">> := IdentityID}} ->
-                wapi_handler_utils:reply_ok(201, Identity, get_location('GetIdentity', [IdentityID], Context, Opts));
-            {error, {inaccessible, _}} ->
-                wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Party inaccessible">>));
-            {error, {party, notfound}} ->
-                wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Party does not exist">>));
-            {error, {provider, notfound}} ->
-                wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such provider">>));
-            {error, inaccessible} ->
-                wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Identity inaccessible">>));
-            {error, {external_id_conflict, ID}} ->
-                wapi_handler_utils:reply_ok(409, #{<<"id">> => ID})
-        end
-    end,
-    {ok, #{authorize => Authorize, process => Process}};
-%% Wallets
-prepare('ListWallets' = OperationID, Req0, Context, _Opts) ->
-    AuthContext = build_auth_context(
-        [wapi_handler_utils:maybe_with('identityID', Req0, fun(IdentityID) -> {identity, IdentityID} end)],
-        [],
-        Context
-    ),
-    {Req, PartyID} = patch_party_req(Context, Req0),
-    Authorize = fun() ->
-        Prototypes = [
-            {operation, build_prototype_for(operation, #{party => PartyID, id => OperationID}, AuthContext)},
-            {wallet, build_prototype_for(wallet, [], AuthContext)}
-        ],
-        Resolution = wapi_auth:authorize_operation(Prototypes, Context),
-        {ok, Resolution}
-    end,
-    Process = fun() ->
-        case wapi_stat_backend:list_wallets(Req, Context) of
-            {ok, List} ->
-                wapi_handler_utils:reply_ok(200, List);
-            {error, {invalid, Errors}} ->
-                wapi_handler_utils:reply_ok(400, #{
-                    <<"errorType">> => <<"NoMatch">>,
-                    <<"description">> => Errors
-                });
-            {error, {bad_token, Reason}} ->
-                wapi_handler_utils:reply_ok(400, #{
-                    <<"errorType">> => <<"InvalidToken">>,
-                    <<"description">> => Reason
-                })
-        end
-    end,
-    {ok, #{authorize => Authorize, process => Process}};
-prepare('GetWallet' = OperationID, #{'walletID' := WalletID}, Context, _Opts) ->
-    {ResultWallet, ResultWalletOwner} =
-        case wapi_wallet_backend:get(WalletID, Context) of
-            {ok, Wallet, Owner} -> {Wallet, Owner};
-            {error, {wallet, notfound}} -> {undefined, undefined}
-        end,
-    Authorize = fun() ->
-        Prototypes = [
-            {operation, #{wallet => WalletID, id => OperationID}},
-            {wallet, [wapi_bouncer_context:build_wallet_entity(wallet, ResultWallet, {party, ResultWalletOwner})]}
-        ],
-        Resolution = mask_notfound(wapi_auth:authorize_operation(Prototypes, Context)),
-        {ok, Resolution}
-    end,
-    Process = fun() ->
-        wapi_handler_utils:reply_ok(200, ResultWallet)
-    end,
-    {ok, #{authorize => Authorize, process => Process}};
-prepare('GetWalletByExternalID' = OperationID, #{'externalID' := ExternalID}, Context, _Opts) ->
-    {ResultWallet, ResultWalletOwner, WalletID} =
-        case wapi_wallet_backend:get_by_external_id(ExternalID, Context) of
-            {ok, Wallet = #{<<"id">> := ID}, Owner} -> {Wallet, Owner, ID};
-            {error, {wallet, notfound}} -> {undefined, undefined, undefined};
-            {error, {external_id, {unknown_external_id, ExternalID}}} -> {undefined, undefined, undefined}
-        end,
-    Authorize = fun() ->
-        Prototypes = [
-            {
-                operation,
-                #{wallet => WalletID, id => OperationID}
-            },
-            {wallet, [wapi_bouncer_context:build_wallet_entity(wallet, ResultWallet, {party, ResultWalletOwner})]}
-        ],
-        Resolution = mask_notfound(wapi_auth:authorize_operation(Prototypes, Context)),
-        {ok, Resolution}
-    end,
-    Process = fun() ->
-        wapi_handler_utils:reply_ok(200, ResultWallet)
-    end,
-    {ok, #{authorize => Authorize, process => Process}};
-prepare('CreateWallet' = OperationID, #{'Wallet' := Params = #{<<"identity">> := IdentityID}}, Context, Opts) ->
-    AuthContext = [IdentityAuthContext] = build_auth_context([{identity, IdentityID}], [], Context),
-    PartyID = get_party_id_from_auth_context(IdentityAuthContext),
-    Authorize = fun() ->
-        Prototypes = [
-            {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},
-            {wallet, build_prototype_for(wallet, [], AuthContext)}
-        ],
-        Resolution = wapi_auth:authorize_operation(Prototypes, Context),
-        {ok, Resolution}
-    end,
-    Process = fun() ->
-        case wapi_wallet_backend:create(add_party_id_to(PartyID, Params), Context) of
-            {ok, Wallet = #{<<"id">> := WalletID}} ->
-                wapi_handler_utils:reply_ok(201, Wallet, get_location('GetWallet', [WalletID], Context, Opts));
-            {error, {identity, notfound}} ->
-                wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
-            {error, {currency, notfound}} ->
-                wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Currency not supported">>));
-            {error, inaccessible} ->
-                wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Identity inaccessible">>));
-            {error, {external_id_conflict, ID}} ->
-                wapi_handler_utils:reply_ok(409, #{<<"id">> => ID})
-        end
-    end,
-    {ok, #{authorize => Authorize, process => Process}};
+
 prepare('GetWalletAccount' = OperationID, #{'walletID' := WalletID}, Context, _Opts) ->
     AuthContext = build_auth_context([{wallet, WalletID}], [], Context),
     Authorize = fun() ->
@@ -306,50 +83,14 @@ prepare('GetWalletAccount' = OperationID, #{'walletID' := WalletID}, Context, _O
         {ok, Resolution}
     end,
     Process = fun() ->
-        case wapi_wallet_backend:get_account(WalletID, Context) of
-            {ok, WalletAccount} -> wapi_handler_utils:reply_ok(200, WalletAccount);
-            {error, {wallet, notfound}} -> wapi_handler_utils:reply_ok(404)
-        end
-    end,
-    {ok, #{authorize => Authorize, process => Process}};
-prepare(
-    'IssueWalletGrant' = OperationID,
-    #{
-        'walletID' := WalletID,
-        'WalletGrantRequest' := #{<<"validUntil">> := Expiration, <<"asset">> := Asset}
-    },
-    Context,
-    _Opts
-) ->
-    AuthContext = build_auth_context([{wallet, WalletID}], [], Context),
-    Authorize = fun() ->
-        Prototypes = [
-            {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},
-            {wallet, build_prototype_for(wallet, [], AuthContext)}
-        ],
-        Resolution = wapi_auth:authorize_operation(Prototypes, Context),
-        {ok, Resolution}
-    end,
-    Process = fun() ->
-        case wapi_backend_utils:issue_grant_token({wallets, WalletID, Asset}, Expiration, Context) of
-            {ok, Token} ->
-                wapi_handler_utils:reply_ok(201, #{
-                    <<"token">> => Token,
-                    <<"validUntil">> => Expiration,
-                    <<"asset">> => Asset
-                });
-            {error, expired} ->
-                wapi_handler_utils:reply_ok(
-                    422,
-                    wapi_handler_utils:get_error_msg(<<"Invalid expiration: already expired">>)
-                )
-        end
+        %% TODO: implement from new party service
+        wapi_handler_utils:reply_ok(404)
     end,
     {ok, #{authorize => Authorize, process => Process}};
 %% Destinations
 prepare('ListDestinations' = OperationID, Req0, Context, _Opts) ->
     AuthContext = build_auth_context(
-        [wapi_handler_utils:maybe_with('identityID', Req0, fun(IdentityID) -> {identity, IdentityID} end)],
+        [wapi_handler_utils:maybe_with('identityID', Req0, fun(PartyID) -> {party, PartyID} end)],
         [],
         Context
     ),
@@ -436,12 +177,11 @@ prepare('GetDestinationByExternalID' = OperationID, #{'externalID' := ExternalID
     {ok, #{authorize => Authorize, process => Process}};
 prepare(
     'CreateDestination' = OperationID,
-    #{'Destination' := Params = #{<<"identity">> := IdentityID}},
+    #{'Destination' := Params = #{<<"party">> := PartyID}},
     Context,
     Opts
 ) ->
-    AuthContext = [IdentityAuthContext] = build_auth_context([{identity, IdentityID}], [], Context),
-    PartyID = get_party_id_from_auth_context(IdentityAuthContext),
+    AuthContext = build_auth_context([{party, PartyID}], [], Context),
     Authorize = fun() ->
         Prototypes = [
             {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},
@@ -456,12 +196,12 @@ prepare(
                 wapi_handler_utils:reply_ok(
                     201, Destination, get_location('GetDestination', [DestinationID], Context, Opts)
                 );
-            {error, {identity, notfound}} ->
-                wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such identity">>));
+            {error, {party, notfound}} ->
+                wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such party">>));
             {error, {currency, notfound}} ->
                 wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Currency not supported">>));
             {error, inaccessible} ->
-                wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Identity inaccessible">>));
+                wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Party inaccessible">>));
             {error, forbidden_withdrawal_method} ->
                 wapi_handler_utils:reply_ok(
                     422, wapi_handler_utils:get_error_msg(<<"Resource type not allowed">>)
@@ -480,39 +220,6 @@ prepare(
                     <<"name">> => Type,
                     <<"description">> => <<"Unknown resource">>
                 })
-        end
-    end,
-    {ok, #{authorize => Authorize, process => Process}};
-prepare(
-    'IssueDestinationGrant' = OperationID,
-    #{
-        'destinationID' := DestinationID,
-        'DestinationGrantRequest' := #{<<"validUntil">> := Expiration}
-    },
-    Context,
-    _Opts
-) ->
-    AuthContext = build_auth_context([{destination, DestinationID}], [], Context),
-    Authorize = fun() ->
-        Prototypes = [
-            {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},
-            {wallet, build_prototype_for(wallet, [], AuthContext)}
-        ],
-        Resolution = wapi_auth:authorize_operation(Prototypes, Context),
-        {ok, Resolution}
-    end,
-    Process = fun() ->
-        case issue_grant_token({destinations, DestinationID}, Expiration, Context) of
-            {ok, Token} ->
-                wapi_handler_utils:reply_ok(201, #{
-                    <<"token">> => Token,
-                    <<"validUntil">> => Expiration
-                });
-            {error, expired} ->
-                wapi_handler_utils:reply_ok(
-                    422,
-                    wapi_handler_utils:get_error_msg(<<"Invalid expiration: already expired">>)
-                )
         end
     end,
     {ok, #{authorize => Authorize, process => Process}};
@@ -543,12 +250,8 @@ prepare('CreateQuote' = OperationID, #{'WithdrawalQuoteParams' := Params}, Conte
                 wapi_handler_utils:reply_ok(202, Quote);
             {error, {destination, notfound}} ->
                 wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such destination">>));
-            {error, {destination, unauthorized}} ->
-                wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Destination unauthorized">>));
-            {error, {destination, forbidden_withdrawal_method}} ->
-                wapi_handler_utils:reply_ok(
-                    422, wapi_handler_utils:get_error_msg(<<"Destination uses resource no longer allowed">>)
-                );
+            {error, {party, notfound}} ->
+                wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such party">>));
             {error, {wallet, notfound}} ->
                 wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such wallet">>));
             {error, {forbidden_currency, _}} ->
@@ -571,7 +274,7 @@ prepare('CreateQuote' = OperationID, #{'WithdrawalQuoteParams' := Params}, Conte
                     422,
                     wapi_handler_utils:get_error_msg(<<"Invalid currency">>)
                 );
-            {error, {identity_providers_mismatch, _}} ->
+            {error, {realms_mismatch, _}} ->
                 wapi_handler_utils:reply_ok(
                     422,
                     wapi_handler_utils:get_error_msg(
@@ -612,12 +315,8 @@ prepare('CreateWithdrawal' = OperationID, #{'WithdrawalParameters' := Params}, C
                 );
             {error, {destination, notfound}} ->
                 wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such destination">>));
-            {error, {destination, unauthorized}} ->
-                wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Destination unauthorized">>));
-            {error, {destination, forbidden_withdrawal_method}} ->
-                wapi_handler_utils:reply_ok(
-                    422, wapi_handler_utils:get_error_msg(<<"Destination uses resource no longer allowed">>)
-                );
+            {error, {party, notfound}} ->
+                wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such party">>));
             {error, {external_id_conflict, ID}} ->
                 ExternalID = maps:get(<<"externalID">>, Params, undefined),
                 wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
@@ -665,7 +364,7 @@ prepare('CreateWithdrawal' = OperationID, #{'WithdrawalParameters' := Params}, C
                     422,
                     wapi_handler_utils:get_error_msg(<<"Invalid currency">>)
                 );
-            {error, {identity_providers_mismatch, _}} ->
+            {error, {realms_mismatch, _}} ->
                 wapi_handler_utils:reply_ok(
                     422,
                     wapi_handler_utils:get_error_msg(
@@ -730,7 +429,7 @@ prepare('GetWithdrawalByExternalID' = OperationID, #{'externalID' := ExternalID}
 prepare('ListWithdrawals' = OperationID, Req0, Context, _Opts) ->
     AuthContext = build_auth_context(
         [
-            wapi_handler_utils:maybe_with('identityID', Req0, fun(IdentityID) -> {identity, IdentityID} end),
+            wapi_handler_utils:maybe_with('identityID', Req0, fun(PartyID) -> {party, PartyID} end),
             wapi_handler_utils:maybe_with('walletID', Req0, fun(WalletID) -> {wallet, WalletID} end),
             wapi_handler_utils:maybe_with('withdrawalID', Req0, fun(WithdrawalID) -> {withdrawal, WithdrawalID} end),
             wapi_handler_utils:maybe_with('destinationID', Req0, fun(DestinationID) -> {destination, DestinationID} end)
@@ -816,7 +515,7 @@ prepare(
 prepare('ListDeposits' = OperationID, Req0, Context, _Opts) ->
     AuthContext = build_auth_context(
         [
-            wapi_handler_utils:maybe_with('identityID', Req0, fun(IdentityID) -> {identity, IdentityID} end),
+            wapi_handler_utils:maybe_with('identityID', Req0, fun(PartyID) -> {party, PartyID} end),
             wapi_handler_utils:maybe_with('walletID', Req0, fun(WalletID) -> {wallet, WalletID} end)
         ],
         [],
@@ -848,172 +547,16 @@ prepare('ListDeposits' = OperationID, Req0, Context, _Opts) ->
         end
     end,
     {ok, #{authorize => Authorize, process => Process}};
-prepare('ListDepositReverts' = OperationID, Req0, Context, _Opts) ->
-    AuthContext = build_auth_context(
-        [
-            wapi_handler_utils:maybe_with('identityID', Req0, fun(IdentityID) -> {identity, IdentityID} end),
-            wapi_handler_utils:maybe_with('walletID', Req0, fun(WalletID) -> {wallet, WalletID} end)
-        ],
-        [],
-        Context
-    ),
-    {Req, PartyID} = patch_party_req(Context, Req0),
-    Authorize = fun() ->
-        Prototypes = [
-            {operation, build_prototype_for(operation, #{party => PartyID, id => OperationID}, AuthContext)},
-            {wallet, build_prototype_for(wallet, [], AuthContext)}
-        ],
-        Resolution = wapi_auth:authorize_operation(Prototypes, Context),
-        {ok, Resolution}
-    end,
-    Process = fun() ->
-        case wapi_stat_backend:list_deposit_reverts(Req, Context) of
-            {ok, List} ->
-                wapi_handler_utils:reply_ok(200, List);
-            {error, {invalid, Errors}} ->
-                wapi_handler_utils:reply_ok(400, #{
-                    <<"errorType">> => <<"NoMatch">>,
-                    <<"description">> => Errors
-                });
-            {error, {bad_token, Reason}} ->
-                wapi_handler_utils:reply_ok(400, #{
-                    <<"errorType">> => <<"InvalidToken">>,
-                    <<"description">> => Reason
-                })
-        end
-    end,
-    {ok, #{authorize => Authorize, process => Process}};
-prepare('ListDepositAdjustments' = OperationID, Req0, Context, _Opts) ->
-    AuthContext = build_auth_context(
-        [
-            wapi_handler_utils:maybe_with('identityID', Req0, fun(IdentityID) -> {identity, IdentityID} end),
-            wapi_handler_utils:maybe_with('walletID', Req0, fun(WalletID) -> {wallet, WalletID} end)
-        ],
-        [],
-        Context
-    ),
-    {Req, PartyID} = patch_party_req(Context, Req0),
-    Authorize = fun() ->
-        Prototypes = [
-            {operation, build_prototype_for(operation, #{party => PartyID, id => OperationID}, AuthContext)},
-            {wallet, build_prototype_for(wallet, [], AuthContext)}
-        ],
-        Resolution = wapi_auth:authorize_operation(Prototypes, Context),
-        {ok, Resolution}
-    end,
-    Process = fun() ->
-        case wapi_stat_backend:list_deposit_adjustments(Req, Context) of
-            {ok, List} ->
-                wapi_handler_utils:reply_ok(200, List);
-            {error, {invalid, Errors}} ->
-                wapi_handler_utils:reply_ok(400, #{
-                    <<"errorType">> => <<"NoMatch">>,
-                    <<"description">> => Errors
-                });
-            {error, {bad_token, Reason}} ->
-                wapi_handler_utils:reply_ok(400, #{
-                    <<"errorType">> => <<"InvalidToken">>,
-                    <<"description">> => Reason
-                })
-        end
-    end,
-    {ok, #{authorize => Authorize, process => Process}};
-%% W2W
-prepare(
-    'CreateW2WTransfer' = OperationID,
-    #{'W2WTransferParameters' := #{<<"sender">> := SenderID} = Params},
-    Context,
-    _Opts
-) ->
-    AuthContext = [WalletAuthContext] = build_auth_context([{wallet, SenderID}], [], Context),
-    PartyID = get_party_id_from_auth_context(WalletAuthContext),
-    Authorize = fun() ->
-        Prototypes = [
-            {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},
-            {wallet, build_prototype_for(wallet, [], AuthContext)}
-        ],
-        Resolution = wapi_auth:authorize_operation(Prototypes, Context),
-        {ok, Resolution}
-    end,
-    Process = fun() ->
-        case wapi_w2w_transfer_backend:create(add_party_id_to(PartyID, Params), Context) of
-            {ok, W2WTransfer} ->
-                wapi_handler_utils:reply_ok(202, W2WTransfer);
-            {error, {wallet_from, notfound}} ->
-                wapi_handler_utils:reply_ok(
-                    422,
-                    wapi_handler_utils:get_error_msg(<<"No such wallet sender">>)
-                );
-            {error, {wallet_from, inaccessible}} ->
-                wapi_handler_utils:reply_ok(
-                    422,
-                    wapi_handler_utils:get_error_msg(<<"Wallet inaccessible">>)
-                );
-            {error, {wallet_to, notfound}} ->
-                wapi_handler_utils:reply_ok(
-                    422,
-                    wapi_handler_utils:get_error_msg(<<"No such wallet receiver">>)
-                );
-            {error, {wallet_to, inaccessible}} ->
-                wapi_handler_utils:reply_ok(
-                    422,
-                    wapi_handler_utils:get_error_msg(<<"Wallet inaccessible">>)
-                );
-            {error, not_allowed_currency} ->
-                wapi_handler_utils:reply_ok(
-                    422,
-                    wapi_handler_utils:get_error_msg(<<"Currency not allowed">>)
-                );
-            {error, bad_w2w_transfer_amount} ->
-                wapi_handler_utils:reply_ok(
-                    422,
-                    wapi_handler_utils:get_error_msg(<<"Bad transfer amount">>)
-                );
-            {error, inconsistent_currency} ->
-                wapi_handler_utils:reply_ok(
-                    422,
-                    wapi_handler_utils:get_error_msg(<<"Inconsistent currency">>)
-                )
-        end
-    end,
-    {ok, #{authorize => Authorize, process => Process}};
-prepare('GetW2WTransfer' = OperationID, #{'w2wTransferID' := W2WTransferId}, Context, _Opts) ->
-    {ResultW2WTransfer, ResultW2WTransferOwner} =
-        case wapi_w2w_transfer_backend:get(W2WTransferId, Context) of
-            {ok, W2WTransfer, Owner} -> {W2WTransfer, Owner};
-            {error, {w2w_transfer, {unknown_w2w_transfer, _ID}}} -> {undefined, undefined}
-        end,
-    Authorize = fun() ->
-        Prototypes = [
-            {
-                operation,
-                #{w2w_transfer => W2WTransferId, id => OperationID}
-            },
-            {wallet, [
-                wapi_bouncer_context:build_wallet_entity(
-                    w2w_transfer,
-                    ResultW2WTransfer,
-                    {party, ResultW2WTransferOwner}
-                )
-            ]}
-        ],
-        Resolution = mask_notfound(wapi_auth:authorize_operation(Prototypes, Context)),
-        {ok, Resolution}
-    end,
-    Process = fun() ->
-        wapi_handler_utils:reply_ok(200, ResultW2WTransfer)
-    end,
-    {ok, #{authorize => Authorize, process => Process}};
 %% Webhooks
 prepare(
     'CreateWebhook' = OperationID,
-    #{'Webhook' := #{<<"identityID">> := IdentityID, <<"scope">> := Scope}} = Req,
+    #{'Webhook' := #{<<"identityID">> := PartyID, <<"scope">> := Scope}} = Req,
     Context,
     _Opts
 ) ->
     AuthContext = build_auth_context(
         [
-            {identity, IdentityID},
+            {party, PartyID},
             wapi_handler_utils:maybe_with(<<"walletID">>, Scope, fun(WalletID) -> {wallet, WalletID} end)
         ],
         [],
@@ -1032,8 +575,8 @@ prepare(
         wapi_handler_utils:reply_ok(201, Webhook)
     end,
     {ok, #{authorize => Authorize, process => Process}};
-prepare('GetWebhooks' = OperationID, #{'identityID' := IdentityID}, Context, _Opts) ->
-    AuthContext = build_auth_context([{identity, IdentityID}], [], Context),
+prepare('GetWebhooks' = OperationID, #{'identityID' := PartyID}, Context, _Opts) ->
+    AuthContext = build_auth_context([{party, PartyID}], [], Context),
     Authorize = fun() ->
         Prototypes = [
             {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},
@@ -1043,14 +586,14 @@ prepare('GetWebhooks' = OperationID, #{'identityID' := IdentityID}, Context, _Op
         {ok, Resolution}
     end,
     Process = fun() ->
-        {ok, Webhooks} = wapi_webhook_backend:get_webhooks(IdentityID, Context),
+        {ok, Webhooks} = wapi_webhook_backend:get_webhooks(PartyID, Context),
         wapi_handler_utils:reply_ok(200, Webhooks)
     end,
     {ok, #{authorize => Authorize, process => Process}};
-prepare('GetWebhookByID' = OperationID, #{'identityID' := IdentityID, 'webhookID' := WebhookID}, Context, _Opts) ->
+prepare('GetWebhookByID' = OperationID, #{'identityID' := PartyID, 'webhookID' := WebhookID}, Context, _Opts) ->
     AuthContext = build_auth_context(
         [
-            {identity, IdentityID},
+            {party, PartyID},
             {webhook, WebhookID}
         ],
         [],
@@ -1075,13 +618,13 @@ prepare('GetWebhookByID' = OperationID, #{'identityID' := IdentityID, 'webhookID
     {ok, #{authorize => Authorize, process => Process}};
 prepare(
     'DeleteWebhookByID' = OperationID,
-    #{'identityID' := IdentityID, 'webhookID' := WebhookID},
+    #{'identityID' := PartyID, 'webhookID' := WebhookID},
     Context,
     _Opts
 ) ->
     AuthContext = build_auth_context(
         [
-            {identity, IdentityID},
+            {party, PartyID},
             {webhook, WebhookID}
         ],
         [],
@@ -1105,8 +648,8 @@ prepare(
     end,
     {ok, #{authorize => Authorize, process => Process}};
 %% Reports
-prepare('CreateReport' = OperationID, #{'identityID' := IdentityID} = Req0, Context, _Opts) ->
-    AuthContext = build_auth_context([{identity, IdentityID}], [], Context),
+prepare('CreateReport' = OperationID, #{'identityID' := PartyID} = Req0, Context, _Opts) ->
+    AuthContext = build_auth_context([{party, PartyID}], [], Context),
     {Req, _PartyID} = patch_party_req(Context, Req0),
     Authorize = fun() ->
         Prototypes = [
@@ -1120,11 +663,11 @@ prepare('CreateReport' = OperationID, #{'identityID' := IdentityID} = Req0, Cont
         case wapi_report_backend:create_report(Req, Context) of
             {ok, Report} ->
                 wapi_handler_utils:reply_ok(201, Report);
-            {error, {identity, notfound}} ->
+            {error, {party, notfound}} ->
                 wapi_handler_utils:reply_ok(400, #{
                     <<"errorType">> => <<"NotFound">>,
-                    <<"name">> => <<"identity">>,
-                    <<"description">> => <<"identity not found">>
+                    <<"name">> => <<"party">>,
+                    <<"description">> => <<"party not found">>
                 });
             {error, invalid_request} ->
                 wapi_handler_utils:reply_ok(400, #{
@@ -1144,19 +687,19 @@ prepare('CreateReport' = OperationID, #{'identityID' := IdentityID} = Req0, Cont
 prepare(
     'GetReport' = OperationID,
     #{
-        'identityID' := IdentityID,
+        'identityID' := PartyID,
         'reportID' := ReportId
     } = Req0,
     Context,
     _Opts
 ) ->
-    AuthContext = build_auth_context([{identity, IdentityID}], [], Context),
+    AuthContext = build_auth_context([{party, PartyID}], [], Context),
     {_Req, PartyID} = patch_party_req(Context, Req0),
     ResultReport =
-        case wapi_report_backend:get_report(ReportId, IdentityID, PartyID, Context) of
+        case wapi_report_backend:get_report(ReportId, PartyID, PartyID, Context) of
             {ok, Report} ->
                 Report;
-            {error, {identity, notfound}} ->
+            {error, {party, notfound}} ->
                 undefined;
             {error, notfound} ->
                 undefined
@@ -1167,7 +710,7 @@ prepare(
             {wallet,
                 build_prototype_for(
                     wallet,
-                    [wapi_bouncer_context:build_wallet_entity(report, ResultReport, {identity, IdentityID})],
+                    [wapi_bouncer_context:build_wallet_entity(report, ResultReport, {party, PartyID})],
                     AuthContext
                 )}
         ],
@@ -1178,8 +721,8 @@ prepare(
         wapi_handler_utils:reply_ok(200, ResultReport)
     end,
     {ok, #{authorize => Authorize, process => Process}};
-prepare('GetReports' = OperationID, #{'identityID' := IdentityID} = Req0, Context, _Opts) ->
-    AuthContext = build_auth_context([{identity, IdentityID}], [], Context),
+prepare('GetReports' = OperationID, #{'identityID' := PartyID} = Req0, Context, _Opts) ->
+    AuthContext = build_auth_context([{party, PartyID}], [], Context),
     {Req, _PartyID} = patch_party_req(Context, Req0),
     Authorize = fun() ->
         Prototypes = [
@@ -1193,11 +736,11 @@ prepare('GetReports' = OperationID, #{'identityID' := IdentityID} = Req0, Contex
         case wapi_report_backend:get_reports(Req, Context) of
             {ok, ReportList} ->
                 wapi_handler_utils:reply_ok(200, ReportList);
-            {error, {identity, notfound}} ->
+            {error, {party, notfound}} ->
                 wapi_handler_utils:reply_ok(400, #{
                     <<"errorType">> => <<"NotFound">>,
-                    <<"name">> => <<"identity">>,
-                    <<"description">> => <<"identity not found">>
+                    <<"name">> => <<"party">>,
+                    <<"description">> => <<"party not found">>
                 });
             {error, invalid_request} ->
                 wapi_handler_utils:reply_ok(400, #{
@@ -1264,24 +807,6 @@ get_location(OperationID, Params, #{swag_server_get_operation_fun := Get}, Opts)
     #{path := PathSpec} = Get(OperationID),
     wapi_handler_utils:get_location(PathSpec, Params, Opts).
 
-issue_grant_token(TokenSpec, Expiration, Context) ->
-    case get_expiration_deadline(Expiration) of
-        {ok, Deadline} ->
-            {ok, wapi_tokens_legacy:issue_access_token(wapi_handler_utils:get_owner(Context), TokenSpec, Deadline)};
-        Error = {error, _} ->
-            Error
-    end.
-
-get_expiration_deadline(Expiration) ->
-    {DateTime, MilliSec} = woody_deadline:from_binary(wapi_utils:to_universal_time(Expiration)),
-    Deadline = genlib_time:daytime_to_unixtime(DateTime) + MilliSec div 1000,
-    case genlib_time:unow() - Deadline < 0 of
-        true ->
-            {ok, Deadline};
-        false ->
-            {error, expired}
-    end.
-
 build_auth_context([], Acc, _Context) ->
     Acc;
 build_auth_context([undefined | T], Acc, Context) ->
@@ -1290,17 +815,17 @@ build_auth_context([H | T], Acc, Context) ->
     AuthContext = build_auth_context(H, Context),
     build_auth_context(T, [AuthContext | Acc], Context).
 
-build_auth_context({identity, IdentityID}, Context) ->
-    {ResultIdentity, ResultIdentityOwner} =
-        case wapi_identity_backend:get(IdentityID, Context) of
-            {ok, Identity, Owner} -> {Identity, Owner};
-            {error, {identity, notfound}} -> {undefined, undefined}
+build_auth_context({party, PartyID}, _Context) ->
+    {ResultParty, ResultPartyOwner} =
+        case wapi_domain_backend:get_party_config(PartyID) of
+            {ok, PartyConfig, Owner} -> {PartyConfig, Owner};
+            {error, {party, notfound}} -> {undefined, undefined}
         end,
-    {identity, {IdentityID, ResultIdentity, ResultIdentityOwner}};
-build_auth_context({wallet, WalletID}, Context) ->
+    {party, {PartyID, ResultParty, ResultPartyOwner}};
+build_auth_context({wallet, WalletID}, _Context) ->
     {ResultWallet, ResultWalletOwner} =
-        case wapi_wallet_backend:get(WalletID, Context) of
-            {ok, Wallet, Owner} -> {Wallet, Owner};
+        case wapi_domain_backend:get_wallet_config(WalletID) of
+            {ok, WalletConfig, Owner} -> {WalletConfig, Owner};
             {error, {wallet, notfound}} -> {undefined, undefined}
         end,
     {wallet, {WalletID, ResultWallet, ResultWalletOwner}};
@@ -1329,8 +854,8 @@ build_auth_context({webhook, WebhookID}, Context) ->
 build_prototype_for(operation, OpContext, AuthContext) ->
     lists:foldl(
         fun
-            ({identity, {IdentityID, _Identity, _Owner}}, Acc) ->
-                Acc#{identity => IdentityID};
+            ({party, {PartyID, _Identity, _Owner}}, Acc) ->
+                Acc#{party => PartyID};
             ({wallet, {WalletID, _Wallet, _Owner}}, Acc) ->
                 Acc#{wallet => WalletID};
             ({destination, {DestinationID, _Destination, _Owner}}, Acc) ->
@@ -1346,8 +871,8 @@ build_prototype_for(operation, OpContext, AuthContext) ->
 build_prototype_for(wallet, Entities, AuthContext) ->
     lists:foldl(
         fun
-            ({identity, {_IdentityID, Identity, Owner}}, Acc) ->
-                [wapi_bouncer_context:build_wallet_entity(identity, Identity, {party, Owner}) | Acc];
+            ({party, {_IdentityID, Party, Owner}}, Acc) ->
+                [wapi_bouncer_context:build_wallet_entity(party, Party, {party, Owner}) | Acc];
             ({wallet, {_WalletID, Wallet, Owner}}, Acc) ->
                 [wapi_bouncer_context:build_wallet_entity(wallet, Wallet, {party, Owner}) | Acc];
             ({destination, {_DestinationID, Destination, Owner}}, Acc) ->
@@ -1364,7 +889,7 @@ build_prototype_for(wallet, Entities, AuthContext) ->
 find_party_id_for(Tag, [Context = {Tag, _} | _Rest]) -> get_party_id_from_auth_context(Context);
 find_party_id_for(Tag, [_H | Rest]) -> find_party_id_for(Tag, Rest).
 
-get_party_id_from_auth_context({identity, {_, _, PartyID}}) -> PartyID;
+get_party_id_from_auth_context({party, {PartyID, _, _}}) -> PartyID;
 get_party_id_from_auth_context({wallet, {_, _, PartyID}}) -> PartyID.
 
 add_party_id_to(undefined, Params) ->
@@ -1385,8 +910,3 @@ get_default_url_lifetime() ->
     Now = erlang:system_time(second),
     Lifetime = application:get_env(wapi_lib, file_storage_url_lifetime, ?DEFAULT_URL_LIFETIME),
     genlib_rfc3339:format(Now + Lifetime, second).
-
-maybe_to_list(undefined) ->
-    [];
-maybe_to_list(T) ->
-    [T].

@@ -255,7 +255,7 @@ create_destination_fail_identity_notfound_test(C) ->
     Destination = make_destination(C, bank_card),
     _ = create_destination_start_mocks(C, {throwing, #fistful_IdentityNotFound{}}),
     ?assertEqual(
-        {error, {422, #{<<"message">> => <<"No such identity">>}}},
+        {error, {422, #{<<"message">> => <<"No such party">>}}},
         create_destination_call_api(C, Destination)
     ).
 
@@ -273,7 +273,7 @@ create_destination_fail_party_inaccessible_test(C) ->
     Destination = make_destination(C, bank_card),
     _ = create_destination_start_mocks(C, {throwing, #fistful_PartyInaccessible{}}),
     ?assertEqual(
-        {error, {422, #{<<"message">> => <<"Identity inaccessible">>}}},
+        {error, {422, #{<<"message">> => <<"Party inaccessible">>}}},
         create_destination_call_api(C, Destination)
     ).
 
@@ -351,7 +351,7 @@ digital_wallet_w_token_resource_test(C) ->
     },
     Destination = #{
         <<"name">> => ?STRING,
-        <<"identity">> => ?STRING,
+        <<"party">> => ?STRING,
         <<"currency">> => ?RUB,
         <<"resource">> => Resource
     },
@@ -437,10 +437,10 @@ check_unknown_destination_id(C) ->
 
 do_destination_lifecycle(ResourceType, C) ->
     PartyID = wapi_ct_helper:cfg(party, C),
-    Identity = generate_identity(PartyID),
+    Party = generate_identity(PartyID),
     Resource = generate_resource(ResourceType),
     Context = generate_context(PartyID),
-    Destination = generate_destination(Identity#identity_IdentityState.id, Resource, Context),
+    Destination = generate_destination(Party#identity_IdentityState.id, Resource, Context),
     _ = wapi_ct_helper:mock_services(
         [
             {bender, fun
@@ -500,7 +500,7 @@ do_destination_lifecycle(ResourceType, C) ->
     ?assertEqual(GetResult, GetByIDResult),
     ?assertEqual(Destination#destination_DestinationState.id, maps:get(<<"id">>, CreateResult)),
     ?assertEqual(Destination#destination_DestinationState.external_id, maps:get(<<"externalID">>, CreateResult)),
-    ?assertEqual(Identity#identity_IdentityState.id, maps:get(<<"identity">>, CreateResult)),
+    ?assertEqual(Party#identity_IdentityState.id, maps:get(<<"party">>, CreateResult)),
     Account = Destination#destination_DestinationState.account,
     ?assertEqual(
         Account#account_Account.currency#fistful_base_CurrencyRef.symbolic_code,
@@ -523,7 +523,7 @@ build_destination_spec(D, undefined) ->
 build_destination_spec(D, Resource) ->
     #{
         <<"name">> => D#destination_DestinationState.name,
-        <<"identity">> => (D#destination_DestinationState.account)#account_Account.identity,
+        <<"party">> => (D#destination_DestinationState.account)#account_Account.party,
         <<"currency">> =>
             D#destination_DestinationState.account#account_Account.currency#fistful_base_CurrencyRef.symbolic_code,
         <<"externalID">> => D#destination_DestinationState.external_id,
@@ -588,7 +588,7 @@ generate_context(PartyID) ->
             }}
     }.
 
-generate_destination(IdentityID, Resource, Context) ->
+generate_destination(PartyID, Resource, Context) ->
     ID = ?STRING,
     #destination_DestinationState{
         id = ID,
@@ -596,7 +596,7 @@ generate_destination(IdentityID, Resource, Context) ->
         status = {authorized, #destination_Authorized{}},
         account = #account_Account{
             id = ID,
-            identity = IdentityID,
+            party = PartyID,
             currency = #'fistful_base_CurrencyRef'{
                 symbolic_code = <<"RUB">>
             },
@@ -666,10 +666,10 @@ generate_digital_wallet_provider() ->
 
 make_destination(C, ResourceType) ->
     PartyID = ?config(party, C),
-    Identity = generate_identity(PartyID),
+    Party = generate_identity(PartyID),
     Resource = generate_resource(ResourceType),
     Context = generate_context(PartyID),
-    generate_destination(Identity#identity_IdentityState.id, Resource, Context).
+    generate_destination(Party#identity_IdentityState.id, Resource, Context).
 
 create_destination_start_mocks(C, CreateDestinationResult) ->
     PartyID = ?config(party, C),

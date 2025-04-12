@@ -68,8 +68,6 @@ get_service_url(ServiceName) ->
     maps:get(ServiceName, genlib_app:env(?APP, service_urls)).
 
 -spec get_service_modname(service_name()) -> woody:service().
-get_service_modname(identdoc_storage) ->
-    {identdocstore_identity_document_storage_thrift, 'IdentityDocumentStorage'};
 get_service_modname(token_storage) ->
     {tds_storage_thrift, 'TokenStorage'};
 get_service_modname(fistful_stat) ->
@@ -78,18 +76,10 @@ get_service_modname(fistful_report) ->
     {ffreport_reports_thrift, 'Reporting'};
 get_service_modname(file_storage) ->
     {filestore_storage_thrift, 'FileStorage'};
-get_service_modname(fistful_provider) ->
-    {fistful_provider_thrift, 'Management'};
-get_service_modname(fistful_identity) ->
-    {fistful_identity_thrift, 'Management'};
-get_service_modname(fistful_wallet) ->
-    {fistful_wallet_thrift, 'Management'};
 get_service_modname(fistful_destination) ->
     {fistful_destination_thrift, 'Management'};
 get_service_modname(fistful_withdrawal) ->
     {fistful_wthd_thrift, 'Management'};
-get_service_modname(fistful_w2w_transfer) ->
-    {fistful_w2w_transfer_thrift, 'Management'};
 get_service_modname(webhook_manager) ->
     {fistful_webhooker_thrift, 'WebhookManager'}.
 
