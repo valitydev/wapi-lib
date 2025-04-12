@@ -177,7 +177,7 @@ prepare('GetDestinationByExternalID' = OperationID, #{'externalID' := ExternalID
     {ok, #{authorize => Authorize, process => Process}};
 prepare(
     'CreateDestination' = OperationID,
-    #{'Destination' := Params = #{<<"party">> := PartyID}},
+    #{'Destination' := Params = #{<<"partyID">> := PartyID}},
     Context,
     Opts
 ) ->
@@ -191,7 +191,7 @@ prepare(
         {ok, Resolution}
     end,
     Process = fun() ->
-        case wapi_destination_backend:create(add_party_id_to(PartyID, Params), Context) of
+        case wapi_destination_backend:create(Params, Context) of
             {ok, Destination = #{<<"id">> := DestinationID}} ->
                 wapi_handler_utils:reply_ok(
                     201, Destination, get_location('GetDestination', [DestinationID], Context, Opts)
@@ -202,10 +202,6 @@ prepare(
                 wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Currency not supported">>));
             {error, inaccessible} ->
                 wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Party inaccessible">>));
-            {error, forbidden_withdrawal_method} ->
-                wapi_handler_utils:reply_ok(
-                    422, wapi_handler_utils:get_error_msg(<<"Resource type not allowed">>)
-                );
             {error, {external_id_conflict, {ID, ExternalID}}} ->
                 wapi_handler_utils:logic_error(external_id_conflict, {ID, ExternalID});
             {error, {invalid_resource_token, Type}} ->
@@ -235,7 +231,6 @@ prepare('CreateQuote' = OperationID, #{'WithdrawalQuoteParams' := Params}, Conte
         [],
         Context
     ),
-    PartyID = find_party_id_for(wallet, AuthContext),
     Authorize = fun() ->
         Prototypes = [
             {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},
@@ -245,7 +240,7 @@ prepare('CreateQuote' = OperationID, #{'WithdrawalQuoteParams' := Params}, Conte
         {ok, Resolution}
     end,
     Process = fun() ->
-        case wapi_withdrawal_backend:create_quote(add_party_id_to(PartyID, Params), Context) of
+        case wapi_withdrawal_backend:create_quote(Params, Context) of
             {ok, Quote} ->
                 wapi_handler_utils:reply_ok(202, Quote);
             {error, {destination, notfound}} ->
@@ -298,7 +293,6 @@ prepare('CreateWithdrawal' = OperationID, #{'WithdrawalParameters' := Params}, C
         [],
         Context
     ),
-    PartyID = find_party_id_for(wallet, AuthContext),
     Authorize = fun() ->
         Prototypes = [
             {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},
@@ -308,7 +302,7 @@ prepare('CreateWithdrawal' = OperationID, #{'WithdrawalParameters' := Params}, C
         {ok, Resolution}
     end,
     Process = fun() ->
-        case wapi_withdrawal_backend:create(add_party_id_to(PartyID, Params), Context) of
+        case wapi_withdrawal_backend:create(Params, Context) of
             {ok, Withdrawal = #{<<"id">> := WithdrawalID}} ->
                 wapi_handler_utils:reply_ok(
                     202, Withdrawal, get_location('GetWithdrawal', [WithdrawalID], Context, Opts)
@@ -663,12 +657,6 @@ prepare('CreateReport' = OperationID, #{'identityID' := PartyID} = Req0, Context
         case wapi_report_backend:create_report(Req, Context) of
             {ok, Report} ->
                 wapi_handler_utils:reply_ok(201, Report);
-            {error, {party, notfound}} ->
-                wapi_handler_utils:reply_ok(400, #{
-                    <<"errorType">> => <<"NotFound">>,
-                    <<"name">> => <<"party">>,
-                    <<"description">> => <<"party not found">>
-                });
             {error, invalid_request} ->
                 wapi_handler_utils:reply_ok(400, #{
                     <<"errorType">> => <<"NoMatch">>,
@@ -699,8 +687,6 @@ prepare(
         case wapi_report_backend:get_report(ReportId, PartyID, PartyID, Context) of
             {ok, Report} ->
                 Report;
-            {error, {party, notfound}} ->
-                undefined;
             {error, notfound} ->
                 undefined
         end,
@@ -736,12 +722,6 @@ prepare('GetReports' = OperationID, #{'identityID' := PartyID} = Req0, Context, 
         case wapi_report_backend:get_reports(Req, Context) of
             {ok, ReportList} ->
                 wapi_handler_utils:reply_ok(200, ReportList);
-            {error, {party, notfound}} ->
-                wapi_handler_utils:reply_ok(400, #{
-                    <<"errorType">> => <<"NotFound">>,
-                    <<"name">> => <<"party">>,
-                    <<"description">> => <<"party not found">>
-                });
             {error, invalid_request} ->
                 wapi_handler_utils:reply_ok(400, #{
                     <<"errorType">> => <<"NoMatch">>,
@@ -818,15 +798,15 @@ build_auth_context([H | T], Acc, Context) ->
 build_auth_context({party, PartyID}, _Context) ->
     {ResultParty, ResultPartyOwner} =
         case wapi_domain_backend:get_party_config(PartyID) of
-            {ok, PartyConfig, Owner} -> {PartyConfig, Owner};
-            {error, {party, notfound}} -> {undefined, undefined}
+            {ok, {PartyConfig, Owner}} -> {PartyConfig, Owner};
+            {error, notfound} -> {undefined, undefined}
         end,
     {party, {PartyID, ResultParty, ResultPartyOwner}};
 build_auth_context({wallet, WalletID}, _Context) ->
     {ResultWallet, ResultWalletOwner} =
         case wapi_domain_backend:get_wallet_config(WalletID) of
-            {ok, WalletConfig, Owner} -> {WalletConfig, Owner};
-            {error, {wallet, notfound}} -> {undefined, undefined}
+            {ok, {WalletConfig, Owner}} -> {WalletConfig, Owner};
+            {error, notfound} -> {undefined, undefined}
         end,
     {wallet, {WalletID, ResultWallet, ResultWalletOwner}};
 build_auth_context({destination, DestinationID}, Context) ->
@@ -885,17 +865,6 @@ build_prototype_for(wallet, Entities, AuthContext) ->
         Entities,
         AuthContext
     ).
-
-find_party_id_for(Tag, [Context = {Tag, _} | _Rest]) -> get_party_id_from_auth_context(Context);
-find_party_id_for(Tag, [_H | Rest]) -> find_party_id_for(Tag, Rest).
-
-get_party_id_from_auth_context({party, {PartyID, _, _}}) -> PartyID;
-get_party_id_from_auth_context({wallet, {_, _, PartyID}}) -> PartyID.
-
-add_party_id_to(undefined, Params) ->
-    Params;
-add_party_id_to(PartyID, Params) when is_map(Params) ->
-    Params#{<<"partyID">> => PartyID}.
 
 patch_party_req(_Context, #{'partyID' := PartyID} = Req) when PartyID =/= undefined ->
     {Req, PartyID};

@@ -20,14 +20,14 @@
 
 %%
 
--spec get_party_config(id()) -> {ok, map(), id()} | {error, {party, notfound}}.
+-spec get_party_config(id()) -> {ok, {map(), id()}} | {error, notfound}.
 get_party_config(PartyID) ->
     do(fun() ->
         Party = unwrap(object({party, #domain_PartyConfigRef{id = PartyID}})),
         {#{<<"id">> => Party#domain_PartyConfig.id}, PartyID}
     end).
 
--spec get_wallet_config(id()) -> {ok, map(), id()} | {error, {wallet, notfound}}.
+-spec get_wallet_config(id()) -> {ok, {map(), id()}} | {error, notfound}.
 get_wallet_config(WalletID) ->
     do(fun() ->
         Wallet = unwrap(object({wallet, #domain_WalletConfigRef{id = WalletID}})),

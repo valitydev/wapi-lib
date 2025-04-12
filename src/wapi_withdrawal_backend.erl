@@ -36,6 +36,7 @@
 -type create_quote_error() ::
     {destination, notfound | unauthorized | forbidden_withdrawal_method}
     | {wallet, notfound}
+    | {party, notfound}
     | {forbidden_currency, _}
     | {forbidden_amount, _}
     | {invalid_amount, _}
@@ -370,6 +371,7 @@ marshal(
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
     Metadata = maps:get(<<"metadata">>, Params, undefined),
     Quote = maps:get(<<"quote">>, Params, undefined),
+    PartyID = maps:get(<<"partyID">>, Params, <<>>),
     #wthd_WithdrawalParams{
         id = marshal(id, ID),
         wallet_id = marshal(id, WalletID),
@@ -377,7 +379,8 @@ marshal(
         body = marshal_body(Body),
         quote = Quote,
         external_id = maybe_marshal(id, ExternalID),
-        metadata = maybe_marshal(context, Metadata)
+        metadata = maybe_marshal(context, Metadata),
+        party_id = PartyID
     };
 marshal(
     create_quote_params,
@@ -390,13 +393,15 @@ marshal(
 ) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
     DestinationID = maps:get(<<"destinationID">>, Params, undefined),
+    PartyID = maps:get(<<"partyID">>, Params, <<>>),
     #wthd_QuoteParams{
         wallet_id = marshal(id, WalletID),
         body = marshal_body(Body),
         currency_from = marshal_currency_ref(CurrencyFrom),
         currency_to = marshal_currency_ref(CurrencyTo),
         destination_id = maybe_marshal(id, DestinationID),
-        external_id = maybe_marshal(id, ExternalID)
+        external_id = maybe_marshal(id, ExternalID),
+        party_id = PartyID
     };
 marshal(context, Context) ->
     wapi_codec:marshal(context, Context);

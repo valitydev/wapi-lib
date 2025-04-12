@@ -39,10 +39,8 @@ create_report(
             {error, invalid_contract}
     end.
 
--spec get_report(integer(), binary(), binary(), handler_context()) -> {ok, response_data()} | {error, Error} when
-    Error ::
-        {party, notfound}
-        | notfound.
+-spec get_report('contractID' | any(), binary(), binary(), handler_context()) -> {ok, response_data()} | {error, Error} when
+    Error :: notfound.
 get_report('contractID', ReportID, PartyID, HandlerContext) ->
     Call = {fistful_report, 'GetReport', {PartyID, ReportID}},
     case wapi_handler_utils:service_call(Call, HandlerContext) of
