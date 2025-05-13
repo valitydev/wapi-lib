@@ -274,7 +274,7 @@ marshal(
     destination_params,
     #{
         <<"id">> := ID,
-        <<"partyID">> := PartyID,
+        <<"party">> := PartyID,
         <<"realm">> := Realm,
         <<"currency">> := CurrencyID,
         <<"name">> := Name,
@@ -295,6 +295,10 @@ marshal(
     };
 marshal(context, Context) ->
     wapi_codec:marshal(context, Context);
+marshal(realm, <<"Test">>) ->
+    test;
+marshal(realm, <<"Live">>) ->
+    live;
 marshal(auth_data, #{
     <<"type">> := <<"SenderReceiverDestinationAuthData">>,
     <<"senderToken">> := SenderToken,
@@ -333,13 +337,17 @@ unmarshal(destination, #destination_DestinationState{
         <<"name">> => unmarshal(string, Name),
         <<"realm">> => unmarshal(realm, Realm),
         <<"isBlocked">> => maybe_unmarshal(blocking, Blocking),
-        <<"partyID">> => PartyID,
+        <<"party">> => PartyID,
         <<"currency">> => Currency,
         <<"createdAt">> => CreatedAt,
         <<"resource">> => unmarshal(resource, Resource),
         <<"externalID">> => maybe_unmarshal(id, ExternalID),
         <<"metadata">> => wapi_backend_utils:get_from_ctx(<<"metadata">>, UnmarshaledContext)
     });
+unmarshal(realm, test) ->
+    <<"Test">>;
+unmarshal(realm, live) ->
+    <<"Live">>;
 unmarshal(blocking, unblocked) ->
     false;
 unmarshal(blocking, blocked) ->

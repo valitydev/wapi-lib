@@ -131,6 +131,7 @@ unmarshal_response(withdrawals, Response) ->
             <<"id">> => Response#stat_StatWithdrawal.id,
             <<"createdAt">> => Response#stat_StatWithdrawal.created_at,
             <<"wallet">> => Response#stat_StatWithdrawal.source_id,
+            <<"party">> => Response#stat_StatWithdrawal.party_id,
             <<"destination">> => Response#stat_StatWithdrawal.destination_id,
             <<"externalID">> => Response#stat_StatWithdrawal.external_id,
             <<"body">> => unmarshal_cash(
@@ -150,6 +151,7 @@ unmarshal_response(deposits, Response) ->
             <<"id">> => Response#stat_StatDeposit.id,
             <<"createdAt">> => Response#stat_StatDeposit.created_at,
             <<"wallet">> => Response#stat_StatDeposit.destination_id,
+            <<"party">> => Response#stat_StatDeposit.party_id,
             <<"source">> => Response#stat_StatDeposit.source_id,
             <<"body">> => unmarshal_cash(
                 Response#stat_StatDeposit.amount,
@@ -169,11 +171,17 @@ unmarshal_response(destinations, Response) ->
         <<"name">> => Response#stat_StatDestination.name,
         <<"createdAt">> => Response#stat_StatDestination.created_at,
         <<"isBlocked">> => Response#stat_StatDestination.is_blocked,
-        <<"partyID">> => Response#stat_StatDestination.party_id,
+        <<"realm">> => unmarshal_realm(Response#stat_StatDestination.realm),
+        <<"party">> => Response#stat_StatDestination.party_id,
         <<"currency">> => Response#stat_StatDestination.currency_symbolic_code,
         <<"resource">> => unmarshal_resource(Response#stat_StatDestination.resource),
         <<"externalID">> => Response#stat_StatDestination.external_id
     }).
+
+unmarshal_realm(test) ->
+    <<"Test">>;
+unmarshal_realm(live) ->
+    <<"Live">>.
 
 unmarshal_cash(Amount, Currency) when is_bitstring(Currency) ->
     #{<<"amount">> => Amount, <<"currency">> => Currency}.

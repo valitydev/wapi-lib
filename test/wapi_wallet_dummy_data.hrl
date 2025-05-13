@@ -98,7 +98,9 @@
     adjustments = [],
     metadata = ?DEFAULT_METADATA(),
     context = ?DEFAULT_CONTEXT(PartyID),
-    quote = ?WITHDRAWAL_QUOTE_STATE
+    quote = ?WITHDRAWAL_QUOTE_STATE,
+    party_id = PartyID,
+    domain_revision = 123
 }).
 
 -define(WITHDRAWAL_QUOTE_STATE, #wthd_QuoteState{
@@ -258,6 +260,7 @@
             amount = ?INTEGER,
             fee = ?INTEGER,
             currency_symbolic_code = ?RUB,
+            status = {pending, #stat_DepositPending{}},
             description = ?STRING
         }
     ]}

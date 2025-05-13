@@ -4,7 +4,7 @@
 -include_lib("file_storage_proto/include/filestore_storage_thrift.hrl").
 
 -export([create_report/2]).
--export([get_report/4]).
+-export([get_report/3]).
 -export([get_reports/2]).
 -export([download_file/3]).
 
@@ -15,8 +15,7 @@
 -spec create_report(request_data(), handler_context()) -> {ok, response_data()} | {error, Error} when
     Error ::
         {party, notfound}
-        | invalid_request
-        | invalid_contract.
+        | invalid_request.
 create_report(
     #{
         'partyID' := PartyID,
@@ -32,16 +31,16 @@ create_report(
     Call = {fistful_report, 'GenerateReport', {Req, maps:get(<<"reportType">>, ReportParams)}},
     case wapi_handler_utils:service_call(Call, HandlerContext) of
         {ok, ReportID} ->
-            get_report('contractID', ReportID, PartyID, HandlerContext);
+            get_report(ReportID, PartyID, HandlerContext);
         {exception, #reports_InvalidRequest{}} ->
             {error, invalid_request};
-        {exception, #reports_ContractNotFound{}} ->
-            {error, invalid_contract}
+        {exception, #reports_PartyNotFound{}} ->
+            {error, {party, notfound}}
     end.
 
--spec get_report('contractID' | any(), binary(), binary(), handler_context()) -> {ok, response_data()} | {error, Error} when
+-spec get_report(binary(), binary(), handler_context()) -> {ok, response_data()} | {error, Error} when
     Error :: notfound.
-get_report('contractID', ReportID, PartyID, HandlerContext) ->
+get_report(ReportID, PartyID, HandlerContext) ->
     Call = {fistful_report, 'GetReport', {PartyID, ReportID}},
     case wapi_handler_utils:service_call(Call, HandlerContext) of
         {ok, Report} ->
@@ -93,7 +92,6 @@ create_report_request(#{
 }) ->
     #reports_ReportRequest{
         party_id = PartyID,
-        contract_id = <<"legacy">>,
         time_range = #reports_ReportTimeRange{
             from_time = FromTime,
             to_time = ToTime

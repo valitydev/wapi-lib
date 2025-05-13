@@ -371,7 +371,7 @@ marshal(
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
     Metadata = maps:get(<<"metadata">>, Params, undefined),
     Quote = maps:get(<<"quote">>, Params, undefined),
-    PartyID = maps:get(<<"partyID">>, Params, <<>>),
+    PartyID = maps:get(<<"party">>, Params, <<>>),
     #wthd_WithdrawalParams{
         id = marshal(id, ID),
         wallet_id = marshal(id, WalletID),
@@ -438,6 +438,7 @@ unmarshal({list, Type}, List) ->
 unmarshal(withdrawal, #wthd_WithdrawalState{
     id = ID,
     wallet_id = WalletID,
+    party_id = PartyID,
     destination_id = DestinationID,
     body = Body,
     external_id = ExternalID,
@@ -452,6 +453,7 @@ unmarshal(withdrawal, #wthd_WithdrawalState{
             #{
                 <<"id">> => ID,
                 <<"wallet">> => WalletID,
+                <<"party">> => PartyID,
                 <<"destination">> => DestinationID,
                 <<"body">> => unmarshal_body(Body),
                 <<"createdAt">> => CreatedAt,

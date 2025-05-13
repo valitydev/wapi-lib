@@ -120,7 +120,7 @@ create_webhook_ok_test(C) ->
         fun swag_client_wallet_webhooks_api:create_webhook/3,
         #{
             body => #{
-                <<"identityID">> => ?STRING,
+                <<"partyID">> => ?STRING,
                 <<"url">> => ?URL,
                 <<"scope">> => #{
                     <<"topic">> => <<"DestinationsTopic">>,
@@ -157,7 +157,7 @@ create_withdrawal_webhook_ok_test(C) ->
         fun swag_client_wallet_webhooks_api:create_webhook/3,
         #{
             body => #{
-                <<"identityID">> => ?STRING,
+                <<"partyID">> => ?STRING,
                 <<"url">> => ?URL,
                 <<"scope">> => #{
                     <<"topic">> => <<"WithdrawalsTopic">>,
@@ -185,7 +185,7 @@ get_webhooks_ok_test(C) ->
         fun swag_client_wallet_webhooks_api:get_webhooks/3,
         #{
             qs_val => #{
-                <<"identityID">> => ?STRING
+                <<"partyID">> => ?STRING
             }
         },
         wapi_ct_helper:cfg(context, C)
@@ -219,7 +219,7 @@ get_webhook_ok_test(C) ->
                 <<"webhookID">> => integer_to_binary(?INTEGER)
             },
             qs_val => #{
-                <<"identityID">> => ?STRING
+                <<"partyID">> => ?STRING
             }
         },
         wapi_ct_helper:cfg(context, C)
@@ -256,7 +256,7 @@ delete_webhook_ok_test(C) ->
                 <<"webhookID">> => integer_to_binary(?INTEGER)
             },
             qs_val => #{
-                <<"identityID">> => ?STRING
+                <<"partyID">> => ?STRING
             }
         },
         wapi_ct_helper:cfg(context, C)

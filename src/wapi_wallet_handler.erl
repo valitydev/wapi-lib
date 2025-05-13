@@ -90,7 +90,7 @@ prepare('GetWalletAccount' = OperationID, #{'walletID' := WalletID}, Context, _O
 %% Destinations
 prepare('ListDestinations' = OperationID, Req0, Context, _Opts) ->
     AuthContext = build_auth_context(
-        [wapi_handler_utils:maybe_with('identityID', Req0, fun(PartyID) -> {party, PartyID} end)],
+        [wapi_handler_utils:maybe_with('partyID', Req0, fun(PartyID) -> {party, PartyID} end)],
         [],
         Context
     ),
@@ -177,7 +177,7 @@ prepare('GetDestinationByExternalID' = OperationID, #{'externalID' := ExternalID
     {ok, #{authorize => Authorize, process => Process}};
 prepare(
     'CreateDestination' = OperationID,
-    #{'Destination' := Params = #{<<"partyID">> := PartyID}},
+    #{'Destination' := Params = #{<<"party">> := PartyID}},
     Context,
     Opts
 ) ->
@@ -423,7 +423,7 @@ prepare('GetWithdrawalByExternalID' = OperationID, #{'externalID' := ExternalID}
 prepare('ListWithdrawals' = OperationID, Req0, Context, _Opts) ->
     AuthContext = build_auth_context(
         [
-            wapi_handler_utils:maybe_with('identityID', Req0, fun(PartyID) -> {party, PartyID} end),
+            wapi_handler_utils:maybe_with('partyID', Req0, fun(PartyID) -> {party, PartyID} end),
             wapi_handler_utils:maybe_with('walletID', Req0, fun(WalletID) -> {wallet, WalletID} end),
             wapi_handler_utils:maybe_with('withdrawalID', Req0, fun(WithdrawalID) -> {withdrawal, WithdrawalID} end),
             wapi_handler_utils:maybe_with('destinationID', Req0, fun(DestinationID) -> {destination, DestinationID} end)
@@ -509,7 +509,7 @@ prepare(
 prepare('ListDeposits' = OperationID, Req0, Context, _Opts) ->
     AuthContext = build_auth_context(
         [
-            wapi_handler_utils:maybe_with('identityID', Req0, fun(PartyID) -> {party, PartyID} end),
+            wapi_handler_utils:maybe_with('partyID', Req0, fun(PartyID) -> {party, PartyID} end),
             wapi_handler_utils:maybe_with('walletID', Req0, fun(WalletID) -> {wallet, WalletID} end)
         ],
         [],
@@ -544,7 +544,7 @@ prepare('ListDeposits' = OperationID, Req0, Context, _Opts) ->
 %% Webhooks
 prepare(
     'CreateWebhook' = OperationID,
-    #{'Webhook' := #{<<"identityID">> := PartyID, <<"scope">> := Scope}} = Req,
+    #{'Webhook' := #{<<"partyID">> := PartyID, <<"scope">> := Scope}} = Req,
     Context,
     _Opts
 ) ->
@@ -569,7 +569,7 @@ prepare(
         wapi_handler_utils:reply_ok(201, Webhook)
     end,
     {ok, #{authorize => Authorize, process => Process}};
-prepare('GetWebhooks' = OperationID, #{'identityID' := PartyID}, Context, _Opts) ->
+prepare('GetWebhooks' = OperationID, #{'partyID' := PartyID}, Context, _Opts) ->
     AuthContext = build_auth_context([{party, PartyID}], [], Context),
     Authorize = fun() ->
         Prototypes = [
@@ -584,7 +584,7 @@ prepare('GetWebhooks' = OperationID, #{'identityID' := PartyID}, Context, _Opts)
         wapi_handler_utils:reply_ok(200, Webhooks)
     end,
     {ok, #{authorize => Authorize, process => Process}};
-prepare('GetWebhookByID' = OperationID, #{'identityID' := PartyID, 'webhookID' := WebhookID}, Context, _Opts) ->
+prepare('GetWebhookByID' = OperationID, #{'partyID' := PartyID, 'webhookID' := WebhookID}, Context, _Opts) ->
     AuthContext = build_auth_context(
         [
             {party, PartyID},
@@ -612,7 +612,7 @@ prepare('GetWebhookByID' = OperationID, #{'identityID' := PartyID, 'webhookID' :
     {ok, #{authorize => Authorize, process => Process}};
 prepare(
     'DeleteWebhookByID' = OperationID,
-    #{'identityID' := PartyID, 'webhookID' := WebhookID},
+    #{'partyID' := PartyID, 'webhookID' := WebhookID},
     Context,
     _Opts
 ) ->
@@ -642,9 +642,8 @@ prepare(
     end,
     {ok, #{authorize => Authorize, process => Process}};
 %% Reports
-prepare('CreateReport' = OperationID, #{'identityID' := PartyID} = Req0, Context, _Opts) ->
+prepare('CreateReport' = OperationID, #{'partyID' := PartyID} = Req, Context, _Opts) ->
     AuthContext = build_auth_context([{party, PartyID}], [], Context),
-    {Req, _PartyID} = patch_party_req(Context, Req0),
     Authorize = fun() ->
         Prototypes = [
             {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},
@@ -663,11 +662,11 @@ prepare('CreateReport' = OperationID, #{'identityID' := PartyID} = Req0, Context
                     <<"name">> => <<"timestamps">>,
                     <<"description">> => <<"invalid time range">>
                 });
-            {error, invalid_contract} ->
+            {error, {party, notfound}} ->
                 wapi_handler_utils:reply_ok(400, #{
                     <<"errorType">> => <<"NotFound">>,
-                    <<"name">> => <<"contractID">>,
-                    <<"description">> => <<"contract not found">>
+                    <<"name">> => <<"partyID">>,
+                    <<"description">> => <<"party not found">>
                 })
         end
     end,
@@ -675,16 +674,15 @@ prepare('CreateReport' = OperationID, #{'identityID' := PartyID} = Req0, Context
 prepare(
     'GetReport' = OperationID,
     #{
-        'identityID' := PartyID,
-        'reportID' := ReportId
-    } = Req0,
+        'partyID' := PartyID,
+        'reportID' := ReportID
+    },
     Context,
     _Opts
 ) ->
     AuthContext = build_auth_context([{party, PartyID}], [], Context),
-    {_Req, PartyID} = patch_party_req(Context, Req0),
     ResultReport =
-        case wapi_report_backend:get_report(ReportId, PartyID, PartyID, Context) of
+        case wapi_report_backend:get_report(ReportID, PartyID, Context) of
             {ok, Report} ->
                 Report;
             {error, notfound} ->
@@ -692,7 +690,7 @@ prepare(
         end,
     Authorize = fun() ->
         Prototypes = [
-            {operation, build_prototype_for(operation, #{report => ReportId, id => OperationID}, AuthContext)},
+            {operation, build_prototype_for(operation, #{report => ReportID, id => OperationID}, AuthContext)},
             {wallet,
                 build_prototype_for(
                     wallet,
@@ -707,9 +705,8 @@ prepare(
         wapi_handler_utils:reply_ok(200, ResultReport)
     end,
     {ok, #{authorize => Authorize, process => Process}};
-prepare('GetReports' = OperationID, #{'identityID' := PartyID} = Req0, Context, _Opts) ->
+prepare('GetReports' = OperationID, #{'partyID' := PartyID} = Req, Context, _Opts) ->
     AuthContext = build_auth_context([{party, PartyID}], [], Context),
-    {Req, _PartyID} = patch_party_req(Context, Req0),
     Authorize = fun() ->
         Prototypes = [
             {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},

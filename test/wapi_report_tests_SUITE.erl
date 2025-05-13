@@ -22,7 +22,7 @@
     create_report_ok_test/1,
     get_report_ok_test/1,
     get_reports_ok_test/1,
-    reports_with_wrong_identity_ok_test/1,
+    reports_with_wrong_party_ok_test/1,
     download_file_ok_test/1
 ]).
 
@@ -51,7 +51,7 @@ groups() ->
             create_report_ok_test,
             get_report_ok_test,
             get_reports_ok_test,
-            reports_with_wrong_identity_ok_test,
+            reports_with_wrong_party_ok_test,
             download_file_ok_test
         ]}
     ].
@@ -99,7 +99,7 @@ end_per_testcase(_Name, C) ->
 create_report_ok_test(C) ->
     PartyID = ?config(party, C),
     ParamPartyID = genlib:bsuuid(),
-    _ = wapi_ct_helper_bouncer:mock_assert_identity_op_ctx(<<"CreateReport">>, ?STRING, PartyID, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_party_op_ctx(<<"CreateReport">>, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
             {fistful_report, fun
@@ -120,9 +120,6 @@ create_report_ok_test(C) ->
     {ok, _} = call_api(
         fun swag_client_wallet_reports_api:create_report/3,
         #{
-            binding => #{
-                <<"identityID">> => ?STRING
-            },
             qs_val => #{
                 <<"partyID">> => ParamPartyID
             },
@@ -146,7 +143,7 @@ get_report_ok_test(C) ->
         ],
         ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
             id = <<"GetReport">>,
-            party = ?STRING,
+            party = ParamPartyID,
             report = genlib:to_binary(?INTEGER)
         }),
         C
@@ -154,10 +151,10 @@ get_report_ok_test(C) ->
     _ = wapi_ct_helper:mock_services(
         [
             {fistful_report, fun
-                ('GetReport', {ExpectedPartyID, _, _}) when ExpectedPartyID =:= ParamPartyID ->
+                ('GetReport', {ExpectedPartyID, _}) when ExpectedPartyID =:= ParamPartyID ->
                     {ok, ?REPORT};
-                ('GetReport', _) ->
-                    erlang:throw("Unexpected party id")
+                ('GetReport', {ExpectedPartyID, _}) ->
+                    erlang:throw({"Unexpected party id", ExpectedPartyID, ParamPartyID})
             end}
         ],
         C
@@ -166,7 +163,6 @@ get_report_ok_test(C) ->
         fun swag_client_wallet_reports_api:get_report/3,
         #{
             binding => #{
-                <<"identityID">> => ?STRING,
                 <<"reportID">> => ?INTEGER
             },
             qs_val => #{
@@ -178,9 +174,8 @@ get_report_ok_test(C) ->
 
 -spec get_reports_ok_test(config()) -> _.
 get_reports_ok_test(C) ->
-    PartyID = ?config(party, C),
     ParamPartyID = genlib:bsuuid(),
-    _ = wapi_ct_helper_bouncer:mock_assert_identity_op_ctx(<<"GetReports">>, ?STRING, PartyID, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_party_op_ctx(<<"GetReports">>, ParamPartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
             {fistful_report, fun
@@ -201,9 +196,6 @@ get_reports_ok_test(C) ->
     {ok, _} = call_api(
         fun swag_client_wallet_reports_api:get_reports/3,
         #{
-            binding => #{
-                <<"identityID">> => ?STRING
-            },
             qs_val => #{
                 <<"partyID">> => ParamPartyID,
                 <<"fromTime">> => ?TIMESTAMP,
@@ -214,9 +206,9 @@ get_reports_ok_test(C) ->
         wapi_ct_helper:cfg(context, C)
     ).
 
--spec reports_with_wrong_identity_ok_test(config()) -> _.
-reports_with_wrong_identity_ok_test(C) ->
-    PartyID = <<"WrongIdentity">>,
+-spec reports_with_wrong_party_ok_test(config()) -> _.
+reports_with_wrong_party_ok_test(C) ->
+    PartyID = <<"WrongPartyID">>,
     _ = wapi_ct_helper_bouncer:mock_arbiter(_ = wapi_ct_helper_bouncer:judge_always_forbidden(), C),
     _ = wapi_ct_helper:mock_services(
         [
@@ -231,8 +223,8 @@ reports_with_wrong_identity_ok_test(C) ->
     ?EMPTY_RESP(401) = call_api(
         fun swag_client_wallet_reports_api:create_report/3,
         #{
-            binding => #{
-                <<"identityID">> => PartyID
+            qs_val => #{
+                <<"partyID">> => PartyID
             },
             body => #{
                 <<"reportType">> => <<"withdrawalRegistry">>,
@@ -246,8 +238,10 @@ reports_with_wrong_identity_ok_test(C) ->
         fun swag_client_wallet_reports_api:get_report/3,
         #{
             binding => #{
-                <<"identityID">> => PartyID,
                 <<"reportID">> => ?INTEGER
+            },
+            qs_val => #{
+                <<"partyID">> => PartyID
             }
         },
         wapi_ct_helper:cfg(context, C)
@@ -255,10 +249,8 @@ reports_with_wrong_identity_ok_test(C) ->
     ?EMPTY_RESP(401) = call_api(
         fun swag_client_wallet_reports_api:get_reports/3,
         #{
-            binding => #{
-                <<"identityID">> => PartyID
-            },
             qs_val => #{
+                <<"partyID">> => PartyID,
                 <<"fromTime">> => ?TIMESTAMP,
                 <<"toTime">> => ?TIMESTAMP,
                 <<"type">> => <<"withdrawalRegistry">>

@@ -72,6 +72,8 @@ marshal(blocking, unblocked) ->
     unblocked;
 marshal(account_change, {created, Account}) ->
     {created, marshal(account, Account)};
+marshal(account_id, V) when is_integer(V) ->
+    V;
 marshal(account, #{
     realm := Realm,
     currency := CurrencyID,
@@ -242,6 +244,8 @@ unmarshal(blocking, unblocked) ->
     unblocked;
 unmarshal(account_change, {created, Account}) ->
     {created, unmarshal(account, Account)};
+unmarshal(account_id, V) when is_integer(V) ->
+    V;
 unmarshal(account, #'account_Account'{
     party_id = PartyID,
     realm = Realm,
@@ -353,7 +357,7 @@ unmarshal(digital_wallet, #'fistful_base_DigitalWallet'{
 }) ->
     genlib_map:compact(#{
         id => unmarshal(string, ID),
-        token => maybe_marshal(string, Token),
+        token => maybe_unmarshal(string, Token),
         payment_service => unmarshal(payment_service, PaymentService),
         account_name => unmarshal(string, AccountName),
         account_identity_number => unmarshal(string, AccountIdentityNumber)
@@ -363,7 +367,7 @@ unmarshal(generic_resource, #'fistful_base_ResourceGenericData'{
     data = Data
 }) ->
     genlib_map:compact(#{
-        data => maybe_marshal(content, Data),
+        data => maybe_unmarshal(content, Data),
         payment_service => unmarshal(payment_service, PaymentService)
     });
 unmarshal(payment_service, #'fistful_base_PaymentServiceRef'{id = Ref}) ->

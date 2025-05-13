@@ -606,11 +606,13 @@ call_api(F, Params, Context) ->
     wapi_client_lib:handle_response(Response).
 
 create_withdrawal_call_api(C) ->
+    PartyID = ?config(party, C),
     call_api(
         fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
         #{
             body => genlib_map:compact(#{
                 <<"wallet">> => ?STRING,
+                <<"party">> => PartyID,
                 <<"destination">> => ?STRING,
                 <<"body">> => #{
                     <<"amount">> => ?INTEGER,
