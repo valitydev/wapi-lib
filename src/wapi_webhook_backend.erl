@@ -79,7 +79,7 @@ encode_webhook_id(WebhookID) ->
 %% marshaling
 
 marshal_webhook_params(#{
-    <<"identityID">> := PartyID,
+    <<"partyID">> := PartyID,
     <<"scope">> := Scope,
     <<"url">> := URL
 }) ->
@@ -126,7 +126,7 @@ unmarshal_webhook(#webhooker_Webhook{
 }) ->
     genlib_map:compact(#{
         <<"id">> => integer_to_binary(ID),
-        <<"identityID">> => PartyID,
+        <<"partyID">> => PartyID,
         <<"active">> => wapi_codec:unmarshal(bool, Enabled),
         <<"scope">> => unmarshal_webhook_scope(EventFilter, WalletID),
         <<"url">> => URL,

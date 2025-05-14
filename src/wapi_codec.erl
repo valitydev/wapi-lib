@@ -74,11 +74,14 @@ marshal(account_change, {created, Account}) ->
     {created, marshal(account, Account)};
 marshal(account_id, V) when is_integer(V) ->
     V;
-marshal(account, #{
-    realm := Realm,
-    currency := CurrencyID,
-    account_id := AID
-} = Account) ->
+marshal(
+    account,
+    #{
+        realm := Realm,
+        currency := CurrencyID,
+        account_id := AID
+    } = Account
+) ->
     #'account_Account'{
         realm = Realm,
         party_id = maybe_marshal(id, maps:get(party_id, Account, undefined)),

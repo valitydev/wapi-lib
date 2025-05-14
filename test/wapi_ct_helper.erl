@@ -2,6 +2,7 @@
 
 -include_lib("common_test/include/ct.hrl").
 -include_lib("damsel/include/dmsl_domain_conf_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include_lib("wapi_wallet_dummy_data.hrl").
 -include_lib("wapi_token_keeper_data.hrl").
 
@@ -132,11 +133,66 @@ start_app(woody = AppName) ->
         {acceptors_pool_size, 4}
     ]);
 start_app({dmt_client = AppName, SupPid}) ->
+    WalletConfig = #domain_WalletConfig{
+        id = ?STRING,
+        created_at = wapi_time:rfc3339(),
+        blocking =
+            {unblocked, #domain_Unblocked{
+                reason = <<"">>,
+                since = wapi_time:rfc3339()
+            }},
+        suspension =
+            {active, #domain_Active{
+                since = wapi_time:rfc3339()
+            }},
+        details = #domain_Details{
+            name = <<"Test Wallet">>,
+            description = <<"Test description">>
+        },
+        currency_configs = #{
+            #domain_CurrencyRef{symbolic_code = <<"RUB">>} => #domain_WalletCurrencyConfig{
+                currency = #domain_CurrencyRef{symbolic_code = <<"RUB">>},
+                settlement = ?INTEGER
+            }
+        },
+        payment_institution = #domain_PaymentInstitutionRef{id = 1},
+        terms = #domain_TermSetHierarchyRef{id = 1},
+        party_id = ?STRING
+    },
+    WalletConfigObject = #domain_WalletConfigObject{ref = #domain_WalletConfigRef{id = ?STRING}, data = WalletConfig},
+    PartyConfig = #domain_PartyConfig{
+        id = ?STRING,
+        contact_info = #domain_PartyContactInfo{
+            registration_email = <<"test@test.ru">>
+        },
+        created_at = wapi_time:rfc3339(),
+        blocking =
+            {unblocked, #domain_Unblocked{
+                reason = <<"">>,
+                since = wapi_time:rfc3339()
+            }},
+        suspension =
+            {active, #domain_Active{
+                since = wapi_time:rfc3339()
+            }},
+        shops = [],
+        wallets = [#domain_WalletConfigRef{id = ?STRING}]
+    },
+    PartyConfigObject = #domain_PartyConfigObject{ref = #domain_PartyConfigRef{id = ?STRING}, data = PartyConfig},
     Urls = mock_services_(
         [
             {domain_config, fun
-                ('Checkout', _) -> {ok, #domain_conf_Snapshot{version = 1, domain = #{}}};
-                ('PullRange', _) -> {ok, #{}}
+                ('Checkout', _) ->
+                    {ok, #domain_conf_Snapshot{
+                        version = 1,
+                        domain = #{
+                            {wallet_config, #domain_WalletConfigRef{id = ?STRING}} =>
+                                {wallet_config, WalletConfigObject},
+                            {party_config, #domain_PartyConfigRef{id = ?STRING}} => {party_config, PartyConfigObject}
+                        }
+                    }};
+                ('PullRange', _) ->
+                    {ok, #{}}
             end}
         ],
         SupPid

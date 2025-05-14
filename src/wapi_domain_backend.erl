@@ -23,18 +23,21 @@
 -spec get_party_config(id()) -> {ok, {map(), id()}} | {error, notfound}.
 get_party_config(PartyID) ->
     do(fun() ->
-        Party = unwrap(object({party, #domain_PartyConfigRef{id = PartyID}})),
+        Party = unwrap(object({party_config, #domain_PartyConfigRef{id = PartyID}})),
         {#{<<"id">> => Party#domain_PartyConfig.id}, PartyID}
     end).
 
 -spec get_wallet_config(id()) -> {ok, {map(), id()}} | {error, notfound}.
 get_wallet_config(WalletID) ->
     do(fun() ->
-        Wallet = unwrap(object({wallet, #domain_WalletConfigRef{id = WalletID}})),
-        {#{
-            <<"id">> => Wallet#domain_WalletConfig.id,
-            <<"partyID">> => Wallet#domain_WalletConfig.party_id
-        }, Wallet#domain_WalletConfig.party_id}
+        Wallet = unwrap(object({wallet_config, #domain_WalletConfigRef{id = WalletID}})),
+        {
+            #{
+                <<"id">> => Wallet#domain_WalletConfig.id,
+                <<"partyID">> => Wallet#domain_WalletConfig.party_id
+            },
+            Wallet#domain_WalletConfig.party_id
+        }
     end).
 
 -spec get_currency(id()) -> {ok, response_data()} | {error, notfound}.

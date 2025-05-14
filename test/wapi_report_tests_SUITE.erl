@@ -97,19 +97,17 @@ end_per_testcase(_Name, C) ->
 %%% Tests
 -spec create_report_ok_test(config()) -> _.
 create_report_ok_test(C) ->
-    PartyID = ?config(party, C),
-    ParamPartyID = genlib:bsuuid(),
-    _ = wapi_ct_helper_bouncer:mock_assert_party_op_ctx(<<"CreateReport">>, PartyID, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_party_op_ctx(<<"CreateReport">>, ?STRING, C),
     _ = wapi_ct_helper:mock_services(
         [
             {fistful_report, fun
                 ('GenerateReport', {#reports_ReportRequest{party_id = ExpectedPartyID}, _}) when
-                    ExpectedPartyID =:= ParamPartyID
+                    ExpectedPartyID =:= ?STRING
                 ->
                     {ok, ?REPORT_ID};
                 ('GenerateReport', _) ->
                     erlang:throw("Unexpected party id");
-                ('GetReport', {ExpectedPartyID, _, _}) when ExpectedPartyID =:= ParamPartyID ->
+                ('GetReport', {ExpectedPartyID, _}) when ExpectedPartyID =:= ?STRING ->
                     {ok, ?REPORT};
                 ('GetReport', _) ->
                     erlang:throw("Unexpected party id")
@@ -121,7 +119,7 @@ create_report_ok_test(C) ->
         fun swag_client_wallet_reports_api:create_report/3,
         #{
             qs_val => #{
-                <<"partyID">> => ParamPartyID
+                <<"partyID">> => ?STRING
             },
             body => #{
                 <<"reportType">> => <<"withdrawalRegistry">>,
@@ -134,16 +132,14 @@ create_report_ok_test(C) ->
 
 -spec get_report_ok_test(config()) -> _.
 get_report_ok_test(C) ->
-    PartyID = ?config(party, C),
-    ParamPartyID = genlib:bsuuid(),
     _ = wapi_ct_helper_bouncer:mock_assert_generic_op_ctx(
         [
             {report, genlib:to_binary(?INTEGER), #{party => ?STRING, files => [?STRING, ?STRING, ?STRING]}},
-            {party, ?STRING, PartyID}
+            {party, ?STRING, ?STRING}
         ],
         ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
             id = <<"GetReport">>,
-            party = ParamPartyID,
+            party = ?STRING,
             report = genlib:to_binary(?INTEGER)
         }),
         C
@@ -151,10 +147,10 @@ get_report_ok_test(C) ->
     _ = wapi_ct_helper:mock_services(
         [
             {fistful_report, fun
-                ('GetReport', {ExpectedPartyID, _}) when ExpectedPartyID =:= ParamPartyID ->
+                ('GetReport', {ExpectedPartyID, _}) when ExpectedPartyID =:= ?STRING ->
                     {ok, ?REPORT};
                 ('GetReport', {ExpectedPartyID, _}) ->
-                    erlang:throw({"Unexpected party id", ExpectedPartyID, ParamPartyID})
+                    erlang:throw({"Unexpected party id", ExpectedPartyID, ?STRING})
             end}
         ],
         C
@@ -166,7 +162,7 @@ get_report_ok_test(C) ->
                 <<"reportID">> => ?INTEGER
             },
             qs_val => #{
-                <<"partyID">> => ParamPartyID
+                <<"partyID">> => ?STRING
             }
         },
         wapi_ct_helper:cfg(context, C)

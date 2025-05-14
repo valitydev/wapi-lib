@@ -99,10 +99,9 @@ end_per_testcase(_Name, C) ->
 
 -spec create_webhook_ok_test(config()) -> _.
 create_webhook_ok_test(C) ->
-    PartyID = ?config(party, C),
     _ = wapi_ct_helper_bouncer:mock_assert_generic_op_ctx(
         [
-            {party, ?STRING, PartyID}
+            {party, ?STRING, ?STRING}
         ],
         ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
             id = <<"CreateWebhook">>,
@@ -133,12 +132,11 @@ create_webhook_ok_test(C) ->
 
 -spec create_withdrawal_webhook_ok_test(config()) -> _.
 create_withdrawal_webhook_ok_test(C) ->
-    PartyID = ?config(party, C),
     WalletID = ?STRING,
     _ = wapi_ct_helper_bouncer:mock_assert_generic_op_ctx(
         [
-            {party, ?STRING, PartyID},
-            {wallet, ?STRING, PartyID}
+            {party, ?STRING, ?STRING},
+            {wallet, ?STRING, ?STRING}
         ],
         ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
             id = <<"CreateWebhook">>,
@@ -171,8 +169,7 @@ create_withdrawal_webhook_ok_test(C) ->
 
 -spec get_webhooks_ok_test(config()) -> _.
 get_webhooks_ok_test(C) ->
-    PartyID = ?config(party, C),
-    _ = wapi_ct_helper_bouncer:mock_assert_identity_op_ctx(<<"GetWebhooks">>, ?STRING, PartyID, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_party_op_ctx(<<"GetWebhooks">>, ?STRING, C),
     _ = wapi_ct_helper:mock_services(
         [
             {webhook_manager, fun('GetList', _) ->
@@ -193,11 +190,10 @@ get_webhooks_ok_test(C) ->
 
 -spec get_webhook_ok_test(config()) -> _.
 get_webhook_ok_test(C) ->
-    PartyID = ?config(party, C),
     _ = wapi_ct_helper_bouncer:mock_assert_generic_op_ctx(
         [
             {webhook, integer_to_binary(?INTEGER), #{party => ?STRING}},
-            {party, ?STRING, PartyID}
+            {party, ?STRING, ?STRING}
         ],
         ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
             id = <<"GetWebhookByID">>,
@@ -227,11 +223,10 @@ get_webhook_ok_test(C) ->
 
 -spec delete_webhook_ok_test(config()) -> _.
 delete_webhook_ok_test(C) ->
-    PartyID = ?config(party, C),
     _ = wapi_ct_helper_bouncer:mock_assert_generic_op_ctx(
         [
             {webhook, integer_to_binary(?INTEGER), #{party => ?STRING}},
-            {party, ?STRING, PartyID}
+            {party, ?STRING, ?STRING}
         ],
         ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
             id = <<"DeleteWebhookByID">>,

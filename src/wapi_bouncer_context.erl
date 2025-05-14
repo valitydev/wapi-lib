@@ -21,11 +21,9 @@
 -type prototype_operation() :: #{
     id => operation_id(),
     party => maybe_undefined(entity_id()),
-    party => maybe_undefined(entity_id()),
     wallet => maybe_undefined(entity_id()),
     withdrawal => maybe_undefined(entity_id()),
     deposit => maybe_undefined(entity_id()),
-    w2w_transfer => maybe_undefined(entity_id()),
     source => maybe_undefined(entity_id()),
     destination => maybe_undefined(entity_id()),
     report => maybe_undefined(entity_id()),
@@ -36,11 +34,9 @@
 -type prototype_wallet() :: [wallet_entity()].
 
 -type wallet_entity() ::
-    {party, identity_data()}
-    | {wallet, wallet_data()}
+    {wallet, wallet_data()}
     | {withdrawal, withdrawal_data()}
     | {deposit, deposit_data()}
-    | {w2w_transfer, w2w_transfer_data()}
     | {source, source_data()}
     | {destination, destination_data()}
     | {webhook, webhook_data()}
@@ -51,17 +47,12 @@
     | wallet
     | withdrawal
     | deposit
-    | w2w_transfer
     | source
     | destination
     | webhook
     | webhook_filter
     | report
     | report_file.
-
--type identity_data() :: #{
-    id => entity_id()
-}.
 
 -type wallet_data() :: #{
     id => entity_id(),
@@ -75,11 +66,6 @@
 }.
 
 -type deposit_data() :: #{
-    id => entity_id(),
-    party => entity_id()
-}.
-
--type w2w_transfer_data() :: #{
     id => entity_id(),
     party => entity_id()
 }.
@@ -254,9 +240,8 @@ build_entity_ctx({webhook, Data}) ->
     #base_Entity{
         id = 'maybe'(id, Data),
         type = <<"WalletWebhook">>,
+        party = 'maybe'(party, Data),
         wallet = #base_WalletAttrs{
-            %% TODO: fix after edit bouncer proto
-            % party = 'maybe'(party, Data),
             wallet = 'maybe'(wallet, Data)
         }
     };
@@ -264,9 +249,8 @@ build_entity_ctx({report, Data}) ->
     #base_Entity{
         id = 'maybe'(id, Data),
         type = <<"WalletReport">>,
+        party = 'maybe'(party, Data),
         wallet = #base_WalletAttrs{
-            %% TODO: fix after edit bouncer proto
-            % party = 'maybe'(party, Data),
             report = wapi_handler_utils:maybe_with(files, Data, fun build_report_attrs/1)
         }
     }.

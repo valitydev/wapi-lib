@@ -555,7 +555,7 @@ check_unknown_withdrawal_id(C) ->
     _ = wapi_ct_helper_bouncer:mock_assert_generic_op_ctx(
         [
             {destination, ?STRING, PartyID},
-            {wallet, ?STRING, PartyID}
+            {wallet, ?STRING, ?STRING}
         ],
         ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
             id = <<"CreateWithdrawal">>,
@@ -624,11 +624,13 @@ create_withdrawal_call_api(C) ->
     ).
 
 create_qoute_call_api(C) ->
+    PartyID = ?config(party, C),
     call_api(
         fun swag_client_wallet_withdrawals_api:create_quote/3,
         #{
             body => genlib_map:compact(#{
                 <<"walletID">> => ?STRING,
+                <<"partyID">> => PartyID,
                 <<"destinationID">> => ?STRING,
                 <<"currencyFrom">> => ?RUB,
                 <<"currencyTo">> => ?USD,
@@ -646,7 +648,7 @@ create_withdrawal_start_mocks(C, CreateWithdrawalResultFun) ->
     _ = wapi_ct_helper_bouncer:mock_assert_generic_op_ctx(
         [
             {destination, ?STRING, PartyID},
-            {wallet, ?STRING, PartyID}
+            {wallet, ?STRING, ?STRING}
         ],
         ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
             id = <<"CreateWithdrawal">>,
@@ -690,7 +692,7 @@ get_quote_start_mocks(C, GetQuoteResultFun) ->
     _ = wapi_ct_helper_bouncer:mock_assert_generic_op_ctx(
         [
             {destination, ?STRING, PartyID},
-            {wallet, ?STRING, PartyID}
+            {wallet, ?STRING, ?STRING}
         ],
         ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
             id = <<"CreateQuote">>,
