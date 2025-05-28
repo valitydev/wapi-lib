@@ -321,9 +321,7 @@
 
 -define(DESTINATION_EVENT_FILTER, #webhooker_EventFilter{
     types = ordsets:from_list([
-        {destination, {created, #webhooker_DestinationCreated{}}},
-        {destination, {unauthorized, #webhooker_DestinationUnauthorized{}}},
-        {destination, {authorized, #webhooker_DestinationAuthorized{}}}
+        {destination, {created, #webhooker_DestinationCreated{}}}
     ])
 }).
 

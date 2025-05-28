@@ -186,7 +186,7 @@ unmarshal_realm(live) ->
 unmarshal_cash(Amount, Currency) when is_bitstring(Currency) ->
     #{<<"amount">> => Amount, <<"currency">> => Currency}.
 
-unmarshal_withdrawal_stat_status({failed, #stat_WithdrawalFailed{base_failure = BaseFailure}}) ->
+unmarshal_withdrawal_stat_status({failed, #stat_WithdrawalFailed{failure = BaseFailure}}) ->
     wapi_codec:convert(withdrawal_status, {failed, BaseFailure});
 unmarshal_withdrawal_stat_status(Status) ->
     wapi_codec:convert(withdrawal_status, Status).

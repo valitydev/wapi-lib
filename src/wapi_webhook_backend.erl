@@ -106,11 +106,7 @@ marshal_webhook_event_type(<<"WithdrawalSucceeded">>) ->
 marshal_webhook_event_type(<<"WithdrawalFailed">>) ->
     {withdrawal, {failed, #webhooker_WithdrawalFailed{}}};
 marshal_webhook_event_type(<<"DestinationCreated">>) ->
-    {destination, {created, #webhooker_DestinationCreated{}}};
-marshal_webhook_event_type(<<"DestinationUnauthorized">>) ->
-    {destination, {unauthorized, #webhooker_DestinationUnauthorized{}}};
-marshal_webhook_event_type(<<"DestinationAuthorized">>) ->
-    {destination, {authorized, #webhooker_DestinationAuthorized{}}}.
+    {destination, {created, #webhooker_DestinationCreated{}}}.
 
 unmarshal_webhooks(Webhooks) when is_list(Webhooks) ->
     lists:map(fun(Webhook) -> unmarshal_webhook(Webhook) end, Webhooks).

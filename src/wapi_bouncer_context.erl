@@ -137,8 +137,7 @@ build(operation, #{id := OperationID} = Params, Acc) ->
                 report = wapi_handler_utils:maybe_with(report, Params, fun genlib:to_binary/1),
                 file = 'maybe'(file, Params),
                 webhook = 'maybe'(webhook, Params)
-            },
-            grants = wapi_handler_utils:maybe_with(grants, Params, fun build_grants/1)
+            }
         }
     };
 build(wallet, Params, Acc) when is_list(Params) ->
@@ -264,18 +263,6 @@ build_entity_ctx({report, Data}) ->
 
 operation_id_to_binary(V) ->
     erlang:atom_to_binary(V, utf8).
-
-build_grants(Grants) when is_list(Grants) ->
-    build_set(lists:map(fun build_grant/1, Grants)).
-
-build_grant(Grant) ->
-    #ctx_v1_WalletGrant{
-        wallet = 'maybe'(wallet, Grant),
-        destination = 'maybe'(destination, Grant),
-        body = wapi_handler_utils:maybe_with(body, Grant, fun build_cash/1),
-        created_at = 'maybe'(created_at, Grant),
-        expires_on = 'maybe'(expires_on, Grant)
-    }.
 
 build_cash(Cash) ->
     #base_Cash{

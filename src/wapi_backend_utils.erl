@@ -46,7 +46,6 @@
 -export([add_to_ctx/3]).
 -export([get_from_ctx/2]).
 -export([get_idempotent_key/3]).
--export([issue_grant_token/3]).
 -export([create_params_hash/1]).
 -export([decode_resource/1]).
 -export([tokenize_resource/1]).
@@ -138,24 +137,6 @@ get_from_ctx(Key, Ctx) ->
         undefined,
         LegacyNSs
     ).
-
--spec issue_grant_token(_, binary(), handler_context()) -> {ok, binary()} | {error, expired}.
-issue_grant_token(TokenSpec, Expiration, Context) ->
-    case get_expiration_deadline(Expiration) of
-        {ok, Deadline} ->
-            {ok, wapi_tokens_legacy:issue_access_token(wapi_handler_utils:get_owner(Context), TokenSpec, Deadline)};
-        Error = {error, _} ->
-            Error
-    end.
-
-get_expiration_deadline(Expiration) ->
-    Deadline = genlib_rfc3339:parse(Expiration, second),
-    case genlib_time:unow() - Deadline < 0 of
-        true ->
-            {ok, Deadline};
-        false ->
-            {error, expired}
-    end.
 
 -spec create_params_hash(term()) -> integer().
 create_params_hash(Value) ->
