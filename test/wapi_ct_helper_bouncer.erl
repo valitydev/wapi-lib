@@ -5,11 +5,9 @@
 
 -export([mock_assert_op_ctx/2]).
 -export([mock_assert_party_op_ctx/3]).
--export([mock_assert_identity_op_ctx/4]).
 -export([mock_assert_destination_op_ctx/4]).
 -export([mock_assert_wallet_op_ctx/4]).
 -export([mock_assert_withdrawal_op_ctx/4]).
--export([mock_assert_w2w_transfer_op_ctx/4]).
 -export([mock_assert_generic_op_ctx/3]).
 
 -export([mock_client/1]).
@@ -41,14 +39,6 @@ mock_assert_party_op_ctx(Op, PartyID, Config) ->
         Config
     ).
 
--spec mock_assert_identity_op_ctx(_, _, _, _) -> _.
-mock_assert_identity_op_ctx(Op, IdentityID, PartyID, Config) ->
-    mock_assert_generic_op_ctx(
-        [{identity, IdentityID, PartyID}],
-        ?CTX_WAPI(?CTX_IDENTITY_OP(Op, IdentityID)),
-        Config
-    ).
-
 -spec mock_assert_destination_op_ctx(_, _, _, _) -> _.
 mock_assert_destination_op_ctx(Op, DestinationID, PartyID, Config) ->
     mock_assert_generic_op_ctx(
@@ -73,14 +63,6 @@ mock_assert_withdrawal_op_ctx(Op, WithdrawalID, PartyID, Config) ->
         Config
     ).
 
--spec mock_assert_w2w_transfer_op_ctx(_, _, _, _) -> _.
-mock_assert_w2w_transfer_op_ctx(Op, W2WTransferID, PartyID, Config) ->
-    mock_assert_generic_op_ctx(
-        [{w2w_transfer, W2WTransferID, PartyID}],
-        ?CTX_WAPI(?CTX_W2W_TRANSFER_OP(Op, W2WTransferID)),
-        Config
-    ).
-
 -spec mock_assert_generic_op_ctx(_, _, _) -> _.
 mock_assert_generic_op_ctx(Entities, WapiContext, Config) ->
     List = lists:map(fun make_entity/1, Entities),
@@ -96,10 +78,10 @@ mock_assert_generic_op_ctx(Entities, WapiContext, Config) ->
 
 %%
 
-make_entity({identity, ID, OwnerID}) ->
+make_entity({party, ID, OwnerID}) ->
     #base_Entity{
         id = ID,
-        type = <<"Identity">>,
+        type = <<"Party">>,
         party = OwnerID
     };
 make_entity({wallet, ID, OwnerID}) ->
@@ -127,21 +109,21 @@ make_entity({destination, ID, OwnerID}) ->
         type = <<"Destination">>,
         party = OwnerID
     };
-make_entity({report, ID, Data = #{identity := IdentityID}}) ->
+make_entity({report, ID, Data = #{party := PartyID}}) ->
     #base_Entity{
         id = ID,
         type = <<"WalletReport">>,
+        party = PartyID,
         wallet = #base_WalletAttrs{
-            identity = IdentityID,
             report = wapi_handler_utils:maybe_with(files, Data, fun build_report_attrs/1)
         }
     };
-make_entity({webhook, ID, Data = #{identity := IdentityID}}) ->
+make_entity({webhook, ID, Data = #{party := PartyID}}) ->
     #base_Entity{
         id = ID,
         type = <<"WalletWebhook">>,
+        party = PartyID,
         wallet = #base_WalletAttrs{
-            identity = IdentityID,
             wallet = maps:get(wallet, Data, undefined)
         }
     }.

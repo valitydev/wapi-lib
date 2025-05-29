@@ -21,11 +21,9 @@
 -type prototype_operation() :: #{
     id => operation_id(),
     party => maybe_undefined(entity_id()),
-    identity => maybe_undefined(entity_id()),
     wallet => maybe_undefined(entity_id()),
     withdrawal => maybe_undefined(entity_id()),
     deposit => maybe_undefined(entity_id()),
-    w2w_transfer => maybe_undefined(entity_id()),
     source => maybe_undefined(entity_id()),
     destination => maybe_undefined(entity_id()),
     report => maybe_undefined(entity_id()),
@@ -36,32 +34,25 @@
 -type prototype_wallet() :: [wallet_entity()].
 
 -type wallet_entity() ::
-    {identity, identity_data()}
-    | {wallet, wallet_data()}
+    {wallet, wallet_data()}
     | {withdrawal, withdrawal_data()}
     | {deposit, deposit_data()}
-    | {w2w_transfer, w2w_transfer_data()}
     | {source, source_data()}
     | {destination, destination_data()}
     | {webhook, webhook_data()}
     | {report, report_data()}.
 
 -type wallet_entity_type() ::
-    identity
+    party
     | wallet
     | withdrawal
     | deposit
-    | w2w_transfer
     | source
     | destination
     | webhook
     | webhook_filter
     | report
     | report_file.
-
--type identity_data() :: #{
-    id => entity_id()
-}.
 
 -type wallet_data() :: #{
     id => entity_id(),
@@ -79,11 +70,6 @@
     party => entity_id()
 }.
 
--type w2w_transfer_data() :: #{
-    id => entity_id(),
-    party => entity_id()
-}.
-
 -type source_data() :: #{
     id => entity_id(),
     party => entity_id()
@@ -96,13 +82,13 @@
 
 -type webhook_data() :: #{
     id => entity_id(),
-    identity => entity_id(),
+    party => entity_id(),
     wallet => entity_id()
 }.
 
 -type report_data() :: #{
     id => entity_id(),
-    identity => entity_id(),
+    party => entity_id(),
     files => [entity_id()]
 }.
 
@@ -143,18 +129,15 @@ build(operation, #{id := OperationID} = Params, Acc) ->
             op = #ctx_v1_WalletAPIOperation{
                 id = operation_id_to_binary(OperationID),
                 party = 'maybe'(party, Params),
-                identity = 'maybe'(identity, Params),
                 wallet = 'maybe'(wallet, Params),
                 withdrawal = 'maybe'(withdrawal, Params),
                 deposit = 'maybe'(deposit, Params),
-                w2w_transfer = 'maybe'(w2w_transfer, Params),
                 source = 'maybe'(source, Params),
                 destination = 'maybe'(destination, Params),
                 report = wapi_handler_utils:maybe_with(report, Params, fun genlib:to_binary/1),
                 file = 'maybe'(file, Params),
                 webhook = 'maybe'(webhook, Params)
-            },
-            grants = wapi_handler_utils:maybe_with(grants, Params, fun build_grants/1)
+            }
         }
     };
 build(wallet, Params, Acc) when is_list(Params) ->
@@ -198,22 +181,23 @@ build_wallet_entity(Type, Params, {IDKey, ID}) ->
 
 build_wallet_entity_(deposit, #{<<"wallet">> := WalletID}) ->
     #{wallet => WalletID};
-build_wallet_entity_(webhook, #{<<"identityID">> := Identity} = Webhook) ->
+build_wallet_entity_(webhook, #{<<"partyID">> := Party} = Webhook) ->
     Scope = 'maybe'(<<"scope">>, Webhook),
     WalletID = 'maybe'(<<"walletID">>, Scope),
-    #{identity => Identity, wallet => WalletID};
+    #{party => Party, wallet => WalletID};
 build_wallet_entity_(report, #{<<"files">> := Files}) ->
     #{files => lists:map(fun(#{<<"id">> := FileID}) -> FileID end, Files)};
-%% identity => IdentityID,
+%% party => PartyID,
 build_wallet_entity_(_, _) ->
     #{}.
 
 %%
 
-build_entity_ctx({identity, Data}) ->
+build_entity_ctx({party, Data}) ->
+    %% TODO: fix after edit bouncer proto
     #base_Entity{
         id = 'maybe'(id, Data),
-        type = <<"Identity">>,
+        type = <<"Party">>,
         party = 'maybe'(party, Data)
     };
 build_entity_ctx({wallet, Data}) ->
@@ -239,12 +223,6 @@ build_entity_ctx({deposit, Data}) ->
             wallet = 'maybe'(wallet, Data)
         }
     };
-build_entity_ctx({w2w_transfer, Data}) ->
-    #base_Entity{
-        id = 'maybe'(id, Data),
-        type = <<"W2WTransfer">>,
-        party = 'maybe'(party, Data)
-    };
 build_entity_ctx({source, Data}) ->
     #base_Entity{
         id = 'maybe'(id, Data),
@@ -261,8 +239,8 @@ build_entity_ctx({webhook, Data}) ->
     #base_Entity{
         id = 'maybe'(id, Data),
         type = <<"WalletWebhook">>,
+        party = 'maybe'(party, Data),
         wallet = #base_WalletAttrs{
-            identity = 'maybe'(identity, Data),
             wallet = 'maybe'(wallet, Data)
         }
     };
@@ -270,8 +248,8 @@ build_entity_ctx({report, Data}) ->
     #base_Entity{
         id = 'maybe'(id, Data),
         type = <<"WalletReport">>,
+        party = 'maybe'(party, Data),
         wallet = #base_WalletAttrs{
-            identity = 'maybe'(identity, Data),
             report = wapi_handler_utils:maybe_with(files, Data, fun build_report_attrs/1)
         }
     }.
@@ -285,18 +263,6 @@ build_entity_ctx({report, Data}) ->
 
 operation_id_to_binary(V) ->
     erlang:atom_to_binary(V, utf8).
-
-build_grants(Grants) when is_list(Grants) ->
-    build_set(lists:map(fun build_grant/1, Grants)).
-
-build_grant(Grant) ->
-    #ctx_v1_WalletGrant{
-        wallet = 'maybe'(wallet, Grant),
-        destination = 'maybe'(destination, Grant),
-        body = wapi_handler_utils:maybe_with(body, Grant, fun build_cash/1),
-        created_at = 'maybe'(created_at, Grant),
-        expires_on = 'maybe'(expires_on, Grant)
-    }.
 
 build_cash(Cash) ->
     #base_Cash{

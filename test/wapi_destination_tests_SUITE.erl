@@ -7,7 +7,6 @@
 
 -include_lib("fistful_proto/include/fistful_fistful_base_thrift.hrl").
 -include_lib("fistful_proto/include/fistful_fistful_thrift.hrl").
--include_lib("fistful_proto/include/fistful_identity_thrift.hrl").
 -include_lib("fistful_proto/include/fistful_account_thrift.hrl").
 -include_lib("fistful_proto/include/fistful_destination_thrift.hrl").
 -include_lib("tds_proto/include/tds_storage_thrift.hrl").
@@ -28,10 +27,9 @@
 -export([create_destination_ok_test/1]).
 -export([create_destination_fail_resource_token_invalid_test/1]).
 -export([create_destination_fail_resource_token_expire_test/1]).
--export([create_destination_fail_identity_notfound_test/1]).
+-export([create_destination_fail_party_notfound_test/1]).
 -export([create_destination_fail_currency_notfound_test/1]).
 -export([create_destination_fail_party_inaccessible_test/1]).
--export([create_destination_fail_withdrawal_method_test/1]).
 -export([get_destination_ok_test/1]).
 -export([get_destination_fail_notfound_test/1]).
 -export([bank_card_resource_test/1]).
@@ -68,10 +66,9 @@ groups() ->
             create_destination_ok_test,
             create_destination_fail_resource_token_invalid_test,
             create_destination_fail_resource_token_expire_test,
-            create_destination_fail_identity_notfound_test,
+            create_destination_fail_party_notfound_test,
             create_destination_fail_currency_notfound_test,
             create_destination_fail_party_inaccessible_test,
-            create_destination_fail_withdrawal_method_test,
             get_destination_ok_test,
             get_destination_fail_notfound_test,
             bank_card_resource_test,
@@ -250,12 +247,12 @@ create_destination_fail_resource_token_expire_test(C) ->
         create_destination_call_api(C, Destination, InvalidResourceToken)
     ).
 
--spec create_destination_fail_identity_notfound_test(config()) -> _.
-create_destination_fail_identity_notfound_test(C) ->
+-spec create_destination_fail_party_notfound_test(config()) -> _.
+create_destination_fail_party_notfound_test(C) ->
     Destination = make_destination(C, bank_card),
-    _ = create_destination_start_mocks(C, {throwing, #fistful_IdentityNotFound{}}),
+    _ = create_destination_start_mocks(C, {throwing, #fistful_PartyNotFound{}}),
     ?assertEqual(
-        {error, {422, #{<<"message">> => <<"No such identity">>}}},
+        {error, {422, #{<<"message">> => <<"No such party">>}}},
         create_destination_call_api(C, Destination)
     ).
 
@@ -273,16 +270,7 @@ create_destination_fail_party_inaccessible_test(C) ->
     Destination = make_destination(C, bank_card),
     _ = create_destination_start_mocks(C, {throwing, #fistful_PartyInaccessible{}}),
     ?assertEqual(
-        {error, {422, #{<<"message">> => <<"Identity inaccessible">>}}},
-        create_destination_call_api(C, Destination)
-    ).
-
--spec create_destination_fail_withdrawal_method_test(config()) -> _.
-create_destination_fail_withdrawal_method_test(C) ->
-    Destination = make_destination(C, bank_card),
-    _ = create_destination_start_mocks(C, {throwing, #fistful_ForbiddenWithdrawalMethod{}}),
-    ?assertEqual(
-        {error, {422, #{<<"message">> => <<"Resource type not allowed">>}}},
+        {error, {422, #{<<"message">> => <<"Party inaccessible">>}}},
         create_destination_call_api(C, Destination)
     ).
 
@@ -351,8 +339,9 @@ digital_wallet_w_token_resource_test(C) ->
     },
     Destination = #{
         <<"name">> => ?STRING,
-        <<"identity">> => ?STRING,
+        <<"party">> => PartyID,
         <<"currency">> => ?RUB,
+        <<"realm">> => <<"Live">>,
         <<"resource">> => Resource
     },
     _ = wapi_ct_helper:mock_services(
@@ -365,10 +354,6 @@ digital_wallet_w_token_resource_test(C) ->
                 ('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT};
                 ('GetInternalID', _) -> {ok, ?GET_INTERNAL_ID_RESULT}
             end},
-            {fistful_identity, fun
-                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-                ('Get', _) -> {ok, ?IDENTITY(PartyID)}
-            end},
             {fistful_destination, fun
                 ('Create', _) ->
                     {ok, ?DESTINATION(PartyID, ?RESOURCE_DIGITAL_WALLET)};
@@ -378,7 +363,7 @@ digital_wallet_w_token_resource_test(C) ->
         ],
         C
     ),
-    _ = wapi_ct_helper_bouncer:mock_assert_identity_op_ctx(<<"CreateDestination">>, ?STRING, PartyID, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_party_op_ctx(<<"CreateDestination">>, PartyID, C),
     {ok, #{<<"resource">> := ResourceOut}} = call_api(
         fun swag_client_wallet_withdrawals_api:create_destination/3,
         #{body => Destination},
@@ -397,7 +382,7 @@ digital_wallet_w_token_resource_test(C) ->
 check_unknown_destination_id(C) ->
     PartyID = ?config(party, C),
 
-    _ = wapi_ct_helper_bouncer:mock_assert_identity_op_ctx(<<"CreateDestination">>, ?STRING, PartyID, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_party_op_ctx(<<"CreateDestination">>, PartyID, C),
 
     CounterRef = counters:new(1, []),
     ID0 = <<"Test0">>,
@@ -412,10 +397,6 @@ check_unknown_destination_id(C) ->
                 BinaryCID = erlang:integer_to_binary(CID),
                 ok = counters:add(CounterRef, 1, 1),
                 {ok, ?GENERATE_ID_RESULT(<<"Test", BinaryCID/binary>>)}
-            end},
-            {fistful_identity, fun
-                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-                ('Get', _) -> {ok, ?IDENTITY(PartyID)}
             end},
             {fistful_destination, fun
                 ('Create', _) ->
@@ -437,19 +418,14 @@ check_unknown_destination_id(C) ->
 
 do_destination_lifecycle(ResourceType, C) ->
     PartyID = wapi_ct_helper:cfg(party, C),
-    Identity = generate_identity(PartyID),
     Resource = generate_resource(ResourceType),
     Context = generate_context(PartyID),
-    Destination = generate_destination(Identity#identity_IdentityState.id, Resource, Context),
+    Destination = generate_destination(PartyID, Resource, Context),
     _ = wapi_ct_helper:mock_services(
         [
             {bender, fun
                 ('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT};
                 ('GetInternalID', _) -> {ok, ?GET_INTERNAL_ID_RESULT}
-            end},
-            {fistful_identity, fun
-                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-                ('Get', _) -> {ok, ?IDENTITY(PartyID)}
             end},
             {fistful_destination, fun
                 ('Create', _) -> {ok, Destination};
@@ -460,7 +436,7 @@ do_destination_lifecycle(ResourceType, C) ->
         C
     ),
     Sup0 = wapi_ct_helper:start_mocked_service_sup(?MODULE),
-    _ = wapi_ct_helper_bouncer:mock_assert_identity_op_ctx(<<"CreateDestination">>, ?STRING, PartyID, Sup0),
+    _ = wapi_ct_helper_bouncer:mock_assert_party_op_ctx(<<"CreateDestination">>, PartyID, Sup0),
     {ok, CreateResult} = call_api(
         fun swag_client_wallet_withdrawals_api:create_destination/3,
         #{
@@ -500,13 +476,12 @@ do_destination_lifecycle(ResourceType, C) ->
     ?assertEqual(GetResult, GetByIDResult),
     ?assertEqual(Destination#destination_DestinationState.id, maps:get(<<"id">>, CreateResult)),
     ?assertEqual(Destination#destination_DestinationState.external_id, maps:get(<<"externalID">>, CreateResult)),
-    ?assertEqual(Identity#identity_IdentityState.id, maps:get(<<"identity">>, CreateResult)),
+    ?assertEqual(PartyID, maps:get(<<"party">>, CreateResult)),
     Account = Destination#destination_DestinationState.account,
     ?assertEqual(
         Account#account_Account.currency#fistful_base_CurrencyRef.symbolic_code,
         maps:get(<<"currency">>, CreateResult)
     ),
-    ?assertEqual(<<"Authorized">>, maps:get(<<"status">>, CreateResult)),
     ?assertEqual(false, maps:get(<<"isBlocked">>, CreateResult)),
     ?assertEqual(Destination#destination_DestinationState.created_at, maps:get(<<"createdAt">>, CreateResult)),
     ?assertEqual(#{<<"key">> => <<"val">>}, maps:get(<<"metadata">>, CreateResult)),
@@ -523,7 +498,8 @@ build_destination_spec(D, undefined) ->
 build_destination_spec(D, Resource) ->
     #{
         <<"name">> => D#destination_DestinationState.name,
-        <<"identity">> => (D#destination_DestinationState.account)#account_Account.identity,
+        <<"party">> => D#destination_DestinationState.party_id,
+        <<"realm">> => <<"Test">>,
         <<"currency">> =>
             D#destination_DestinationState.account#account_Account.currency#fistful_base_CurrencyRef.symbolic_code,
         <<"externalID">> => D#destination_DestinationState.external_id,
@@ -569,15 +545,6 @@ build_resource_spec(Token) ->
 uniq() ->
     genlib:bsuuid().
 
-generate_identity(PartyID) ->
-    #identity_IdentityState{
-        id = ?STRING,
-        name = uniq(),
-        party_id = PartyID,
-        provider_id = uniq(),
-        context = generate_context(PartyID)
-    }.
-
 generate_context(PartyID) ->
     #{
         ?CTX_NS =>
@@ -588,19 +555,17 @@ generate_context(PartyID) ->
             }}
     }.
 
-generate_destination(IdentityID, Resource, Context) ->
-    ID = ?STRING,
+generate_destination(PartyID, Resource, Context) ->
     #destination_DestinationState{
-        id = ID,
+        id = ?STRING,
         name = uniq(),
-        status = {authorized, #destination_Authorized{}},
         account = #account_Account{
-            id = ID,
-            identity = IdentityID,
+            account_id = ?INTEGER,
+            party_id = PartyID,
             currency = #'fistful_base_CurrencyRef'{
                 symbolic_code = <<"RUB">>
             },
-            accounter_account_id = 123
+            realm = test
         },
         resource = Resource,
         external_id = ?STRING,
@@ -608,6 +573,8 @@ generate_destination(IdentityID, Resource, Context) ->
         blocking = unblocked,
         metadata = #{<<"key">> => {str, <<"val">>}},
         context = Context,
+        party_id = PartyID,
+        realm = test,
         auth_data =
             {sender_receiver, #destination_SenderReceiverAuthData{
                 sender = <<"SenderToken">>,
@@ -666,22 +633,17 @@ generate_digital_wallet_provider() ->
 
 make_destination(C, ResourceType) ->
     PartyID = ?config(party, C),
-    Identity = generate_identity(PartyID),
     Resource = generate_resource(ResourceType),
     Context = generate_context(PartyID),
-    generate_destination(Identity#identity_IdentityState.id, Resource, Context).
+    generate_destination(PartyID, Resource, Context).
 
 create_destination_start_mocks(C, CreateDestinationResult) ->
     PartyID = ?config(party, C),
 
-    _ = wapi_ct_helper_bouncer:mock_assert_identity_op_ctx(<<"CreateDestination">>, ?STRING, PartyID, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_party_op_ctx(<<"CreateDestination">>, PartyID, C),
     wapi_ct_helper:mock_services(
         [
             {bender, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
-            {fistful_identity, fun
-                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-                ('Get', _) -> {ok, ?IDENTITY(PartyID)}
-            end},
             {fistful_destination, fun
                 ('Create', _) -> CreateDestinationResult;
                 ('Get', _) -> {throwing, #fistful_DestinationNotFound{}}

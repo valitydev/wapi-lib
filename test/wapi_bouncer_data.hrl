@@ -23,9 +23,9 @@
     party = PartyID
 }).
 
--define(CTX_IDENTITY_OP(ID, IdentityID), #ctx_v1_WalletAPIOperation{
+-define(CTX_IDENTITY_OP(ID, PartyID), #ctx_v1_WalletAPIOperation{
     id = ID,
-    identity = IdentityID
+    party = PartyID
 }).
 
 -define(CTX_DESTINAION_OP(ID, DestinaionID), #ctx_v1_WalletAPIOperation{

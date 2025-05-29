@@ -43,7 +43,11 @@ wc-shell: dev-image
 	$(DOCKER_RUN) --interactive --tty $(DEV_IMAGE_TAG)
 
 wc-%: dev-image
-	$(DOCKER_RUN) $(DEV_IMAGE_TAG) make $*
+	$(DOCKER_RUN) $(DEV_IMAGE_TAG) make $(if $(MAKE_ARGS),$(MAKE_ARGS) $*,$*)
+
+# Pass CT_CASE through to container env
+wc-common-test.%: MAKE_ARGS=$(if $(CT_CASE),CT_CASE=$(CT_CASE))
+
 
 # Rebar tasks
 
@@ -73,6 +77,9 @@ eunit:
 
 common-test:
 	$(REBAR) ct --cover
+
+common-test.%: test/%.erl
+	$(REBAR) ct --cover --suite=$^ $(if $(CT_CASE),--case=$(strip $(CT_CASE)))
 
 cover:
 	$(REBAR) covertool generate

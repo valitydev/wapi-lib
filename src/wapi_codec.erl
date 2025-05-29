@@ -62,23 +62,31 @@ marshal(provider_id, V) ->
     marshal(integer, V);
 marshal(terminal_id, V) ->
     marshal(integer, V);
+marshal(realm, <<"test">>) ->
+    test;
+marshal(realm, <<"live">>) ->
+    live;
 marshal(blocking, blocked) ->
     blocked;
 marshal(blocking, unblocked) ->
     unblocked;
 marshal(account_change, {created, Account}) ->
     {created, marshal(account, Account)};
-marshal(account, #{
-    id := ID,
-    identity := IdentityID,
-    currency := CurrencyID,
-    accounter_account_id := AAID
-}) ->
+marshal(account_id, V) when is_integer(V) ->
+    V;
+marshal(
+    account,
+    #{
+        realm := Realm,
+        currency := CurrencyID,
+        account_id := AID
+    } = Account
+) ->
     #'account_Account'{
-        id = marshal(id, ID),
-        identity = marshal(id, IdentityID),
+        realm = Realm,
+        party_id = maybe_marshal(id, maps:get(party_id, Account, undefined)),
         currency = marshal(currency_ref, CurrencyID),
-        accounter_account_id = marshal(event_id, AAID)
+        account_id = marshal(integer, AID)
     };
 marshal(resource, {bank_card, #{bank_card := BankCard} = ResourceBankCard}) ->
     {bank_card, #'fistful_base_ResourceBankCard'{
@@ -202,8 +210,6 @@ marshal(sub_failure, Failure) ->
     };
 marshal(domain_revision, V) when is_integer(V) ->
     V;
-marshal(party_revision, V) when is_integer(V) ->
-    V;
 marshal(string, V) when is_binary(V) ->
     V;
 marshal(integer, V) when is_integer(V) ->
@@ -231,23 +237,29 @@ unmarshal(provider_id, V) ->
     unmarshal(integer, V);
 unmarshal(terminal_id, V) ->
     unmarshal(integer, V);
+unmarshal(realm, test) ->
+    <<"test">>;
+unmarshal(realm, live) ->
+    <<"live">>;
 unmarshal(blocking, blocked) ->
     blocked;
 unmarshal(blocking, unblocked) ->
     unblocked;
 unmarshal(account_change, {created, Account}) ->
     {created, unmarshal(account, Account)};
+unmarshal(account_id, V) when is_integer(V) ->
+    V;
 unmarshal(account, #'account_Account'{
-    id = ID,
-    identity = IdentityID,
+    party_id = PartyID,
+    realm = Realm,
     currency = CurrencyRef,
-    accounter_account_id = AAID
+    account_id = AID
 }) ->
     #{
-        id => unmarshal(id, ID),
-        identity => unmarshal(id, IdentityID),
+        realm => Realm,
+        party_id => maybe_unmarshal(id, PartyID),
         currency => unmarshal(currency_ref, CurrencyRef),
-        accounter_account_id => unmarshal(accounter_account_id, AAID)
+        account_id => unmarshal(account_id, AID)
     };
 unmarshal(accounter_account_id, V) ->
     unmarshal(integer, V);
@@ -348,7 +360,7 @@ unmarshal(digital_wallet, #'fistful_base_DigitalWallet'{
 }) ->
     genlib_map:compact(#{
         id => unmarshal(string, ID),
-        token => maybe_marshal(string, Token),
+        token => maybe_unmarshal(string, Token),
         payment_service => unmarshal(payment_service, PaymentService),
         account_name => unmarshal(string, AccountName),
         account_identity_number => unmarshal(string, AccountIdentityNumber)
@@ -358,7 +370,7 @@ unmarshal(generic_resource, #'fistful_base_ResourceGenericData'{
     data = Data
 }) ->
     genlib_map:compact(#{
-        data => maybe_marshal(content, Data),
+        data => maybe_unmarshal(content, Data),
         payment_service => unmarshal(payment_service, PaymentService)
     });
 unmarshal(payment_service, #'fistful_base_PaymentServiceRef'{id = Ref}) ->
@@ -387,8 +399,6 @@ unmarshal(sub_failure, Failure) ->
         sub => maybe_unmarshal(sub_failure, Failure#'fistful_base_SubFailure'.sub)
     });
 unmarshal(domain_revision, V) when is_integer(V) ->
-    V;
-unmarshal(party_revision, V) when is_integer(V) ->
     V;
 unmarshal(string, V) when is_binary(V) ->
     V;

@@ -3,6 +3,7 @@
 
 -module(wapi_time).
 
+-export([rfc3339/0]).
 -export([now/0]).
 -export([to_rfc3339/1]).
 -export([from_rfc3339/1]).
@@ -22,6 +23,10 @@
 -type datetime_interval() :: {date(), time()}.
 
 %% API
+
+-spec rfc3339() -> binary().
+rfc3339() ->
+    to_rfc3339(erlang:system_time(millisecond)).
 
 -spec now() -> timestamp_ms().
 now() ->

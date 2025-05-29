@@ -21,8 +21,8 @@ create_webhook(#{'Webhook' := Params}, HandlerContext) ->
     process_create_webhook_result(Result).
 
 -spec get_webhooks(id(), ctx()) -> {ok, response_data()}.
-get_webhooks(IdentityID, HandlerContext) ->
-    Call = {webhook_manager, 'GetList', {IdentityID}},
+get_webhooks(PartyID, HandlerContext) ->
+    Call = {webhook_manager, 'GetList', {PartyID}},
     Result = wapi_handler_utils:service_call(Call, HandlerContext),
     process_get_webhooks_result(Result).
 
@@ -79,13 +79,13 @@ encode_webhook_id(WebhookID) ->
 %% marshaling
 
 marshal_webhook_params(#{
-    <<"identityID">> := IdentityID,
+    <<"partyID">> := PartyID,
     <<"scope">> := Scope,
     <<"url">> := URL
 }) ->
     WalletID = maps:get(<<"walletID">>, Scope, undefined),
     #webhooker_WebhookParams{
-        identity_id = IdentityID,
+        party_id = PartyID,
         wallet_id = WalletID,
         event_filter = marshal_webhook_scope(Scope),
         url = URL
@@ -106,18 +106,14 @@ marshal_webhook_event_type(<<"WithdrawalSucceeded">>) ->
 marshal_webhook_event_type(<<"WithdrawalFailed">>) ->
     {withdrawal, {failed, #webhooker_WithdrawalFailed{}}};
 marshal_webhook_event_type(<<"DestinationCreated">>) ->
-    {destination, {created, #webhooker_DestinationCreated{}}};
-marshal_webhook_event_type(<<"DestinationUnauthorized">>) ->
-    {destination, {unauthorized, #webhooker_DestinationUnauthorized{}}};
-marshal_webhook_event_type(<<"DestinationAuthorized">>) ->
-    {destination, {authorized, #webhooker_DestinationAuthorized{}}}.
+    {destination, {created, #webhooker_DestinationCreated{}}}.
 
 unmarshal_webhooks(Webhooks) when is_list(Webhooks) ->
     lists:map(fun(Webhook) -> unmarshal_webhook(Webhook) end, Webhooks).
 
 unmarshal_webhook(#webhooker_Webhook{
     id = ID,
-    identity_id = IdentityID,
+    party_id = PartyID,
     wallet_id = WalletID,
     event_filter = EventFilter,
     url = URL,
@@ -126,7 +122,7 @@ unmarshal_webhook(#webhooker_Webhook{
 }) ->
     genlib_map:compact(#{
         <<"id">> => integer_to_binary(ID),
-        <<"identityID">> => IdentityID,
+        <<"partyID">> => PartyID,
         <<"active">> => wapi_codec:unmarshal(bool, Enabled),
         <<"scope">> => unmarshal_webhook_scope(EventFilter, WalletID),
         <<"url">> => URL,

@@ -10,7 +10,6 @@
 -include_lib("fistful_proto/include/fistful_fistful_thrift.hrl").
 -include_lib("fistful_proto/include/fistful_account_thrift.hrl").
 -include_lib("fistful_proto/include/fistful_cashflow_thrift.hrl").
--include_lib("fistful_proto/include/fistful_wallet_thrift.hrl").
 -include_lib("fistful_proto/include/fistful_wthd_thrift.hrl").
 -include_lib("fistful_proto/include/fistful_wthd_status_thrift.hrl").
 -include_lib("fistful_proto/include/fistful_destination_thrift.hrl").
@@ -30,8 +29,6 @@
     create_ok/1,
     create_fail_wallet_notfound/1,
     create_fail_destination_notfound/1,
-    create_fail_destination_unauthorized/1,
-    create_fail_destination_withdrawal_method/1,
     create_fail_forbidden_operation_currency/1,
     create_fail_forbidden_operation_amount/1,
     create_fail_invalid_operation_amount/1,
@@ -47,8 +44,6 @@
     create_quote_ok/1,
     get_quote_fail_wallet_notfound/1,
     get_quote_fail_destination_notfound/1,
-    get_quote_fail_destination_unauthorized/1,
-    get_quote_fail_destination_withdrawal_method/1,
     get_quote_fail_forbidden_operation_currency/1,
     get_quote_fail_forbidden_operation_amount/1,
     get_quote_fail_invalid_operation_amount/1,
@@ -83,8 +78,6 @@ groups() ->
             create_ok,
             create_fail_wallet_notfound,
             create_fail_destination_notfound,
-            create_fail_destination_unauthorized,
-            create_fail_destination_withdrawal_method,
             create_fail_forbidden_operation_currency,
             create_fail_forbidden_operation_amount,
             create_fail_invalid_operation_amount,
@@ -100,8 +93,6 @@ groups() ->
             create_quote_ok,
             get_quote_fail_wallet_notfound,
             get_quote_fail_destination_notfound,
-            get_quote_fail_destination_unauthorized,
-            get_quote_fail_destination_withdrawal_method,
             get_quote_fail_forbidden_operation_currency,
             get_quote_fail_forbidden_operation_amount,
             get_quote_fail_invalid_operation_amount,
@@ -176,22 +167,6 @@ create_fail_destination_notfound(C) ->
         create_withdrawal_call_api(C)
     ).
 
--spec create_fail_destination_unauthorized(config()) -> _.
-create_fail_destination_unauthorized(C) ->
-    _ = create_withdrawal_start_mocks(C, fun() -> {throwing, #fistful_DestinationUnauthorized{}} end),
-    ?assertEqual(
-        {error, {422, #{<<"message">> => <<"Destination unauthorized">>}}},
-        create_withdrawal_call_api(C)
-    ).
-
--spec create_fail_destination_withdrawal_method(config()) -> _.
-create_fail_destination_withdrawal_method(C) ->
-    _ = create_withdrawal_start_mocks(C, fun() -> {throwing, #fistful_ForbiddenWithdrawalMethod{}} end),
-    ?assertEqual(
-        {error, {422, #{<<"message">> => <<"Destination uses resource no longer allowed">>}}},
-        create_withdrawal_call_api(C)
-    ).
-
 -spec create_fail_forbidden_operation_currency(config()) -> _.
 create_fail_forbidden_operation_currency(C) ->
     ForbiddenOperationCurrencyException = #fistful_ForbiddenOperationCurrency{
@@ -261,11 +236,11 @@ create_fail_no_destination_resource_info(C) ->
 
 -spec create_fail_identity_providers_mismatch(config()) -> _.
 create_fail_identity_providers_mismatch(C) ->
-    IdentityProviderMismatchException = #wthd_IdentityProvidersMismatch{
-        wallet_provider = ?INTEGER,
-        destination_provider = ?INTEGER
+    RealmsMismatch = #fistful_RealmsMismatch{
+        wallet_realm = test,
+        destination_realm = live
     },
-    _ = create_withdrawal_start_mocks(C, fun() -> {throwing, IdentityProviderMismatchException} end),
+    _ = create_withdrawal_start_mocks(C, fun() -> {throwing, RealmsMismatch} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"This wallet and destination cannot be used together">>}}},
         create_withdrawal_call_api(C)
@@ -454,22 +429,6 @@ get_quote_fail_destination_notfound(C) ->
         create_qoute_call_api(C)
     ).
 
--spec get_quote_fail_destination_unauthorized(config()) -> _.
-get_quote_fail_destination_unauthorized(C) ->
-    _ = get_quote_start_mocks(C, fun() -> {throwing, #fistful_DestinationUnauthorized{}} end),
-    ?assertEqual(
-        {error, {422, #{<<"message">> => <<"Destination unauthorized">>}}},
-        create_qoute_call_api(C)
-    ).
-
--spec get_quote_fail_destination_withdrawal_method(config()) -> _.
-get_quote_fail_destination_withdrawal_method(C) ->
-    _ = get_quote_start_mocks(C, fun() -> {throwing, #fistful_ForbiddenWithdrawalMethod{}} end),
-    ?assertEqual(
-        {error, {422, #{<<"message">> => <<"Destination uses resource no longer allowed">>}}},
-        create_qoute_call_api(C)
-    ).
-
 -spec get_quote_fail_forbidden_operation_currency(config()) -> _.
 get_quote_fail_forbidden_operation_currency(C) ->
     ForbiddenOperationCurrencyException = #fistful_ForbiddenOperationCurrency{
@@ -531,11 +490,11 @@ get_quote_fail_inconsistent_withdrawal_currency(C) ->
 
 -spec get_quote_fail_identity_provider_mismatch(config()) -> _.
 get_quote_fail_identity_provider_mismatch(C) ->
-    IdentityProviderMismatchException = #wthd_IdentityProvidersMismatch{
-        wallet_provider = ?INTEGER,
-        destination_provider = ?INTEGER
+    RealmsMismatch = #fistful_RealmsMismatch{
+        wallet_realm = test,
+        destination_realm = live
     },
-    _ = get_quote_start_mocks(C, fun() -> {throwing, IdentityProviderMismatchException} end),
+    _ = get_quote_start_mocks(C, fun() -> {throwing, RealmsMismatch} end),
     ?assertEqual(
         {error, {422, #{<<"message">> => <<"This wallet and destination cannot be used together">>}}},
         create_qoute_call_api(C)
@@ -596,7 +555,7 @@ check_unknown_withdrawal_id(C) ->
     _ = wapi_ct_helper_bouncer:mock_assert_generic_op_ctx(
         [
             {destination, ?STRING, PartyID},
-            {wallet, ?STRING, PartyID}
+            {wallet, ?STRING, ?STRING}
         ],
         ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
             id = <<"CreateWithdrawal">>,
@@ -618,10 +577,6 @@ check_unknown_withdrawal_id(C) ->
                 BinaryCID = erlang:integer_to_binary(CID),
                 ok = counters:add(CounterRef, 1, 1),
                 {ok, ?GENERATE_ID_RESULT(<<"Test", BinaryCID/binary>>)}
-            end},
-            {fistful_wallet, fun
-                ('Get', _) -> {ok, ?WALLET(PartyID)};
-                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)}
             end},
             {fistful_destination, fun
                 ('Get', _) -> {ok, ?DESTINATION(PartyID)};
@@ -651,11 +606,13 @@ call_api(F, Params, Context) ->
     wapi_client_lib:handle_response(Response).
 
 create_withdrawal_call_api(C) ->
+    PartyID = ?config(party, C),
     call_api(
         fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
         #{
             body => genlib_map:compact(#{
                 <<"wallet">> => ?STRING,
+                <<"party">> => PartyID,
                 <<"destination">> => ?STRING,
                 <<"body">> => #{
                     <<"amount">> => ?INTEGER,
@@ -667,11 +624,13 @@ create_withdrawal_call_api(C) ->
     ).
 
 create_qoute_call_api(C) ->
+    PartyID = ?config(party, C),
     call_api(
         fun swag_client_wallet_withdrawals_api:create_quote/3,
         #{
             body => genlib_map:compact(#{
                 <<"walletID">> => ?STRING,
+                <<"partyID">> => PartyID,
                 <<"destinationID">> => ?STRING,
                 <<"currencyFrom">> => ?RUB,
                 <<"currencyTo">> => ?USD,
@@ -689,7 +648,7 @@ create_withdrawal_start_mocks(C, CreateWithdrawalResultFun) ->
     _ = wapi_ct_helper_bouncer:mock_assert_generic_op_ctx(
         [
             {destination, ?STRING, PartyID},
-            {wallet, ?STRING, PartyID}
+            {wallet, ?STRING, ?STRING}
         ],
         ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
             id = <<"CreateWithdrawal">>,
@@ -701,10 +660,6 @@ create_withdrawal_start_mocks(C, CreateWithdrawalResultFun) ->
     wapi_ct_helper:mock_services(
         [
             {bender, fun('GenerateID', _) -> {ok, ?GENERATE_ID_RESULT} end},
-            {fistful_wallet, fun
-                ('Get', _) -> {ok, ?WALLET(PartyID)};
-                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)}
-            end},
             {fistful_destination, fun
                 ('Get', _) -> {ok, ?DESTINATION(PartyID)};
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)}
@@ -737,7 +692,7 @@ get_quote_start_mocks(C, GetQuoteResultFun) ->
     _ = wapi_ct_helper_bouncer:mock_assert_generic_op_ctx(
         [
             {destination, ?STRING, PartyID},
-            {wallet, ?STRING, PartyID}
+            {wallet, ?STRING, ?STRING}
         ],
         ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
             id = <<"CreateQuote">>,
@@ -748,10 +703,6 @@ get_quote_start_mocks(C, GetQuoteResultFun) ->
     ),
     wapi_ct_helper:mock_services(
         [
-            {fistful_wallet, fun
-                ('Get', _) -> {ok, ?WALLET(PartyID)};
-                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)}
-            end},
             {fistful_destination, fun
                 ('Get', _) -> {ok, ?DESTINATION(PartyID)};
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)}

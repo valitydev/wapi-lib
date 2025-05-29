@@ -6,6 +6,8 @@
 -type response_data() :: wapi_handler_utils:response_data().
 
 -export([get_currency/1]).
+-export([get_party_config/1]).
+-export([get_wallet_config/1]).
 
 %%
 
@@ -17,6 +19,26 @@
 -import(wapi_pipeline, [do/1, unwrap/1]).
 
 %%
+
+-spec get_party_config(id()) -> {ok, {map(), id()}} | {error, notfound}.
+get_party_config(PartyID) ->
+    do(fun() ->
+        Party = unwrap(object({party_config, #domain_PartyConfigRef{id = PartyID}})),
+        {#{<<"id">> => Party#domain_PartyConfig.id}, PartyID}
+    end).
+
+-spec get_wallet_config(id()) -> {ok, {map(), id()}} | {error, notfound}.
+get_wallet_config(WalletID) ->
+    do(fun() ->
+        Wallet = unwrap(object({wallet_config, #domain_WalletConfigRef{id = WalletID}})),
+        {
+            #{
+                <<"id">> => Wallet#domain_WalletConfig.id,
+                <<"partyID">> => Wallet#domain_WalletConfig.party_id
+            },
+            Wallet#domain_WalletConfig.party_id
+        }
+    end).
 
 -spec get_currency(id()) -> {ok, response_data()} | {error, notfound}.
 get_currency(ID) ->

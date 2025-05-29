@@ -12,10 +12,13 @@
 -type handler_context() :: wapi_handler_utils:handler_context().
 -type response_data() :: wapi_handler_utils:response_data().
 -type id() :: binary().
+-type realm() :: binary().
 -type external_id() :: binary().
 
 -type create_error() ::
-    {destination, notfound | unauthorized | forbidden_withdrawal_method}
+    {destination, notfound}
+    | forbidden_withdrawal_method
+    | {party, notfound}
     | {wallet, notfound}
     | {external_id_conflict, id()}
     | {quote_invalid_party, _}
@@ -27,17 +30,18 @@
     | {invalid_amount, _}
     | {inconsistent_currency, _}
     | {quote, token_expired}
-    | {identity_providers_mismatch, {id(), id()}}
+    | {realms_mismatch, {realm(), realm()}}
     | {destination_resource, {bin_data, not_found}}.
 
 -type create_quote_error() ::
     {destination, notfound | unauthorized | forbidden_withdrawal_method}
     | {wallet, notfound}
+    | {party, notfound}
     | {forbidden_currency, _}
     | {forbidden_amount, _}
     | {invalid_amount, _}
     | {inconsistent_currency, _}
-    | {identity_providers_mismatch, {id(), id()}}
+    | {realms_mismatch, {realm(), realm()}}
     | {destination_resource, {bin_data, not_found}}.
 
 -export([create/2]).
@@ -73,12 +77,12 @@ create(Params, Context, HandlerContext) ->
     case service_call(Request, HandlerContext) of
         {ok, Withdrawal} ->
             {ok, unmarshal(withdrawal, Withdrawal)};
+        {exception, #fistful_PartyNotFound{}} ->
+            {error, {party, notfound}};
         {exception, #fistful_WalletNotFound{}} ->
             {error, {wallet, notfound}};
         {exception, #fistful_DestinationNotFound{}} ->
             {error, {destination, notfound}};
-        {exception, #fistful_DestinationUnauthorized{}} ->
-            {error, {destination, unauthorized}};
         {exception, #fistful_ForbiddenOperationCurrency{currency = Currency}} ->
             {error, {forbidden_currency, unmarshal_currency_ref(Currency)}};
         {exception, #fistful_ForbiddenOperationAmount{amount = Amount}} ->
@@ -96,17 +100,17 @@ create(Params, Context, HandlerContext) ->
                     unmarshal_currency_ref(DestinationCurrency),
                     unmarshal_currency_ref(WalletCurrency)
                 }}};
-        {exception, #wthd_IdentityProvidersMismatch{
-            wallet_provider = WalletProvider,
-            destination_provider = DestinationProvider
+        {exception, #fistful_RealmsMismatch{
+            wallet_realm = WalletRealm,
+            destination_realm = DestinationRealm
         }} ->
-            {error, {identity_providers_mismatch, {WalletProvider, DestinationProvider}}};
+            {error, {realms_mismatch, {unmarshal(realm, WalletRealm), unmarshal(realm, DestinationRealm)}}};
         {exception, #wthd_NoDestinationResourceInfo{}} ->
             {error, {destination_resource, {bin_data, not_found}}};
         {exception, #fistful_WalletInaccessible{id = WalletID}} ->
             {error, {wallet, {inaccessible, WalletID}}};
         {exception, #fistful_ForbiddenWithdrawalMethod{}} ->
-            {error, {destination, forbidden_withdrawal_method}}
+            {error, forbidden_withdrawal_method}
     end.
 
 -spec get(id(), handler_context()) ->
@@ -152,10 +156,10 @@ create_quote(Params, HandlerContext) ->
             {ok, UnmarshaledQuote#{<<"quoteToken">> => Token}};
         {exception, #fistful_WalletNotFound{}} ->
             {error, {wallet, notfound}};
+        {exception, #fistful_PartyNotFound{}} ->
+            {error, {party, notfound}};
         {exception, #fistful_DestinationNotFound{}} ->
             {error, {destination, notfound}};
-        {exception, #fistful_DestinationUnauthorized{}} ->
-            {error, {destination, unauthorized}};
         {exception, #fistful_ForbiddenOperationCurrency{currency = Currency}} ->
             {error, {forbidden_currency, unmarshal_currency_ref(Currency)}};
         {exception, #fistful_ForbiddenOperationAmount{amount = Amount}} ->
@@ -173,15 +177,15 @@ create_quote(Params, HandlerContext) ->
                     unmarshal_currency_ref(DestinationCurrency),
                     unmarshal_currency_ref(WalletCurrency)
                 }}};
-        {exception, #wthd_IdentityProvidersMismatch{
-            wallet_provider = WalletProvider,
-            destination_provider = DestinationProvider
+        {exception, #fistful_RealmsMismatch{
+            wallet_realm = WalletRealm,
+            destination_realm = DestinationRealm
         }} ->
-            {error, {identity_providers_mismatch, {WalletProvider, DestinationProvider}}};
+            {error, {realms_mismatch, {unmarshal(realm, WalletRealm), unmarshal(realm, DestinationRealm)}}};
         {exception, #wthd_NoDestinationResourceInfo{}} ->
             {error, {destination_resource, {bin_data, not_found}}};
         {exception, #fistful_ForbiddenWithdrawalMethod{}} ->
-            {error, {destination, forbidden_withdrawal_method}}
+            {error, forbidden_withdrawal_method}
     end.
 
 -spec get_events(request_data(), handler_context()) ->
@@ -367,6 +371,7 @@ marshal(
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
     Metadata = maps:get(<<"metadata">>, Params, undefined),
     Quote = maps:get(<<"quote">>, Params, undefined),
+    PartyID = maps:get(<<"party">>, Params, <<>>),
     #wthd_WithdrawalParams{
         id = marshal(id, ID),
         wallet_id = marshal(id, WalletID),
@@ -374,7 +379,8 @@ marshal(
         body = marshal_body(Body),
         quote = Quote,
         external_id = maybe_marshal(id, ExternalID),
-        metadata = maybe_marshal(context, Metadata)
+        metadata = maybe_marshal(context, Metadata),
+        party_id = PartyID
     };
 marshal(
     create_quote_params,
@@ -387,13 +393,15 @@ marshal(
 ) ->
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
     DestinationID = maps:get(<<"destinationID">>, Params, undefined),
+    PartyID = maps:get(<<"partyID">>, Params, <<>>),
     #wthd_QuoteParams{
         wallet_id = marshal(id, WalletID),
         body = marshal_body(Body),
         currency_from = marshal_currency_ref(CurrencyFrom),
         currency_to = marshal_currency_ref(CurrencyTo),
         destination_id = maybe_marshal(id, DestinationID),
-        external_id = maybe_marshal(id, ExternalID)
+        external_id = maybe_marshal(id, ExternalID),
+        party_id = PartyID
     };
 marshal(context, Context) ->
     wapi_codec:marshal(context, Context);
@@ -430,6 +438,7 @@ unmarshal({list, Type}, List) ->
 unmarshal(withdrawal, #wthd_WithdrawalState{
     id = ID,
     wallet_id = WalletID,
+    party_id = PartyID,
     destination_id = DestinationID,
     body = Body,
     external_id = ExternalID,
@@ -444,6 +453,7 @@ unmarshal(withdrawal, #wthd_WithdrawalState{
             #{
                 <<"id">> => ID,
                 <<"wallet">> => WalletID,
+                <<"party">> => PartyID,
                 <<"destination">> => DestinationID,
                 <<"body">> => unmarshal_body(Body),
                 <<"createdAt">> => CreatedAt,

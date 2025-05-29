@@ -8,8 +8,6 @@
 -include_lib("fistful_proto/include/fistful_fistful_base_thrift.hrl").
 -include_lib("fistful_proto/include/fistful_fistful_thrift.hrl").
 -include_lib("fistful_proto/include/fistful_account_thrift.hrl").
--include_lib("fistful_proto/include/fistful_identity_thrift.hrl").
--include_lib("fistful_proto/include/fistful_wallet_thrift.hrl").
 -include_lib("fistful_proto/include/fistful_webhooker_thrift.hrl").
 
 -export([all/0]).
@@ -101,24 +99,19 @@ end_per_testcase(_Name, C) ->
 
 -spec create_webhook_ok_test(config()) -> _.
 create_webhook_ok_test(C) ->
-    PartyID = ?config(party, C),
     _ = wapi_ct_helper_bouncer:mock_assert_generic_op_ctx(
         [
-            {identity, ?STRING, PartyID}
+            {party, ?STRING, ?STRING}
         ],
         ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
             id = <<"CreateWebhook">>,
-            identity = ?STRING
+            party = ?STRING
         }),
         C
     ),
     _ = wapi_ct_helper:mock_services(
         [
-            {webhook_manager, fun('Create', _) -> {ok, ?WEBHOOK(?DESTINATION_EVENT_FILTER)} end},
-            {fistful_identity, fun
-                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-                ('Get', _) -> {ok, ?IDENTITY(PartyID)}
-            end}
+            {webhook_manager, fun('Create', _) -> {ok, ?WEBHOOK(?DESTINATION_EVENT_FILTER)} end}
         ],
         C
     ),
@@ -126,7 +119,7 @@ create_webhook_ok_test(C) ->
         fun swag_client_wallet_webhooks_api:create_webhook/3,
         #{
             body => #{
-                <<"identityID">> => ?STRING,
+                <<"partyID">> => ?STRING,
                 <<"url">> => ?URL,
                 <<"scope">> => #{
                     <<"topic">> => <<"DestinationsTopic">>,
@@ -139,31 +132,22 @@ create_webhook_ok_test(C) ->
 
 -spec create_withdrawal_webhook_ok_test(config()) -> _.
 create_withdrawal_webhook_ok_test(C) ->
-    PartyID = ?config(party, C),
     WalletID = ?STRING,
     _ = wapi_ct_helper_bouncer:mock_assert_generic_op_ctx(
         [
-            {identity, ?STRING, PartyID},
-            {wallet, ?STRING, PartyID}
+            {party, ?STRING, ?STRING},
+            {wallet, ?STRING, ?STRING}
         ],
         ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
             id = <<"CreateWebhook">>,
-            identity = ?STRING,
+            party = ?STRING,
             wallet = ?STRING
         }),
         C
     ),
     _ = wapi_ct_helper:mock_services(
         [
-            {webhook_manager, fun('Create', _) -> {ok, ?WEBHOOK_WITH_WALLET(?WITHDRAWAL_EVENT_FILTER, WalletID)} end},
-            {fistful_identity, fun
-                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-                ('Get', _) -> {ok, ?IDENTITY(PartyID)}
-            end},
-            {fistful_wallet, fun
-                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-                ('Get', _) -> {ok, ?WALLET(PartyID)}
-            end}
+            {webhook_manager, fun('Create', _) -> {ok, ?WEBHOOK_WITH_WALLET(?WITHDRAWAL_EVENT_FILTER, WalletID)} end}
         ],
         C
     ),
@@ -171,7 +155,7 @@ create_withdrawal_webhook_ok_test(C) ->
         fun swag_client_wallet_webhooks_api:create_webhook/3,
         #{
             body => #{
-                <<"identityID">> => ?STRING,
+                <<"partyID">> => ?STRING,
                 <<"url">> => ?URL,
                 <<"scope">> => #{
                     <<"topic">> => <<"WithdrawalsTopic">>,
@@ -185,16 +169,11 @@ create_withdrawal_webhook_ok_test(C) ->
 
 -spec get_webhooks_ok_test(config()) -> _.
 get_webhooks_ok_test(C) ->
-    PartyID = ?config(party, C),
-    _ = wapi_ct_helper_bouncer:mock_assert_identity_op_ctx(<<"GetWebhooks">>, ?STRING, PartyID, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_party_op_ctx(<<"GetWebhooks">>, ?STRING, C),
     _ = wapi_ct_helper:mock_services(
         [
             {webhook_manager, fun('GetList', _) ->
                 {ok, [?WEBHOOK(?WITHDRAWAL_EVENT_FILTER), ?WEBHOOK(?DESTINATION_EVENT_FILTER)]}
-            end},
-            {fistful_identity, fun
-                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-                ('Get', _) -> {ok, ?IDENTITY(PartyID)}
             end}
         ],
         C
@@ -203,7 +182,7 @@ get_webhooks_ok_test(C) ->
         fun swag_client_wallet_webhooks_api:get_webhooks/3,
         #{
             qs_val => #{
-                <<"identityID">> => ?STRING
+                <<"partyID">> => ?STRING
             }
         },
         wapi_ct_helper:cfg(context, C)
@@ -211,26 +190,21 @@ get_webhooks_ok_test(C) ->
 
 -spec get_webhook_ok_test(config()) -> _.
 get_webhook_ok_test(C) ->
-    PartyID = ?config(party, C),
     _ = wapi_ct_helper_bouncer:mock_assert_generic_op_ctx(
         [
-            {webhook, integer_to_binary(?INTEGER), #{identity => ?STRING}},
-            {identity, ?STRING, PartyID}
+            {webhook, integer_to_binary(?INTEGER), #{party => ?STRING}},
+            {party, ?STRING, ?STRING}
         ],
         ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
             id = <<"GetWebhookByID">>,
-            identity = ?STRING,
+            party = ?STRING,
             webhook = integer_to_binary(?INTEGER)
         }),
         C
     ),
     _ = wapi_ct_helper:mock_services(
         [
-            {webhook_manager, fun('Get', _) -> {ok, ?WEBHOOK(?WITHDRAWAL_EVENT_FILTER)} end},
-            {fistful_identity, fun
-                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-                ('Get', _) -> {ok, ?IDENTITY(PartyID)}
-            end}
+            {webhook_manager, fun('Get', _) -> {ok, ?WEBHOOK(?WITHDRAWAL_EVENT_FILTER)} end}
         ],
         C
     ),
@@ -241,7 +215,7 @@ get_webhook_ok_test(C) ->
                 <<"webhookID">> => integer_to_binary(?INTEGER)
             },
             qs_val => #{
-                <<"identityID">> => ?STRING
+                <<"partyID">> => ?STRING
             }
         },
         wapi_ct_helper:cfg(context, C)
@@ -249,15 +223,14 @@ get_webhook_ok_test(C) ->
 
 -spec delete_webhook_ok_test(config()) -> _.
 delete_webhook_ok_test(C) ->
-    PartyID = ?config(party, C),
     _ = wapi_ct_helper_bouncer:mock_assert_generic_op_ctx(
         [
-            {webhook, integer_to_binary(?INTEGER), #{identity => ?STRING}},
-            {identity, ?STRING, PartyID}
+            {webhook, integer_to_binary(?INTEGER), #{party => ?STRING}},
+            {party, ?STRING, ?STRING}
         ],
         ?CTX_WAPI(#ctx_v1_WalletAPIOperation{
             id = <<"DeleteWebhookByID">>,
-            identity = ?STRING,
+            party = ?STRING,
             webhook = integer_to_binary(?INTEGER)
         }),
         C
@@ -267,10 +240,6 @@ delete_webhook_ok_test(C) ->
             {webhook_manager, fun
                 ('Get', _) -> {ok, ?WEBHOOK(?WITHDRAWAL_EVENT_FILTER)};
                 ('Delete', _) -> {ok, ok}
-            end},
-            {fistful_identity, fun
-                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-                ('Get', _) -> {ok, ?IDENTITY(PartyID)}
             end}
         ],
         C
@@ -282,7 +251,7 @@ delete_webhook_ok_test(C) ->
                 <<"webhookID">> => integer_to_binary(?INTEGER)
             },
             qs_val => #{
-                <<"identityID">> => ?STRING
+                <<"partyID">> => ?STRING
             }
         },
         wapi_ct_helper:cfg(context, C)
