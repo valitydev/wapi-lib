@@ -1,7 +1,7 @@
 -module(wapi_ct_helper).
 
 -include_lib("common_test/include/ct.hrl").
--include_lib("damsel/include/dmsl_domain_conf_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_conf_v2_thrift.hrl").
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include_lib("wapi_wallet_dummy_data.hrl").
 -include_lib("wapi_token_keeper_data.hrl").
@@ -181,24 +181,47 @@ start_app({dmt_client = AppName, SupPid}) ->
     PartyConfigObject = #domain_PartyConfigObject{ref = #domain_PartyConfigRef{id = ?STRING}, data = PartyConfig},
     Urls = mock_services_(
         [
-            {domain_config, fun
-                ('Checkout', _) ->
-                    {ok, #domain_conf_Snapshot{
-                        version = 1,
-                        domain = #{
-                            {wallet_config, #domain_WalletConfigRef{id = ?STRING}} =>
-                                {wallet_config, WalletConfigObject},
-                            {party_config, #domain_PartyConfigRef{id = ?STRING}} => {party_config, PartyConfigObject}
-                        }
+            {domain_config_client, fun
+                ('CheckoutObject', {{version, ?INTEGER}, {wallet_config, #domain_WalletConfigRef{id = ?STRING}}}) ->
+                    {ok, #domain_conf_v2_VersionedObject{
+                        info = #domain_conf_v2_VersionedObjectInfo{
+                            version = ?INTEGER,
+                            changed_at = genlib_rfc3339:format(genlib_time:unow(), second),
+                            changed_by = #domain_conf_v2_Author{
+                                id = ?STRING,
+                                name = ?STRING,
+                                email = ?STRING
+                            }
+                        },
+                        object = {wallet_config, WalletConfigObject}
                     }};
-                ('PullRange', _) ->
-                    {ok, #{}}
+                ('CheckoutObject', {{version, ?INTEGER}, {party_config, #domain_PartyConfigRef{id = ?STRING}}}) ->
+                    {ok, #domain_conf_v2_VersionedObject{
+                        info = #domain_conf_v2_VersionedObjectInfo{
+                            version = ?INTEGER,
+                            changed_at = genlib_rfc3339:format(genlib_time:unow(), second),
+                            changed_by = #domain_conf_v2_Author{
+                                id = ?STRING,
+                                name = ?STRING,
+                                email = ?STRING
+                            }
+                        },
+                        object = {party_config, PartyConfigObject}
+                    }};
+                ('CheckoutObject', _) ->
+                    woody_error:raise(business, #domain_conf_v2_ObjectNotFound{})
+            end},
+            {domain_config, fun('GetLatestVersion', _) ->
+                {ok, ?INTEGER}
             end}
         ],
         SupPid
     ),
     start_app_with(AppName, [
-        {service_urls, #{'Repository' => maps:get(domain_config, Urls)}}
+        {service_urls, #{
+            'Repository' => maps:get(domain_config, Urls),
+            'RepositoryClient' => maps:get(domain_config_client, Urls)
+        }}
     ]);
 start_app({wapi_lib = AppName, Config}) ->
     start_app_with(AppName, [
@@ -322,6 +345,8 @@ mock_services_(Services, SupPid) when is_pid(SupPid) ->
                     Acc#{ServiceName => #{'Bender' => make_url(ServiceName, Port)}};
                 domain_config ->
                     Acc#{ServiceName => make_url(ServiceName, Port)};
+                domain_config_client ->
+                    Acc#{ServiceName => make_url(ServiceName, Port)};
                 _ ->
                     WapiWoodyClient = maps:get(wapi_lib, Acc, #{}),
                     Acc#{wapi_lib => WapiWoodyClient#{ServiceName => make_url(ServiceName, Port)}}
@@ -345,7 +370,9 @@ mock_service_handler({ServiceName = bouncer, Fun}) ->
 mock_service_handler({ServiceName = org_management, Fun}) ->
     mock_service_handler(ServiceName, {orgmgmt_authctx_provider_thrift, 'AuthContextProvider'}, Fun);
 mock_service_handler({ServiceName = domain_config, Fun}) ->
-    mock_service_handler(ServiceName, {dmsl_domain_conf_thrift, 'Repository'}, Fun);
+    mock_service_handler(ServiceName, {dmsl_domain_conf_v2_thrift, 'Repository'}, Fun);
+mock_service_handler({ServiceName = domain_config_client, Fun}) ->
+    mock_service_handler(ServiceName, {dmsl_domain_conf_v2_thrift, 'RepositoryClient'}, Fun);
 mock_service_handler({ServiceName, Fun}) ->
     mock_service_handler(ServiceName, wapi_woody_client:get_service_modname(ServiceName), Fun);
 mock_service_handler({ServiceName, WoodyService, Fun}) ->

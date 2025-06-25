@@ -1,7 +1,7 @@
 -module(wapi_domain_backend).
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
--include_lib("damsel/include/dmsl_domain_conf_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_conf_v2_thrift.hrl").
 
 -type response_data() :: wapi_handler_utils:response_data().
 
@@ -63,9 +63,9 @@ object(ObjectRef) ->
 -spec object(dmt_client:version(), dmt_client:object_ref()) -> {ok, object_data()} | {error, notfound}.
 object(Ref, {Type, ObjectRef}) ->
     try dmt_client:checkout_object(Ref, {Type, ObjectRef}) of
-        {Type, {_RecordName, ObjectRef, ObjectData}} ->
+        #domain_conf_v2_VersionedObject{object = {Type, {_RecordName, ObjectRef, ObjectData}}} ->
             {ok, ObjectData}
     catch
-        #domain_conf_ObjectNotFound{} ->
+        #domain_conf_v2_ObjectNotFound{} ->
             {error, notfound}
     end.
