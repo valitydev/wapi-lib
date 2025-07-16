@@ -83,8 +83,10 @@ prepare('GetWalletAccount' = OperationID, #{'walletID' := WalletID}, Context, _O
         {ok, Resolution}
     end,
     Process = fun() ->
-        %% TODO: implement from new party service
-        wapi_handler_utils:reply_ok(404)
+        case wapi_wallet_backend:get_account(WalletID, Context) of
+            {ok, WalletAccount} -> wapi_handler_utils:reply_ok(200, WalletAccount);
+            {error, {wallet, notfound}} -> wapi_handler_utils:reply_ok(404)
+        end
     end,
     {ok, #{authorize => Authorize, process => Process}};
 %% Destinations

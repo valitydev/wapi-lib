@@ -23,8 +23,8 @@
 -spec get_party_config(id()) -> {ok, {map(), id()}} | {error, notfound}.
 get_party_config(PartyID) ->
     do(fun() ->
-        Party = unwrap(object({party_config, #domain_PartyConfigRef{id = PartyID}})),
-        {#{<<"id">> => Party#domain_PartyConfig.id}, PartyID}
+        _Party = unwrap(object({party_config, #domain_PartyConfigRef{id = PartyID}})),
+        {#{<<"id">> => PartyID}, PartyID}
     end).
 
 -spec get_wallet_config(id()) -> {ok, {map(), id()}} | {error, notfound}.
@@ -33,8 +33,9 @@ get_wallet_config(WalletID) ->
         Wallet = unwrap(object({wallet_config, #domain_WalletConfigRef{id = WalletID}})),
         {
             #{
-                <<"id">> => Wallet#domain_WalletConfig.id,
-                <<"partyID">> => Wallet#domain_WalletConfig.party_id
+                <<"id">> => WalletID,
+                <<"partyID">> => Wallet#domain_WalletConfig.party_id,
+                <<"account">> => unmarshal_wallet_account(Wallet#domain_WalletConfig.account)
             },
             Wallet#domain_WalletConfig.party_id
         }
@@ -55,6 +56,15 @@ get_currency(ID) ->
 %%
 %% Internal
 %%
+
+unmarshal_wallet_account(#domain_WalletAccount{
+    currency = #domain_CurrencyRef{symbolic_code = SymbolicCode},
+    settlement = Settlement
+}) ->
+    #{
+        <<"currency">> => SymbolicCode,
+        <<"settlement">> => Settlement
+    }.
 
 -spec object(dmt_client:object_ref()) -> {ok, object_data()} | {error, notfound}.
 object(ObjectRef) ->
