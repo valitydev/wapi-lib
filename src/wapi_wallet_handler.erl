@@ -72,6 +72,25 @@ mask_notfound(Resolution) ->
 %% Providers
 -spec prepare(operation_id(), request_data(), handler_context(), handler_opts()) -> {ok, request_state()}.
 
+%% Wallets
+prepare('GetWallet' = OperationID, #{'walletID' := WalletID}, Context, _Opts) ->
+    {ResultWallet, ResultWalletOwner} =
+        case wapi_wallet_backend:get(WalletID, Context) of
+            {ok, Wallet, Owner} -> {Wallet, Owner};
+            {error, {wallet, notfound}} -> {undefined, undefined}
+        end,
+    Authorize = fun() ->
+        Prototypes = [
+            {operation, #{wallet => WalletID, id => OperationID}},
+            {wallet, [wapi_bouncer_context:build_wallet_entity(wallet, ResultWallet, {party, ResultWalletOwner})]}
+        ],
+        Resolution = mask_notfound(wapi_auth:authorize_operation(Prototypes, Context)),
+        {ok, Resolution}
+    end,
+    Process = fun() ->
+        wapi_handler_utils:reply_ok(200, ResultWallet)
+    end,
+    {ok, #{authorize => Authorize, process => Process}};
 prepare('GetWalletAccount' = OperationID, #{'walletID' := WalletID}, Context, _Opts) ->
     AuthContext = build_auth_context([{wallet, WalletID}], [], Context),
     Authorize = fun() ->

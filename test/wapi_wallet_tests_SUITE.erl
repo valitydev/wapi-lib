@@ -21,6 +21,8 @@
 -export([init/1]).
 
 -export([
+    get_ok/1,
+    get_fail_wallet_notfound/1,
     get_account_ok/1,
     get_account_fail_get_context_wallet_notfound/1,
     get_account_fail_get_accountbalance_wallet_notfound/1
@@ -48,6 +50,8 @@ all() ->
 groups() ->
     [
         {base, [], [
+            get_ok,
+            get_fail_wallet_notfound,
             get_account_ok,
             get_account_fail_get_context_wallet_notfound,
             get_account_fail_get_accountbalance_wallet_notfound
@@ -94,6 +98,17 @@ end_per_testcase(_Name, C) ->
 
 %%% Tests
 
+-spec get_ok(config()) -> _.
+get_ok(C) ->
+    PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_assert_wallet_op_ctx(<<"GetWallet">>, ?STRING, PartyID, C),
+    {ok, _} = get_wallet_call_api(?STRING, C).
+
+-spec get_fail_wallet_notfound(config()) -> _.
+get_fail_wallet_notfound(C) ->
+    _ = wapi_ct_helper_bouncer:mock_arbiter(wapi_ct_helper_bouncer:judge_always_forbidden(), C),
+    ?assertEqual(?EMPTY_RESP(404), get_wallet_call_api(<<"non existant wallet id">>, C)).
+
 -spec get_account_ok(config()) -> _.
 get_account_ok(C) ->
     PartyID = ?config(party, C),
@@ -121,6 +136,17 @@ call_api(F, Params, Context) ->
     {Url, PreparedParams, Opts} = wapi_client_lib:make_request(Context, Params),
     Response = F(Url, PreparedParams, Opts),
     wapi_client_lib:handle_response(Response).
+
+get_wallet_call_api(WalletID, C) ->
+    call_api(
+        fun swag_client_wallet_wallets_api:get_wallet/3,
+        #{
+            binding => #{
+                <<"walletID">> => WalletID
+            }
+        },
+        wapi_ct_helper:cfg(context, C)
+    ).
 
 get_account_call_api(WalletID, C) ->
     call_api(
