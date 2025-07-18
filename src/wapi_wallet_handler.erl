@@ -820,11 +820,11 @@ build_auth_context({party, PartyID}, _Context) ->
             {error, notfound} -> {undefined, undefined}
         end,
     {party, {PartyID, ResultParty, ResultPartyOwner}};
-build_auth_context({wallet, WalletID}, _Context) ->
+build_auth_context({wallet, WalletID}, Context) ->
     {ResultWallet, ResultWalletOwner} =
-        case wapi_domain_backend:get_wallet_config(WalletID) of
-            {ok, {WalletConfig, Owner}} -> {WalletConfig, Owner};
-            {error, notfound} -> {undefined, undefined}
+        case wapi_wallet_backend:get(WalletID, Context) of
+            {ok, Wallet, Owner} -> {Wallet, Owner};
+            {error, {wallet, notfound}} -> {undefined, undefined}
         end,
     {wallet, {WalletID, ResultWallet, ResultWalletOwner}};
 build_auth_context({destination, DestinationID}, Context) ->

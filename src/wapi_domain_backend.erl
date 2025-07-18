@@ -7,7 +7,6 @@
 
 -export([get_currency/1]).
 -export([get_party_config/1]).
--export([get_wallet_config/1]).
 -export([get_object/1]).
 -export([get_object/2]).
 
@@ -27,19 +26,6 @@ get_party_config(PartyID) ->
     do(fun() ->
         _Party = unwrap(get_object({party_config, #domain_PartyConfigRef{id = PartyID}})),
         {#{<<"id">> => PartyID}, PartyID}
-    end).
-
--spec get_wallet_config(id()) -> {ok, {map(), id()}} | {error, notfound}.
-get_wallet_config(WalletID) ->
-    do(fun() ->
-        Wallet = unwrap(get_object({wallet_config, #domain_WalletConfigRef{id = WalletID}})),
-        {
-            #{
-                <<"id">> => WalletID,
-                <<"partyID">> => Wallet#domain_WalletConfig.party_id
-            },
-            Wallet#domain_WalletConfig.party_id
-        }
     end).
 
 -spec get_currency(id()) -> {ok, response_data()} | {error, notfound}.
