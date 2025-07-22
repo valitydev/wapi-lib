@@ -23,7 +23,7 @@ get(WalletID, _HandlerContext) ->
 get_account(WalletID, HandlerContext) ->
     case get_wallet_config(WalletID) of
         {ok, #domain_WalletConfig{party_id = PartyID, account = #domain_WalletAccount{settlement = AccountID}}} ->
-            Request = {config_manager, 'GetAccountState', {PartyID, AccountID}},
+            Request = {party_management, 'GetAccountState', {PartyID, AccountID}},
             case wapi_handler_utils:service_call(Request, HandlerContext) of
                 {ok, AccountBalanceThrift} ->
                     {ok, unmarshal(account_state, AccountBalanceThrift)};
@@ -53,12 +53,9 @@ unmarshal(
         party_id = PartyID
     }}
 ) ->
-    %% FIXME Temporary stub
-    CreatedAt = ~b"1970-01-01T00:00:00Z",
     genlib_map:compact(#{
         <<"id">> => unmarshal(id, WalletID),
         <<"name">> => unmarshal(string, Name),
-        <<"createdAt">> => CreatedAt,
         <<"isBlocked">> => unmarshal(blocking, Blocking),
         <<"party">> => PartyID,
         <<"currency">> => Currency

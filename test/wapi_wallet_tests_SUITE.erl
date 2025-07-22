@@ -162,7 +162,7 @@ get_account_call_api(WalletID, C) ->
 mock_account_with_balance(ExistingAccountID, C) ->
     _ = wapi_ct_helper:mock_services(
         [
-            {config_manager, fun
+            {party_management, fun
                 ('GetAccountState', {_, AccountID}) when AccountID =:= ExistingAccountID ->
                     {ok, #payproc_AccountState{
                         account_id = AccountID,

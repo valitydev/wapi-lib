@@ -369,8 +369,8 @@ mock_service_handler({ServiceName = domain_config, Fun}) ->
     mock_service_handler(ServiceName, {dmsl_domain_conf_v2_thrift, 'Repository'}, Fun);
 mock_service_handler({ServiceName = domain_config_client, Fun}) ->
     mock_service_handler(ServiceName, {dmsl_domain_conf_v2_thrift, 'RepositoryClient'}, Fun);
-mock_service_handler({ServiceName = config_manager, Fun}) ->
-    mock_service_handler(ServiceName, {dmsl_payproc_thrift, 'ConfigManagement'}, Fun);
+mock_service_handler({ServiceName = party_management, Fun}) ->
+    mock_service_handler(ServiceName, {dmsl_payproc_thrift, 'PartyManagement'}, Fun);
 mock_service_handler({ServiceName, Fun}) ->
     mock_service_handler(ServiceName, wapi_woody_client:get_service_modname(ServiceName), Fun);
 mock_service_handler({ServiceName, WoodyService, Fun}) ->

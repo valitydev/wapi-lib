@@ -82,9 +82,8 @@ get_service_modname(fistful_withdrawal) ->
     {fistful_wthd_thrift, 'Management'};
 get_service_modname(webhook_manager) ->
     {fistful_webhooker_thrift, 'WebhookManager'};
-%% FIXME naming
-get_service_modname(config_manager) ->
-    {dmsl_payproc_thrift, 'ConfigManagement'}.
+get_service_modname(party_management) ->
+    {dmsl_payproc_thrift, 'PartyManagement'}.
 
 -spec get_service_deadline(service_name()) -> undefined | woody_deadline:deadline().
 get_service_deadline(ServiceName) ->
