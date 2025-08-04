@@ -192,8 +192,6 @@
 
 -define(LAST_DIGITS(CardNumber), string:slice(CardNumber, 12)).
 
--define(DESTINATION_STATUS, {authorized, #destination_Authorized{}}).
-
 -define(DESTINATION(PartyID), ?DESTINATION(PartyID, ?RESOURCE_BANK_CARD)).
 
 -define(DESTINATION(PartyID, Resource), #destination_DestinationState{
