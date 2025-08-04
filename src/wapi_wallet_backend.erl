@@ -21,9 +21,10 @@ get(WalletID, _HandlerContext) ->
 
 -spec get_account(id(), handler_context()) -> {ok, response_data()} | {error, {wallet, notfound}}.
 get_account(WalletID, HandlerContext) ->
+    DomainRevision = wapi_domain_backend:head(),
     case get_wallet_config(WalletID) of
         {ok, #domain_WalletConfig{party_id = PartyID, account = #domain_WalletAccount{settlement = AccountID}}} ->
-            Request = {party_management, 'GetAccountState', {PartyID, AccountID}},
+            Request = {party_management, 'GetAccountState', {PartyID, AccountID, DomainRevision}},
             case wapi_handler_utils:service_call(Request, HandlerContext) of
                 {ok, AccountBalanceThrift} ->
                     {ok, unmarshal(account_state, AccountBalanceThrift)};

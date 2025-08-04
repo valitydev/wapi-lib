@@ -24,8 +24,8 @@
     get_ok/1,
     get_fail_wallet_notfound/1,
     get_account_ok/1,
-    get_account_fail_get_context_wallet_notfound/1,
-    get_account_fail_get_accountbalance_wallet_notfound/1
+    get_account_fail_wallet_notfound/1,
+    get_account_fail_account_notfound/1
 ]).
 
 -define(EMPTY_RESP(Code), {error, {Code, #{}}}).
@@ -53,8 +53,8 @@ groups() ->
             get_ok,
             get_fail_wallet_notfound,
             get_account_ok,
-            get_account_fail_get_context_wallet_notfound,
-            get_account_fail_get_accountbalance_wallet_notfound
+            get_account_fail_wallet_notfound,
+            get_account_fail_account_notfound
         ]}
     ].
 
@@ -116,14 +116,14 @@ get_account_ok(C) ->
     ok = mock_account_with_balance(?INTEGER, C),
     {ok, _} = get_account_call_api(?STRING, C).
 
--spec get_account_fail_get_context_wallet_notfound(config()) -> _.
-get_account_fail_get_context_wallet_notfound(C) ->
+-spec get_account_fail_wallet_notfound(config()) -> _.
+get_account_fail_wallet_notfound(C) ->
     _ = wapi_ct_helper_bouncer:mock_arbiter(wapi_ct_helper_bouncer:judge_always_forbidden(), C),
     ok = mock_account_with_balance(?INTEGER, C),
     ?assertEqual(?EMPTY_RESP(401), get_account_call_api(<<"non existant wallet id">>, C)).
 
--spec get_account_fail_get_accountbalance_wallet_notfound(config()) -> _.
-get_account_fail_get_accountbalance_wallet_notfound(C) ->
+-spec get_account_fail_account_notfound(config()) -> _.
+get_account_fail_account_notfound(C) ->
     PartyID = ?config(party, C),
     _ = wapi_ct_helper_bouncer:mock_assert_wallet_op_ctx(<<"GetWalletAccount">>, ?STRING, PartyID, C),
     ok = mock_account_with_balance(424242, C),
@@ -163,7 +163,7 @@ mock_account_with_balance(ExistingAccountID, C) ->
     _ = wapi_ct_helper:mock_services(
         [
             {party_management, fun
-                ('GetAccountState', {_, AccountID}) when AccountID =:= ExistingAccountID ->
+                ('GetAccountState', {_, AccountID, ?INTEGER}) when AccountID =:= ExistingAccountID ->
                     {ok, #payproc_AccountState{
                         account_id = AccountID,
                         own_amount = ?INTEGER,
@@ -175,7 +175,7 @@ mock_account_with_balance(ExistingAccountID, C) ->
                             exponent = ?INTEGER
                         }
                     }};
-                ('GetAccountState', {_PartyID, _AccountID}) ->
+                ('GetAccountState', {_PartyID, _AccountID, _DomainRevision}) ->
                     throw(#payproc_AccountNotFound{})
             end}
         ],

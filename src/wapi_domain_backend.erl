@@ -5,6 +5,7 @@
 
 -type response_data() :: wapi_handler_utils:response_data().
 
+-export([head/0]).
 -export([get_currency/1]).
 -export([get_party_config/1]).
 -export([get_object/1]).
@@ -20,6 +21,10 @@
 -import(wapi_pipeline, [do/1, unwrap/1]).
 
 %%
+
+-spec head() -> dmt_client:vsn().
+head() ->
+    dmt_client:get_latest_version().
 
 -spec get_party_config(id()) -> {ok, {map(), id()}} | {error, notfound}.
 get_party_config(PartyID) ->
