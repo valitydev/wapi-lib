@@ -14,7 +14,8 @@
 get(WalletID, _HandlerContext) ->
     case get_wallet_config(WalletID) of
         {ok, WalletConfig} ->
-            {ok, unmarshal(wallet, {WalletID, WalletConfig}), WalletConfig#domain_WalletConfig.party_id};
+            #domain_WalletConfig{party_ref = #domain_PartyConfigRef{id = PartyID}} = WalletConfig,
+            {ok, unmarshal(wallet, {WalletID, WalletConfig}), PartyID};
         {error, notfound} ->
             {error, {wallet, notfound}}
     end.
@@ -23,8 +24,8 @@ get(WalletID, _HandlerContext) ->
 get_account(WalletID, HandlerContext) ->
     DomainRevision = wapi_domain_backend:head(),
     case get_wallet_config(WalletID) of
-        {ok, #domain_WalletConfig{party_id = PartyID, account = #domain_WalletAccount{settlement = AccountID}}} ->
-            Request = {party_management, 'GetAccountState', {PartyID, AccountID, DomainRevision}},
+        {ok, #domain_WalletConfig{party_ref = PartyRef, account = #domain_WalletAccount{settlement = AccountID}}} ->
+            Request = {party_management, 'GetAccountState', {PartyRef, AccountID, DomainRevision}},
             case wapi_handler_utils:service_call(Request, HandlerContext) of
                 {ok, AccountBalanceThrift} ->
                     {ok, unmarshal(account_state, AccountBalanceThrift)};
@@ -51,14 +52,14 @@ unmarshal(
         name = Name,
         block = Blocking,
         account = #domain_WalletAccount{currency = #domain_CurrencyRef{symbolic_code = Currency}},
-        party_id = PartyID
+        party_ref = PartyRef
     }}
 ) ->
     genlib_map:compact(#{
         <<"id">> => unmarshal(id, WalletID),
         <<"name">> => unmarshal(string, Name),
         <<"isBlocked">> => unmarshal(blocking, Blocking),
-        <<"party">> => PartyID,
+        <<"party">> => PartyRef#domain_PartyConfigRef.id,
         <<"currency">> => Currency
     });
 unmarshal(blocking, {unblocked, _}) ->
