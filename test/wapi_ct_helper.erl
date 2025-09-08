@@ -152,7 +152,7 @@ start_app({dmt_client = AppName, SupPid}) ->
                 currency = #domain_CurrencyRef{symbolic_code = <<"RUB">>},
                 settlement = ?INTEGER
             },
-            party_id = ?STRING
+            party_ref = #domain_PartyConfigRef{id = ?STRING}
         }
     },
     PartyConfigObject = #domain_PartyConfigObject{
@@ -168,8 +168,6 @@ start_app({dmt_client = AppName, SupPid}) ->
                 {active, #domain_Active{
                     since = wapi_time:rfc3339()
                 }},
-            shops = [],
-            wallets = [#domain_WalletConfigRef{id = ?STRING}],
             contact_info = #domain_PartyContactInfo{
                 registration_email = <<"test@test.ru">>
             }
