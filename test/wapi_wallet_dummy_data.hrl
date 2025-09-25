@@ -100,7 +100,11 @@
     context = ?DEFAULT_CONTEXT(PartyID),
     quote = ?WITHDRAWAL_QUOTE_STATE,
     party_id = PartyID,
-    domain_revision = 123
+    domain_revision = 123,
+    contact_info = #fistful_base_ContactInfo{
+        phone_number = ?STRING,
+        email = ?STRING
+    }
 }).
 
 -define(WITHDRAWAL_QUOTE_STATE, #wthd_QuoteState{
