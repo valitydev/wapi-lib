@@ -371,6 +371,7 @@ marshal(
     ExternalID = maps:get(<<"externalID">>, Params, undefined),
     Metadata = maps:get(<<"metadata">>, Params, undefined),
     Quote = maps:get(<<"quote">>, Params, undefined),
+    ContactInfo = maps:get(<<"contactInfo">>, Params, undefined),
     PartyID = maps:get(<<"party">>, Params, <<>>),
     #wthd_WithdrawalParams{
         id = marshal(id, ID),
@@ -380,7 +381,15 @@ marshal(
         quote = Quote,
         external_id = maybe_marshal(id, ExternalID),
         metadata = maybe_marshal(context, Metadata),
-        party_id = PartyID
+        party_id = PartyID,
+        contact_info = maybe_marshal(contact_info, ContactInfo)
+    };
+marshal(contact_info, ContactInfo) ->
+    PhoneNumber = maps:get(<<"phoneNumber">>, ContactInfo, undefined),
+    Email = maps:get(<<"email">>, ContactInfo, undefined),
+    #fistful_base_ContactInfo{
+        phone_number = PhoneNumber,
+        email = Email
     };
 marshal(
     create_quote_params,
@@ -445,7 +454,8 @@ unmarshal(withdrawal, #wthd_WithdrawalState{
     status = Status,
     created_at = CreatedAt,
     metadata = Metadata,
-    quote = Quote
+    quote = Quote,
+    contact_info = ContactInfo
 }) ->
     UnmarshaledMetadata = maybe_unmarshal(context, Metadata),
     genlib_map:compact(
@@ -459,7 +469,8 @@ unmarshal(withdrawal, #wthd_WithdrawalState{
                 <<"createdAt">> => CreatedAt,
                 <<"externalID">> => ExternalID,
                 <<"metadata">> => UnmarshaledMetadata,
-                <<"quote">> => maybe_unmarshal(quote_state, Quote)
+                <<"quote">> => maybe_unmarshal(quote_state, Quote),
+                <<"contactInfo">> => maybe_unmarshal(contact_info, ContactInfo)
             },
             unmarshal_status(Status)
         )
@@ -488,6 +499,14 @@ unmarshal(quote_state, #wthd_QuoteState{
         <<"createdAt">> => CreatedAt,
         <<"expiresOn">> => ExpiresOn
     };
+unmarshal(contact_info, #fistful_base_ContactInfo{
+    phone_number = PhoneNumber,
+    email = Email
+}) ->
+    genlib_map:compact(#{
+        <<"phoneNumber">> => maybe_unmarshal(string, PhoneNumber),
+        <<"email">> => maybe_unmarshal(string, Email)
+    });
 unmarshal(event, ?EVENT(EventId, OccuredAt, ?STATUS_CHANGE(Status))) ->
     genlib_map:compact(#{
         <<"eventID">> => EventId,

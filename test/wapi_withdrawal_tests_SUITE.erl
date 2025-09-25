@@ -149,7 +149,12 @@ end_per_testcase(_Name, C) ->
 create_ok(C) ->
     PartyID = ?config(party, C),
     _ = create_withdrawal_start_mocks(C, fun() -> {ok, ?WITHDRAWAL(PartyID)} end),
-    {ok, _} = create_withdrawal_call_api(C).
+    {ok, #{
+        <<"contactInfo">> := #{
+            <<"phoneNumber">> := ?STRING,
+            <<"email">> := ?STRING
+        }
+    }} = create_withdrawal_call_api(C).
 
 -spec create_fail_wallet_notfound(config()) -> _.
 create_fail_wallet_notfound(C) ->
@@ -617,6 +622,10 @@ create_withdrawal_call_api(C) ->
                 <<"body">> => #{
                     <<"amount">> => ?INTEGER,
                     <<"currency">> => ?RUB
+                },
+                <<"contactInfo">> => #{
+                    <<"email">> => ?STRING,
+                    <<"phoneNumber">> => ?STRING
                 }
             })
         },
