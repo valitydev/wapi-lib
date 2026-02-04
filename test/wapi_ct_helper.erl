@@ -306,7 +306,19 @@ start_woody_client(wapi_lib, Urls) ->
         wapi_lib,
         service_urls,
         Urls
-    ).
+    );
+start_woody_client(domain_config, Url) ->
+    update_dmt_service_url('Repository', Url);
+start_woody_client(domain_config_client, Url) ->
+    update_dmt_service_url('RepositoryClient', Url).
+
+update_dmt_service_url(Key, Url) ->
+    ServiceUrls =
+        case application:get_env(dmt_client, service_urls) of
+            {ok, Urls} -> Urls;
+            undefined -> #{}
+        end,
+    ok = application:set_env(dmt_client, service_urls, ServiceUrls#{Key => Url}).
 
 -spec mock_services_(_, _) -> _.
 % TODO need a better name
