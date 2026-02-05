@@ -55,6 +55,7 @@
 -include_lib("fistful_proto/include/fistful_fistful_thrift.hrl").
 -include_lib("fistful_proto/include/fistful_wthd_thrift.hrl").
 -include_lib("fistful_proto/include/fistful_wthd_status_thrift.hrl").
+-include_lib("fistful_proto/include/fistful_cashflow_thrift.hrl").
 
 %% Pipeline
 
@@ -455,9 +456,11 @@ unmarshal(withdrawal, #wthd_WithdrawalState{
     created_at = CreatedAt,
     metadata = Metadata,
     quote = Quote,
-    contact_info = ContactInfo
+    contact_info = ContactInfo,
+    effective_final_cash_flow = EffectiveFinalCashFlow
 }) ->
     UnmarshaledMetadata = maybe_unmarshal(context, Metadata),
+    Fee = maybe_unmarshal_fee(Status, EffectiveFinalCashFlow),
     genlib_map:compact(
         maps:merge(
             #{
@@ -470,7 +473,8 @@ unmarshal(withdrawal, #wthd_WithdrawalState{
                 <<"externalID">> => ExternalID,
                 <<"metadata">> => UnmarshaledMetadata,
                 <<"quote">> => maybe_unmarshal(quote_state, Quote),
-                <<"contactInfo">> => maybe_unmarshal(contact_info, ContactInfo)
+                <<"contactInfo">> => maybe_unmarshal(contact_info, ContactInfo),
+                <<"fee">> => Fee
             },
             unmarshal_status(Status)
         )
@@ -544,3 +548,49 @@ unmarshal_status({failed, #wthd_status_Failed{failure = BaseFailure}}) ->
     wapi_codec:convert(withdrawal_status, {failed, BaseFailure});
 unmarshal_status(Status) ->
     wapi_codec:convert(withdrawal_status, Status).
+
+maybe_unmarshal_fee({succeeded, _}, EffectiveFinalCashFlow) ->
+    cashflow_wallet_to_system_fee(EffectiveFinalCashFlow);
+maybe_unmarshal_fee(_, _) ->
+    undefined.
+
+cashflow_wallet_to_system_fee(#cashflow_FinalCashFlow{postings = Postings}) ->
+    FeeAcc = lists:foldl(fun accumulate_wallet_to_system_fee/2, undefined, Postings),
+    case FeeAcc of
+        undefined ->
+            undefined;
+        {Currency, Amount} ->
+            #{
+                <<"amount">> => Amount,
+                <<"currency">> => Currency
+            }
+    end.
+
+accumulate_wallet_to_system_fee(
+    #cashflow_FinalCashFlowPosting{
+        source = #cashflow_FinalCashFlowAccount{account_type = {wallet, _}},
+        destination = #cashflow_FinalCashFlowAccount{account_type = {system, _}},
+        volume = Cash
+    },
+    Acc
+) ->
+    add_cash_amount(Cash, Acc);
+accumulate_wallet_to_system_fee(_, Acc) ->
+    Acc.
+
+add_cash_amount(
+    #'fistful_base_Cash'{
+        amount = Amount,
+        currency = #'fistful_base_CurrencyRef'{symbolic_code = Currency}
+    },
+    undefined
+) ->
+    {Currency, Amount};
+add_cash_amount(
+    #'fistful_base_Cash'{
+        amount = Amount,
+        currency = #'fistful_base_CurrencyRef'{symbolic_code = Currency}
+    },
+    {Currency, Total}
+) ->
+    {Currency, Total + Amount}.
