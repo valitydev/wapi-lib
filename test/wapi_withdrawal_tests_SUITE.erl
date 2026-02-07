@@ -265,12 +265,30 @@ create_fail_wallet_inaccessible(C) ->
 -spec get_ok(config()) -> _.
 get_ok(C) ->
     PartyID = ?config(party, C),
+    FeeCash = #'fistful_base_Cash'{
+        amount = 500,
+        currency = #'fistful_base_CurrencyRef'{symbolic_code = ?RUB}
+    },
+    CashFlow = #cashflow_FinalCashFlow{
+        postings = [
+            #cashflow_FinalCashFlowPosting{
+                source = #cashflow_FinalCashFlowAccount{account_type = {wallet, sender_settlement}},
+                destination = #cashflow_FinalCashFlowAccount{account_type = {system, settlement}},
+                volume = FeeCash
+            }
+        ]
+    },
+    Withdrawal0 = ?WITHDRAWAL(PartyID),
+    Withdrawal = Withdrawal0#wthd_WithdrawalState{
+        status = {succeeded, #wthd_status_Succeeded{}},
+        effective_final_cash_flow = CashFlow
+    },
     _ = wapi_ct_helper_bouncer:mock_assert_withdrawal_op_ctx(<<"GetWithdrawal">>, ?STRING, PartyID, C),
     _ = wapi_ct_helper:mock_services(
         [
             {fistful_withdrawal, fun
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
-                ('Get', _) -> {ok, ?WITHDRAWAL(PartyID)}
+                ('Get', _) -> {ok, Withdrawal}
             end}
         ],
         C
@@ -280,6 +298,11 @@ get_ok(C) ->
         <<"currency">> => <<"RUB">>
     },
     {ok, #{
+        <<"status">> := <<"Succeeded">>,
+        <<"fee">> := #{
+            <<"amount">> := 500,
+            <<"currency">> := <<"RUB">>
+        },
         <<"quote">> := #{
             <<"cashFrom">> := Cash,
             <<"cashTo">> := Cash,
