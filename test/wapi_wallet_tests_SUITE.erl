@@ -135,14 +135,10 @@ get_account_fail_account_notfound(C) ->
 get_cash_limits_ok(C) ->
     PartyID = ?config(party, C),
     WalletID = ?STRING,
-    OldServiceUrls = get_dmt_service_urls(),
-    try
-        ok = mock_wallet_limits_domain(PartyID, C),
-        {ok, Limits} = wapi_wallet_limits:get_wallet_limits(PartyID, WalletID, #{}),
-        ?assertEqual(expected_wallet_limits(), Limits)
-    after
-        ok = application:set_env(dmt_client, service_urls, OldServiceUrls)
-    end.
+    _ = wapi_ct_helper_bouncer:mock_assert_wallet_op_ctx(<<"GetWalletCashLimits">>, WalletID, PartyID, C),
+    ok = wapi_ct_helper:mock_wallet_limits_domain(PartyID, C),
+    {ok, Limits} = get_cash_limits_call_api(WalletID, PartyID, C),
+    ?assertEqual(expected_wallet_limits(), Limits).
 
 %%
 
@@ -174,182 +170,41 @@ get_account_call_api(WalletID, C) ->
         wapi_ct_helper:cfg(context, C)
     ).
 
+get_cash_limits_call_api(WalletID, PartyID, C) ->
+    call_api(
+        fun swag_client_wallet_wallets_api:get_wallet_cash_limits/3,
+        #{
+            binding => #{
+                <<"walletID">> => WalletID
+            },
+            qs_val => #{
+                <<"partyID">> => PartyID
+            }
+        },
+        wapi_ct_helper:cfg(context, C)
+    ).
+
 expected_wallet_limits() ->
     [
         #{
             <<"currency">> => <<"RUB">>,
             <<"lowerBound">> => #{<<"amount">> => 300, <<"inclusive">> => true},
             <<"upperBound">> => #{<<"amount">> => 800, <<"inclusive">> => true},
-            <<"withdrawalMethod">> => #{<<"method">> => <<"WithdrawalMethodBankCard">>}
+            <<"withdrawalMethod">> => #{
+                <<"method">> => <<"WithdrawalMethodBankCard">>,
+                <<"paymentSystems">> => []
+            }
         },
         #{
             <<"currency">> => <<"RUB">>,
             <<"lowerBound">> => #{<<"amount">> => 300, <<"inclusive">> => true},
             <<"upperBound">> => #{<<"amount">> => 800, <<"inclusive">> => true},
-            <<"withdrawalMethod">> => #{<<"method">> => <<"WithdrawalMethodDigitalWallet">>}
+            <<"withdrawalMethod">> => #{
+                <<"method">> => <<"WithdrawalMethodDigitalWallet">>,
+                <<"providers">> => []
+            }
         }
     ].
-
-get_dmt_service_urls() ->
-    case application:get_env(dmt_client, service_urls) of
-        {ok, Urls} -> Urls;
-        undefined -> #{}
-    end.
-
-mock_wallet_limits_domain(PartyID, C) ->
-    CurrencyRef = #domain_CurrencyRef{symbolic_code = <<"RUB">>},
-    WalletLimitRange = #domain_CashRange{
-        lower = {inclusive, #domain_Cash{amount = 100, currency = CurrencyRef}},
-        upper = {inclusive, #domain_Cash{amount = 1000, currency = CurrencyRef}}
-    },
-    WithdrawalLimitRange = #domain_CashRange{
-        lower = {inclusive, #domain_Cash{amount = 200, currency = CurrencyRef}},
-        upper = {inclusive, #domain_Cash{amount = 800, currency = CurrencyRef}}
-    },
-    TerminalLimitRange = #domain_CashRange{
-        lower = {inclusive, #domain_Cash{amount = 300, currency = CurrencyRef}},
-        upper = {inclusive, #domain_Cash{amount = 900, currency = CurrencyRef}}
-    },
-    PaymentMethods = [
-        #domain_PaymentMethodRef{id = {bank_card, #domain_BankCardPaymentMethod{}}},
-        #domain_PaymentMethodRef{id = {digital_wallet, #domain_PaymentServiceRef{id = <<"DW">>}}}
-    ],
-    TermSetHierarchyObject =
-        #domain_TermSetHierarchyObject{
-            ref = #domain_TermSetHierarchyRef{id = 1},
-            data = #domain_TermSetHierarchy{
-                term_set = #domain_TermSet{
-                    wallets = #domain_WalletServiceTerms{
-                        wallet_limit = {value, WalletLimitRange},
-                        withdrawals = #domain_WithdrawalServiceTerms{
-                            methods = {value, PaymentMethods},
-                            cash_limit = {value, WithdrawalLimitRange}
-                        }
-                    }
-                }
-            }
-        },
-    RoutingRulesObject =
-        #domain_RoutingRulesObject{
-            ref = #domain_RoutingRulesetRef{id = 100},
-            data = #domain_RoutingRuleset{
-                name = <<"test">>,
-                decisions = {candidates, [
-                    #domain_RoutingCandidate{
-                        allowed = {constant, true},
-                        terminal = #domain_TerminalRef{id = 10}
-                    }
-                ]}
-            }
-        },
-    TerminalTerms = #domain_ProvisionTermSet{
-        wallet = #domain_WalletProvisionTerms{
-            withdrawals = #domain_WithdrawalProvisionTerms{
-                cash_limit = {value, TerminalLimitRange}
-            }
-        }
-    },
-    TerminalObject =
-        #domain_TerminalObject{
-            ref = #domain_TerminalRef{id = 10},
-            data = #domain_Terminal{
-                name = <<"test">>,
-                description = <<"test">>,
-                provider_ref = #domain_ProviderRef{id = 11},
-                terms = TerminalTerms
-            }
-        },
-    ProviderObject =
-        #domain_ProviderObject{
-            ref = #domain_ProviderRef{id = 11},
-            data = #domain_Provider{
-                name = <<"test">>,
-                description = <<"test">>,
-                proxy = #domain_Proxy{
-                    ref = #domain_ProxyRef{id = 1},
-                    additional = #{}
-                },
-                realm = test,
-                terms = TerminalTerms
-            }
-        },
-    PaymentInstitutionObject =
-        #domain_PaymentInstitutionObject{
-            ref = #domain_PaymentInstitutionRef{id = 1},
-            data = #domain_PaymentInstitution{
-                name = <<"test">>,
-                system_account_set = {value, #domain_SystemAccountSetRef{id = 1}},
-                inspector = {value, #domain_InspectorRef{id = 1}},
-                realm = test,
-                residences = [rus],
-                withdrawal_routing_rules = #domain_RoutingRules{
-                    policies = #domain_RoutingRulesetRef{id = 100},
-                    prohibitions = #domain_RoutingRulesetRef{id = 101}
-                }
-            }
-        },
-    WalletConfigObject =
-        #domain_WalletConfigObject{
-            ref = #domain_WalletConfigRef{id = ?STRING},
-            data = #domain_WalletConfig{
-                name = ?STRING,
-                block =
-                    {unblocked, #domain_Unblocked{
-                        reason = <<"">>,
-                        since = wapi_time:rfc3339()
-                    }},
-                suspension =
-                    {active, #domain_Active{
-                        since = wapi_time:rfc3339()
-                    }},
-                payment_institution = #domain_PaymentInstitutionRef{id = 1},
-                terms = #domain_TermSetHierarchyRef{id = 1},
-                account = #domain_WalletAccount{
-                    currency = CurrencyRef,
-                    settlement = ?INTEGER
-                },
-                party_ref = #domain_PartyConfigRef{id = PartyID}
-            }
-        },
-    DomainConfigClient = fun
-        ('CheckoutObject', {{version, ?INTEGER}, {wallet_config, #domain_WalletConfigRef{id = ?STRING}}}) ->
-            {ok, mk_versioned_object(wallet_config, WalletConfigObject)};
-        ('CheckoutObject', {{version, ?INTEGER}, {term_set_hierarchy, #domain_TermSetHierarchyRef{id = 1}}}) ->
-            {ok, mk_versioned_object(term_set_hierarchy, TermSetHierarchyObject)};
-        ('CheckoutObject', {{version, ?INTEGER}, {payment_institution, #domain_PaymentInstitutionRef{id = 1}}}) ->
-            {ok, mk_versioned_object(payment_institution, PaymentInstitutionObject)};
-        ('CheckoutObject', {{version, ?INTEGER}, {routing_rules, #domain_RoutingRulesetRef{id = 100}}}) ->
-            {ok, mk_versioned_object(routing_rules, RoutingRulesObject)};
-        ('CheckoutObject', {{version, ?INTEGER}, {terminal, #domain_TerminalRef{id = 10}}}) ->
-            {ok, mk_versioned_object(terminal, TerminalObject)};
-        ('CheckoutObject', {{version, ?INTEGER}, {provider, #domain_ProviderRef{id = 11}}}) ->
-            {ok, mk_versioned_object(provider, ProviderObject)};
-        ('CheckoutObject', _) ->
-            woody_error:raise(business, #domain_conf_v2_ObjectNotFound{})
-    end,
-    DomainConfig = fun('GetLatestVersion', _) -> {ok, ?INTEGER} end,
-    _ = wapi_ct_helper:mock_services(
-        [
-            {domain_config, DomainConfig},
-            {domain_config_client, DomainConfigClient}
-        ],
-        C
-    ),
-    ok.
-
-mk_versioned_object(Type, Object) ->
-    #domain_conf_v2_VersionedObject{
-        info = #domain_conf_v2_VersionedObjectInfo{
-            version = ?INTEGER,
-            changed_at = genlib_rfc3339:format(genlib_time:unow(), second),
-            changed_by = #domain_conf_v2_Author{
-                id = ?STRING,
-                name = ?STRING,
-                email = ?STRING
-            }
-        },
-        object = {Type, Object}
-    }.
 
 mock_account_with_balance(ExistingAccountID, C) ->
     _ = wapi_ct_helper:mock_services(

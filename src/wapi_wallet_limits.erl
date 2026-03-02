@@ -277,8 +277,14 @@ normalize_withdrawal_method(_) ->
     generic.
 
 encode_withdrawal_method(bank_card) ->
-    #{<<"method">> => <<"WithdrawalMethodBankCard">>};
+    #{
+        <<"method">> => <<"WithdrawalMethodBankCard">>,
+        <<"paymentSystems">> => []
+    };
 encode_withdrawal_method(digital_wallet) ->
-    #{<<"method">> => <<"WithdrawalMethodDigitalWallet">>};
+    #{
+        <<"method">> => <<"WithdrawalMethodDigitalWallet">>,
+        <<"providers">> => []
+    };
 encode_withdrawal_method(generic) ->
     #{<<"method">> => <<"WithdrawalMethodGeneric">>}.
