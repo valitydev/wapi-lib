@@ -199,14 +199,9 @@ start_app({dmt_client = AppName, SupPid}) ->
     Disallowed = {constant, false},
     Terminal10 = mk_terminal_object(10, 11, Term10Limit, Allowed, Allowed),
     Terminal20 = mk_terminal_object(20, 21, Term20Limit, Allowed, Allowed),
-    Terminal12 = mk_terminal_object(12, 12, Term10Limit, Allowed, Allowed),
-    Terminal22 = mk_terminal_object(22, 22, Term20Limit, Disallowed, Allowed),
     Provider11 = mk_provider_object(11, Allowed, Allowed),
     Provider21 = mk_provider_object(21, Allowed, Allowed),
-    Provider12 = mk_provider_object(12, Allowed, Disallowed),
-    Provider22 = mk_provider_object(22, Allowed, Allowed),
-    %% Routing rulesets: 100 both, 101 none, 103 term20 only, 104 term10 only,
-    %% 105 term10+22 (prov2 off), 106 term12+20 (prov1 off), 107 term12+22 (both prov off)
+    %% Routing rulesets: 100 both, 101 none, 103 term20 only, 108 empty
     Routing100 = #domain_RoutingRuleset{
         name = <<"both">>,
         decisions =
@@ -231,39 +226,7 @@ start_app({dmt_client = AppName, SupPid}) ->
                 #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 20}}
             ]}
     },
-    Routing104 = #domain_RoutingRuleset{
-        name = <<"term10">>,
-        decisions =
-            {candidates, [
-                #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 10}},
-                #domain_RoutingCandidate{allowed = Disallowed, terminal = #domain_TerminalRef{id = 20}}
-            ]}
-    },
-    Routing105 = #domain_RoutingRuleset{
-        name = <<"prov2_off">>,
-        decisions =
-            {candidates, [
-                #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 10}},
-                #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 22}}
-            ]}
-    },
-    Routing106 = #domain_RoutingRuleset{
-        name = <<"prov1_off">>,
-        decisions =
-            {candidates, [
-                #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 12}},
-                #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 20}}
-            ]}
-    },
-    Routing107 = #domain_RoutingRuleset{
-        name = <<"both_prov_off">>,
-        decisions =
-            {candidates, [
-                #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 12}},
-                #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 22}}
-            ]}
-    },
-    %% Routing 108: empty (for provider_global_disallow - both term 12,22 have disallowed providers)
+    %% Routing 108: empty (for provider_global_disallow)
     Routing108 = #domain_RoutingRuleset{
         name = <<"empty">>,
         decisions = {candidates, []}
@@ -272,27 +235,18 @@ start_app({dmt_client = AppName, SupPid}) ->
         100 => Routing100,
         101 => Routing101,
         103 => Routing103,
-        104 => Routing104,
-        105 => Routing105,
-        106 => Routing106,
-        107 => Routing107,
         108 => Routing108
     },
     RoutingRulesObjects = [
         #domain_RoutingRulesObject{ref = #domain_RoutingRulesetRef{id = Id}, data = Data}
      || {Id, Data} <- maps:to_list(RoutingRules)
     ],
-    %% PIs: 1=100, 2=101, 4=104, 5=103, 6=105, 7=107, 8=107, 9=106, 10=108
+    %% PIs: 1=100, 2=101, 5=103, 10=108
     ProhibitionsId = 101,
     PiObjects = [
         mk_pi_object(1, 100, ProhibitionsId),
         mk_pi_object(2, 101, ProhibitionsId),
-        mk_pi_object(4, 104, ProhibitionsId),
         mk_pi_object(5, 103, ProhibitionsId),
-        mk_pi_object(6, 105, ProhibitionsId),
-        mk_pi_object(7, 107, ProhibitionsId),
-        mk_pi_object(8, 107, ProhibitionsId),
-        mk_pi_object(9, 106, ProhibitionsId),
         mk_pi_object(10, 108, ProhibitionsId)
     ],
     PiMap = maps:from_list([
@@ -349,8 +303,6 @@ start_app({dmt_client = AppName, SupPid}) ->
                 case Id of
                     10 -> Terminal10;
                     20 -> Terminal20;
-                    12 -> Terminal12;
-                    22 -> Terminal22;
                     _ -> undefined
                 end,
             case T of
@@ -364,8 +316,6 @@ start_app({dmt_client = AppName, SupPid}) ->
                 case Id of
                     11 -> Provider11;
                     21 -> Provider21;
-                    12 -> Provider12;
-                    22 -> Provider22;
                     _ -> undefined
                 end,
             case P of
