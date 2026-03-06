@@ -604,38 +604,6 @@ default_party_management_routing() ->
                     #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 20}}
                 ]}
         },
-        104 => #domain_RoutingRuleset{
-            name = <<"term10">>,
-            decisions =
-                {candidates, [
-                    #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 10}},
-                    #domain_RoutingCandidate{allowed = Disallowed, terminal = #domain_TerminalRef{id = 20}}
-                ]}
-        },
-        105 => #domain_RoutingRuleset{
-            name = <<"prov2_off">>,
-            decisions =
-                {candidates, [
-                    #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 10}},
-                    #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 22}}
-                ]}
-        },
-        106 => #domain_RoutingRuleset{
-            name = <<"prov1_off">>,
-            decisions =
-                {candidates, [
-                    #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 12}},
-                    #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 20}}
-                ]}
-        },
-        107 => #domain_RoutingRuleset{
-            name = <<"both_prov_off">>,
-            decisions =
-                {candidates, [
-                    #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 12}},
-                    #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 22}}
-                ]}
-        },
         108 => #domain_RoutingRuleset{name = <<"empty">>, decisions = {candidates, []}}
     },
     fun('ComputeRoutingRuleset', {#domain_RoutingRulesetRef{id = Id}, _V, _Varset}) ->
