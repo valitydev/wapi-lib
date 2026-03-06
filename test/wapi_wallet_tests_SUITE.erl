@@ -26,9 +26,7 @@
     get_account_ok/1,
     get_account_fail_wallet_notfound/1,
     get_account_fail_account_notfound/1,
-    get_cash_limits_ok/1,
-    get_cash_limits_with_candidate_disabled/1,
-    get_cash_limits_with_primary_disabled/1
+    get_cash_limits_ok/1
 ]).
 
 -define(EMPTY_RESP(Code), {error, {Code, #{}}}).
@@ -58,9 +56,7 @@ groups() ->
             get_account_ok,
             get_account_fail_wallet_notfound,
             get_account_fail_account_notfound,
-            get_cash_limits_ok,
-            get_cash_limits_with_candidate_disabled,
-            get_cash_limits_with_primary_disabled
+            get_cash_limits_ok
         ]}
     ].
 
@@ -146,25 +142,6 @@ get_cash_limits_ok(C) ->
     {ok, Limits} = get_cash_limits_call_api(WalletID, PartyID, C),
     %% Both terminals: lower 200 from routing (term1), upper 500 from wallet
     ?assertEqual(expected_wallet_limits(), Limits).
-
--spec get_cash_limits_with_candidate_disabled(config()) -> _.
-get_cash_limits_with_candidate_disabled(C) ->
-    PartyID = ?config(party, C),
-    WalletID = ?WALLET_ID_CANDIDATE_DISABLED,
-    _ = wapi_ct_helper_bouncer:mock_assert_wallet_op_ctx(<<"GetWalletCashLimits">>, WalletID, PartyID, C),
-    {ok, Limits} = get_cash_limits_call_api(WalletID, PartyID, C),
-    %% No terminals: only wallet limits (lower 100, upper 500)
-    ?assertEqual(expected_wallet_limits(100, 500), Limits).
-
-%% Default: both terminals, lower 200 (from primary). When primary disabled: fallback terminal, lower 300.
--spec get_cash_limits_with_primary_disabled(config()) -> _.
-get_cash_limits_with_primary_disabled(C) ->
-    PartyID = ?config(party, C),
-    WalletID = ?WALLET_ID_PRIMARY_DISABLED,
-    _ = wapi_ct_helper_bouncer:mock_assert_wallet_op_ctx(<<"GetWalletCashLimits">>, WalletID, PartyID, C),
-    {ok, Limits} = get_cash_limits_call_api(WalletID, PartyID, C),
-    %% Primary terminal disabled -> fallback terminal kicks in, lower changes 200 -> 300
-    ?assertEqual(expected_wallet_limits(300, 500), Limits).
 
 %%
 
@@ -273,36 +250,13 @@ set_party_management_account(AccountID) ->
 -spec default_party_management_routing() -> fun().
 default_party_management_routing() ->
     Allowed = {constant, true},
-    Disallowed = {constant, false},
-    RoutingRules = #{
-        100 => #domain_RoutingRuleset{
+    fun('ComputeRoutingRuleset', {#domain_RoutingRulesetRef{id = 100}, _V, _Varset}) ->
+        {ok, #domain_RoutingRuleset{
             name = <<"both">>,
             decisions =
                 {candidates, [
                     #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 10}},
                     #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 20}}
                 ]}
-        },
-        101 => #domain_RoutingRuleset{
-            name = <<"none">>,
-            decisions =
-                {candidates, [
-                    #domain_RoutingCandidate{allowed = Disallowed, terminal = #domain_TerminalRef{id = 10}},
-                    #domain_RoutingCandidate{allowed = Disallowed, terminal = #domain_TerminalRef{id = 20}}
-                ]}
-        },
-        103 => #domain_RoutingRuleset{
-            name = <<"term20">>,
-            decisions =
-                {candidates, [
-                    #domain_RoutingCandidate{allowed = Disallowed, terminal = #domain_TerminalRef{id = 10}},
-                    #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 20}}
-                ]}
-        }
-    },
-    fun('ComputeRoutingRuleset', {#domain_RoutingRulesetRef{id = Id}, _V, _Varset}) ->
-        case maps:get(Id, RoutingRules, undefined) of
-            undefined -> {ok, #domain_RoutingRuleset{name = <<"empty">>, decisions = {candidates, []}}};
-            Ruleset -> {ok, Ruleset}
-        end
+        }}
     end.

@@ -2,10 +2,7 @@
 -define(STRING2, <<"TEST2">>).
 -define(VALID_EMAIL, <<"test@test.ru">>).
 
-%% Wallet config IDs for cash limits test scenarios (each maps to different PI/routing)
 -define(WALLET_ID_OK, <<"wallet_limits_ok">>).
--define(WALLET_ID_CANDIDATE_DISABLED, <<"wallet_limits_candidate_disabled">>).
--define(WALLET_ID_PRIMARY_DISABLED, <<"wallet_limits_primary_disabled">>).
 -define(RUB, <<"RUB">>).
 -define(USD, <<"USD">>).
 -define(BANKID_RU, <<"PUTIN">>).

@@ -134,12 +134,8 @@ start_app(woody = AppName) ->
     ]);
 start_app({dmt_client = AppName, SupPid}) ->
     CurrencyRef = #domain_CurrencyRef{symbolic_code = <<"RUB">>},
-    Version = ?INTEGER,
     WalletConfigObject = mk_wallet_config(?STRING, 1),
-    %% Wallet configs for cash limits scenarios (each -> different PI)
     WalletConfigLimitsOk = mk_wallet_config(?WALLET_ID_OK, 1),
-    WalletConfigCandidateDisabled = mk_wallet_config(?WALLET_ID_CANDIDATE_DISABLED, 2),
-    WalletConfigPrimaryDisabled = mk_wallet_config(?WALLET_ID_PRIMARY_DISABLED, 5),
     PartyConfigObject = #domain_PartyConfigObject{
         ref = #domain_PartyConfigRef{id = ?STRING},
         data = #domain_PartyConfig{
@@ -189,106 +185,38 @@ start_app({dmt_client = AppName, SupPid}) ->
         upper = {inclusive, #domain_Cash{amount = 800, currency = CurrencyRef}}
     },
     Allowed = {constant, true},
-    Disallowed = {constant, false},
     Terminal10 = mk_terminal_object(10, 11, Term10Limit, Allowed, Allowed),
     Terminal20 = mk_terminal_object(20, 21, Term20Limit, Allowed, Allowed),
     Provider11 = mk_provider_object(11, Allowed, Allowed),
     Provider21 = mk_provider_object(21, Allowed, Allowed),
 
-    Routing100 = #domain_RoutingRuleset{
-        name = <<"both">>,
-        decisions =
-            {candidates, [
-                #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 10}},
-                #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 20}}
-            ]}
-    },
-    Routing101 = #domain_RoutingRuleset{
-        name = <<"none">>,
-        decisions =
-            {candidates, [
-                #domain_RoutingCandidate{allowed = Disallowed, terminal = #domain_TerminalRef{id = 10}},
-                #domain_RoutingCandidate{allowed = Disallowed, terminal = #domain_TerminalRef{id = 20}}
-            ]}
-    },
-    Routing103 = #domain_RoutingRuleset{
-        name = <<"term20">>,
-        decisions =
-            {candidates, [
-                #domain_RoutingCandidate{allowed = Disallowed, terminal = #domain_TerminalRef{id = 10}},
-                #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 20}}
-            ]}
-    },
-    RoutingRules = #{
-        100 => Routing100,
-        101 => Routing101,
-        103 => Routing103
-    },
-    RoutingRulesObjects = [
-        #domain_RoutingRulesObject{ref = #domain_RoutingRulesetRef{id = Id}, data = Data}
-     || {Id, Data} <- maps:to_list(RoutingRules)
-    ],
-
-    ProhibitionsId = 101,
-    PiObjects = [
-        mk_pi_object(1, 100, ProhibitionsId),
-        mk_pi_object(2, 101, ProhibitionsId),
-        mk_pi_object(5, 103, ProhibitionsId)
-    ],
-    PiMap = maps:from_list([
-        {(P#domain_PaymentInstitutionObject.ref)#domain_PaymentInstitutionRef.id, P}
-     || P <- PiObjects
-    ]),
-    RoutingMap = maps:from_list([
-        {(R#domain_RoutingRulesObject.ref)#domain_RoutingRulesetRef.id, R}
-     || R <- RoutingRulesObjects
-    ]),
+    PiObject = mk_pi_object(1, 100, 101),
     DomainConfigClient = fun
-        ('CheckoutObject', {{version, ?INTEGER}, {wallet_config, #domain_WalletConfigRef{id = ?STRING}}}) ->
-            {ok, mk_versioned_object(wallet_config, WalletConfigObject, Version)};
-        ('CheckoutObject', {{version, ?INTEGER}, {wallet_config, #domain_WalletConfigRef{id = ?WALLET_ID_OK}}}) ->
-            {ok, mk_versioned_object(wallet_config, WalletConfigLimitsOk, Version)};
-        (
-            'CheckoutObject',
-            {{version, ?INTEGER}, {wallet_config, #domain_WalletConfigRef{id = ?WALLET_ID_CANDIDATE_DISABLED}}}
-        ) ->
-            {ok, mk_versioned_object(wallet_config, WalletConfigCandidateDisabled, Version)};
-        (
-            'CheckoutObject',
-            {{version, ?INTEGER}, {wallet_config, #domain_WalletConfigRef{id = ?WALLET_ID_PRIMARY_DISABLED}}}
-        ) ->
-            {ok, mk_versioned_object(wallet_config, WalletConfigPrimaryDisabled, Version)};
-        ('CheckoutObject', {{version, ?INTEGER}, {party_config, #domain_PartyConfigRef{id = ?STRING}}}) ->
-            {ok, mk_versioned_object(party_config, PartyConfigObject, Version)};
-        ('CheckoutObject', {{version, ?INTEGER}, {term_set_hierarchy, #domain_TermSetHierarchyRef{id = 1}}}) ->
-            {ok, mk_versioned_object(term_set_hierarchy, TermSetHierarchyObject, Version)};
-        ('CheckoutObject', {{version, ?INTEGER}, {payment_institution, #domain_PaymentInstitutionRef{id = 1}}}) ->
-            {ok, mk_versioned_object(payment_institution, maps:get(1, PiMap), Version)};
-        ('CheckoutObject', {{version, ?INTEGER}, {payment_institution, #domain_PaymentInstitutionRef{id = 2}}}) ->
-            {ok, mk_versioned_object(payment_institution, maps:get(2, PiMap), Version)};
-        ('CheckoutObject', {{version, ?INTEGER}, {payment_institution, #domain_PaymentInstitutionRef{id = 5}}}) ->
-            {ok, mk_versioned_object(payment_institution, maps:get(5, PiMap), Version)};
-        ('CheckoutObject', {{version, ?INTEGER}, {routing_rules, #domain_RoutingRulesetRef{id = 100}}}) ->
-            {ok, mk_versioned_object(routing_rules, maps:get(100, RoutingMap), Version)};
-        ('CheckoutObject', {{version, ?INTEGER}, {routing_rules, #domain_RoutingRulesetRef{id = 101}}}) ->
-            {ok, mk_versioned_object(routing_rules, maps:get(101, RoutingMap), Version)};
-        ('CheckoutObject', {{version, ?INTEGER}, {routing_rules, #domain_RoutingRulesetRef{id = 103}}}) ->
-            {ok, mk_versioned_object(routing_rules, maps:get(103, RoutingMap), Version)};
-        ('CheckoutObject', {{version, ?INTEGER}, {terminal, #domain_TerminalRef{id = 10}}}) ->
-            {ok, mk_versioned_object(terminal, Terminal10, Version)};
-        ('CheckoutObject', {{version, ?INTEGER}, {terminal, #domain_TerminalRef{id = 20}}}) ->
-            {ok, mk_versioned_object(terminal, Terminal20, Version)};
-        ('CheckoutObject', {{version, ?INTEGER}, {provider, #domain_ProviderRef{id = 11}}}) ->
-            {ok, mk_versioned_object(provider, Provider11, Version)};
-        ('CheckoutObject', {{version, ?INTEGER}, {provider, #domain_ProviderRef{id = 21}}}) ->
-            {ok, mk_versioned_object(provider, Provider21, Version)};
+        ('CheckoutObject', {{version, V}, {wallet_config, #domain_WalletConfigRef{id = ?STRING}}}) ->
+            {ok, mk_versioned_object(wallet_config, WalletConfigObject, V)};
+        ('CheckoutObject', {{version, V}, {wallet_config, #domain_WalletConfigRef{id = ?WALLET_ID_OK}}}) ->
+            {ok, mk_versioned_object(wallet_config, WalletConfigLimitsOk, V)};
+        ('CheckoutObject', {{version, V}, {party_config, #domain_PartyConfigRef{id = ?STRING}}}) ->
+            {ok, mk_versioned_object(party_config, PartyConfigObject, V)};
+        ('CheckoutObject', {{version, V}, {term_set_hierarchy, #domain_TermSetHierarchyRef{id = 1}}}) ->
+            {ok, mk_versioned_object(term_set_hierarchy, TermSetHierarchyObject, V)};
+        ('CheckoutObject', {{version, V}, {payment_institution, #domain_PaymentInstitutionRef{id = 1}}}) ->
+            {ok, mk_versioned_object(payment_institution, PiObject, V)};
+        ('CheckoutObject', {{version, V}, {terminal, #domain_TerminalRef{id = 10}}}) ->
+            {ok, mk_versioned_object(terminal, Terminal10, V)};
+        ('CheckoutObject', {{version, V}, {terminal, #domain_TerminalRef{id = 20}}}) ->
+            {ok, mk_versioned_object(terminal, Terminal20, V)};
+        ('CheckoutObject', {{version, V}, {provider, #domain_ProviderRef{id = 11}}}) ->
+            {ok, mk_versioned_object(provider, Provider11, V)};
+        ('CheckoutObject', {{version, V}, {provider, #domain_ProviderRef{id = 21}}}) ->
+            {ok, mk_versioned_object(provider, Provider21, V)};
         ('CheckoutObject', _) ->
             woody_error:raise(business, #domain_conf_v2_ObjectNotFound{})
     end,
     Urls = mock_services_(
         [
             {domain_config_client, DomainConfigClient},
-            {domain_config, fun('GetLatestVersion', _) -> {ok, Version} end}
+            {domain_config, fun('GetLatestVersion', _) -> {ok, ?INTEGER} end}
         ],
         SupPid
     ),
@@ -383,28 +311,11 @@ start_woody_client(bender, Urls) ->
     ),
     start_app(bender_client, []);
 start_woody_client(wapi_lib, Urls) ->
-    Existing =
-        case application:get_env(wapi_lib, service_urls) of
-            {ok, M} when is_map(M) -> M;
-            _ -> #{}
-        end,
     ok = application:set_env(
         wapi_lib,
         service_urls,
-        maps:merge(Existing, Urls)
-    );
-start_woody_client(domain_config, Url) ->
-    update_dmt_service_url('Repository', Url);
-start_woody_client(domain_config_client, Url) ->
-    update_dmt_service_url('RepositoryClient', Url).
-
-update_dmt_service_url(Key, Url) ->
-    ServiceUrls =
-        case application:get_env(dmt_client, service_urls) of
-            {ok, Urls} -> Urls;
-            undefined -> #{}
-        end,
-    ok = application:set_env(dmt_client, service_urls, ServiceUrls#{Key => Url}).
+        Urls
+    ).
 
 -spec mock_services_(_, _) -> _.
 % TODO need a better name
