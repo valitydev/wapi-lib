@@ -65,10 +65,7 @@ groups() ->
 %%
 -spec init_per_suite(config()) -> config().
 init_per_suite(C) ->
-    Config = wapi_ct_helper:init_suite(?MODULE, C),
-    SupPid = ?config(suite_test_sup, Config),
-    ok = init_party_management_mock(SupPid),
-    Config.
+    wapi_ct_helper:init_suite(?MODULE, C).
 
 -spec end_per_suite(config()) -> _.
 end_per_suite(C) ->
@@ -118,20 +115,20 @@ get_fail_wallet_notfound(C) ->
 get_account_ok(C) ->
     PartyID = ?config(party, C),
     _ = wapi_ct_helper_bouncer:mock_assert_wallet_op_ctx(<<"GetWalletAccount">>, ?STRING, PartyID, C),
-    ok = mock_account_with_balance(?INTEGER, C),
+    ok = mock_party_management(?INTEGER, C),
     {ok, _} = get_account_call_api(?STRING, C).
 
 -spec get_account_fail_wallet_notfound(config()) -> _.
 get_account_fail_wallet_notfound(C) ->
     _ = wapi_ct_helper_bouncer:mock_arbiter(wapi_ct_helper_bouncer:judge_always_forbidden(), C),
-    ok = mock_account_with_balance(?INTEGER, C),
+    ok = mock_party_management(?INTEGER, C),
     ?assertEqual(?EMPTY_RESP(401), get_account_call_api(<<"non existant wallet id">>, C)).
 
 -spec get_account_fail_account_notfound(config()) -> _.
 get_account_fail_account_notfound(C) ->
     PartyID = ?config(party, C),
     _ = wapi_ct_helper_bouncer:mock_assert_wallet_op_ctx(<<"GetWalletAccount">>, ?STRING, PartyID, C),
-    ok = mock_account_with_balance(424242, C),
+    ok = mock_party_management(424242, C),
     ?assertEqual({error, {404, #{}}}, get_account_call_api(?STRING, C)).
 
 -spec get_cash_limits_ok(config()) -> _.
@@ -139,6 +136,7 @@ get_cash_limits_ok(C) ->
     PartyID = ?config(party, C),
     WalletID = ?WALLET_ID_OK,
     _ = wapi_ct_helper_bouncer:mock_assert_wallet_op_ctx(<<"GetWalletCashLimits">>, WalletID, PartyID, C),
+    ok = mock_party_management(?INTEGER, C),
     {ok, Limits} = get_cash_limits_call_api(WalletID, PartyID, C),
     %% Term union 200-500 (term1: 200-400, term2: 300-500), wallet 100-1000; terminal limits constrain
     ?assertEqual(expected_wallet_limits(), Limits).
@@ -213,19 +211,22 @@ expected_wallet_limits(LowerBound, UpperBound) ->
         }
     ].
 
-mock_account_with_balance(ExistingAccountID, _C) ->
-    set_party_management_account(ExistingAccountID).
-
-%% Party management mock (GetAccountState, ComputeRoutingRuleset for wallet limits)
--spec init_party_management_mock(pid()) -> ok.
-init_party_management_mock(SupPid) ->
-    RoutingFun = default_party_management_routing(),
-    PartyManagement = fun
-        ('ComputeRoutingRuleset', X) ->
-            RoutingFun('ComputeRoutingRuleset', X);
-        ('GetAccountState', {_PartyRef, AccountID, ?INTEGER}) ->
-            case application:get_env(wapi_lib, test_account_id, undefined) of
-                AccountID ->
+-spec mock_party_management(integer() | undefined, config()) -> ok.
+mock_party_management(ExistingAccountID, C) ->
+    _ = wapi_ct_helper:mock_services(
+        [
+            {party_management, fun
+                ('ComputeRoutingRuleset', {#domain_RoutingRulesetRef{id = 100}, _V, _Varset}) ->
+                    Allowed = {constant, true},
+                    {ok, #domain_RoutingRuleset{
+                        name = <<"both">>,
+                        decisions =
+                            {candidates, [
+                                #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 10}},
+                                #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 20}}
+                            ]}
+                    }};
+                ('GetAccountState', {_, AccountID, ?INTEGER}) when AccountID =:= ExistingAccountID ->
                     {ok, #payproc_AccountState{
                         account_id = AccountID,
                         own_amount = ?INTEGER,
@@ -237,27 +238,10 @@ init_party_management_mock(SupPid) ->
                             exponent = ?INTEGER
                         }
                     }};
-                _ ->
+                ('GetAccountState', {_PartyID, _AccountID, _DomainRevision}) ->
                     throw(#payproc_AccountNotFound{})
-            end
-    end,
-    _ = wapi_ct_helper:mock_services([{party_management, PartyManagement}], SupPid),
+            end}
+        ],
+        C
+    ),
     ok.
-
--spec set_party_management_account(integer() | undefined) -> ok.
-set_party_management_account(AccountID) ->
-    application:set_env(wapi_lib, test_account_id, AccountID).
-
--spec default_party_management_routing() -> fun().
-default_party_management_routing() ->
-    Allowed = {constant, true},
-    fun('ComputeRoutingRuleset', {#domain_RoutingRulesetRef{id = 100}, _V, _Varset}) ->
-        {ok, #domain_RoutingRuleset{
-            name = <<"both">>,
-            decisions =
-                {candidates, [
-                    #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 10}},
-                    #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 20}}
-                ]}
-        }}
-    end.
