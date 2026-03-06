@@ -155,9 +155,10 @@ start_app({dmt_client = AppName, SupPid}) ->
         }
     },
     %% Term set hierarchy (shared)
+    %% Wallet limit 100-1000 (wide) - terminal limits will constrain
     WithdrawalLimitRange = #domain_CashRange{
         lower = {inclusive, #domain_Cash{amount = 100, currency = CurrencyRef}},
-        upper = {inclusive, #domain_Cash{amount = 500, currency = CurrencyRef}}
+        upper = {inclusive, #domain_Cash{amount = 1000, currency = CurrencyRef}}
     },
     PaymentMethods = [
         #domain_PaymentMethodRef{id = {bank_card, #domain_BankCardPaymentMethod{}}},
@@ -176,13 +177,14 @@ start_app({dmt_client = AppName, SupPid}) ->
             }
         }
     },
+    %% Term limits 200-400 and 300-500, union = 200-500 (terminal limits constrain)
     Term10Limit = #domain_CashRange{
         lower = {inclusive, #domain_Cash{amount = 200, currency = CurrencyRef}},
-        upper = {inclusive, #domain_Cash{amount = 900, currency = CurrencyRef}}
+        upper = {inclusive, #domain_Cash{amount = 400, currency = CurrencyRef}}
     },
     Term20Limit = #domain_CashRange{
         lower = {inclusive, #domain_Cash{amount = 300, currency = CurrencyRef}},
-        upper = {inclusive, #domain_Cash{amount = 800, currency = CurrencyRef}}
+        upper = {inclusive, #domain_Cash{amount = 500, currency = CurrencyRef}}
     },
     Allowed = {constant, true},
     Terminal10 = mk_terminal_object(10, 11, Term10Limit, Allowed, Allowed),

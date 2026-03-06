@@ -140,7 +140,7 @@ get_cash_limits_ok(C) ->
     WalletID = ?WALLET_ID_OK,
     _ = wapi_ct_helper_bouncer:mock_assert_wallet_op_ctx(<<"GetWalletCashLimits">>, WalletID, PartyID, C),
     {ok, Limits} = get_cash_limits_call_api(WalletID, PartyID, C),
-    %% Both terminals: lower 200 from routing (term1), upper 500 from wallet
+    %% Term union 200-500 (term1: 200-400, term2: 300-500), wallet 100-1000; terminal limits constrain
     ?assertEqual(expected_wallet_limits(), Limits).
 
 %%
@@ -188,6 +188,7 @@ get_cash_limits_call_api(WalletID, PartyID, C) ->
     ).
 
 expected_wallet_limits() ->
+    %% 200-500 from terminal union (term1: 200-400, term2: 300-500)
     expected_wallet_limits(200, 500).
 
 expected_wallet_limits(LowerBound, UpperBound) ->
