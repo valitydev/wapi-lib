@@ -3,18 +3,19 @@
 % IMPORTANT: calculation is approximate and does NOT cover some cases:
 % - selectors {decisions, _} for terminals are not handled
 % - exclusive bounds are treated as inclusive (strictness lost)
-% - terminals with cash_limit=decisions are ignored (no provider fallback)
-% - when methods are missing, response is empty even if limits are computed
+% - terminals with withdrawal cash_limit=decisions are ignored (no provider fallback)
+% - candidate terminals with allowed=false are ignored
 %
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_payproc_thrift.hrl").
 
 -export([get_wallet_limits/3]).
 
--type handler_context() :: wapi_wallet_backend:handler_context().
+-type handler_context() :: wapi_handler_utils:handler_context().
 
 -spec get_wallet_limits(binary(), binary(), handler_context()) -> {ok, [map()]} | {error, {wallet, notfound}}.
-get_wallet_limits(PartyID, WalletID, _Context) ->
+get_wallet_limits(PartyID, WalletID, Context) ->
     case get_wallet_config(PartyID, WalletID) of
         {error, notfound} ->
             {error, {wallet, notfound}};
@@ -24,7 +25,13 @@ get_wallet_limits(PartyID, WalletID, _Context) ->
             WalletTerms = get_wallet_terms(WalletConfig#domain_WalletConfig.terms, Revision),
             Methods = extract_withdrawal_methods(WalletTerms),
             WithdrawalLimit = extract_withdrawal_limit(WalletTerms, Currency),
-            TerminalRefs = get_withdrawal_terminal_refs(WalletConfig#domain_WalletConfig.payment_institution, Revision),
+            TerminalRefs = get_withdrawal_terminal_refs(
+                WalletConfig#domain_WalletConfig.payment_institution,
+                PartyID,
+                WalletID,
+                Revision,
+                Context
+            ),
             TermLimit = aggregate_terminal_limits(TerminalRefs, Currency, Revision),
             EffectiveLimit = intersect_optional(WithdrawalLimit, TermLimit),
             Limits = lists:flatmap(
@@ -75,44 +82,48 @@ extract_withdrawal_limit(#domain_TermSet{wallets = Wallets}, Currency) ->
             range_from_selector(CashLimitSelector, Currency)
     end.
 
-get_withdrawal_terminal_refs(PiRef, Revision) ->
+get_withdrawal_terminal_refs(PiRef, PartyID, WalletID, Revision, Context) ->
     case wapi_domain_backend:get_object(Revision, {payment_institution, PiRef}) of
-        {ok, #domain_PaymentInstitution{withdrawal_routing_rules = Rules}} ->
-            lists:usort(collect_ruleset_terminals(Rules, Revision));
+        {ok, #domain_PaymentInstitution{withdrawal_routing_rules = RulesetRef}} ->
+            case compute_routing_ruleset(RulesetRef, PartyID, WalletID, Revision, Context) of
+                {ok, #domain_RoutingRuleset{decisions = {candidates, Candidates}}} ->
+                    AllowedCandidates = [
+                        C#domain_RoutingCandidate.terminal
+                     || C <- Candidates,
+                        predicate_allowed(C#domain_RoutingCandidate.allowed)
+                    ],
+                    lists:usort(AllowedCandidates);
+                _ ->
+                    []
+            end;
         _ ->
             []
     end.
 
-collect_ruleset_terminals(undefined, _Revision) ->
-    [];
-collect_ruleset_terminals(#domain_RoutingRules{policies = PoliciesRef}, Revision) ->
-    collect_ruleset_terminals(PoliciesRef, Revision, sets:new()).
-
-collect_ruleset_terminals(#domain_RoutingRulesetRef{} = Ref, Revision, Seen) ->
-    case sets:is_element(Ref, Seen) of
-        true ->
-            [];
-        false ->
-            Seen1 = sets:add_element(Ref, Seen),
-            case wapi_domain_backend:get_object(Revision, {routing_rules, Ref}) of
-                {ok, #domain_RoutingRuleset{} = Ruleset} ->
-                    collect_ruleset_terminals(Ruleset, Revision, Seen1);
-                _ ->
-                    []
-            end
-    end;
-collect_ruleset_terminals(#domain_RoutingRuleset{decisions = Decisions}, Revision, Seen) ->
-    collect_terminals_from_decisions(Decisions, Revision, Seen).
-
-collect_terminals_from_decisions({candidates, Candidates}, _Revision, _Seen) ->
-    [C#domain_RoutingCandidate.terminal || C <- Candidates];
-collect_terminals_from_decisions({delegates, Delegates}, Revision, Seen) ->
-    lists:flatmap(
-        fun(#domain_RoutingDelegate{ruleset = Ref}) ->
-            collect_ruleset_terminals(Ref, Revision, Seen)
-        end,
-        Delegates
-    ).
+compute_routing_ruleset(undefined, _PartyID, _WalletID, _Revision, _Context) ->
+    undefined;
+compute_routing_ruleset(
+    #domain_RoutingRules{policies = RulesetRef},
+    PartyID,
+    WalletID,
+    Revision,
+    Context
+) ->
+    Varset = #payproc_Varset{
+        party_ref = #domain_PartyConfigRef{id = PartyID},
+        wallet_id = WalletID
+    },
+    case
+        wapi_handler_utils:service_call(
+            {party_management, 'ComputeRoutingRuleset', {RulesetRef, Revision, Varset}},
+            Context
+        )
+    of
+        {ok, #domain_RoutingRuleset{} = Ruleset} ->
+            {ok, Ruleset};
+        _ ->
+            undefined
+    end.
 
 aggregate_terminal_limits([], _Currency, _Revision) ->
     undefined;
@@ -136,41 +147,60 @@ log_terminal_terms(TerminalRef, Limit) ->
     ).
 
 get_terminal_limit(TerminalRef, Currency, Revision) ->
-    case get_and_check_terminal(TerminalRef, Revision) of
+    case wapi_domain_backend:get_object(Revision, {terminal, TerminalRef}) of
         {ok, #domain_Terminal{provider_ref = ProviderRef, terms = TerminalTerms}} ->
-            TerminalLimit = extract_provider_limit(TerminalTerms, Currency),
-            case TerminalLimit of
+            ProviderTerms = get_provider_terms(ProviderRef, Revision),
+            compute_terminal_limit(TerminalTerms, ProviderTerms, Currency);
+        _ ->
+            undefined
+    end.
+
+compute_terminal_limit(TerminalTerms, ProviderTerms, Currency) ->
+    TerminalWithdrawalTerms = extract_withdrawal_terms(TerminalTerms),
+    case terminal_and_provider_allowed(TerminalWithdrawalTerms, ProviderTerms) of
+        true ->
+            case extract_provider_limit(TerminalTerms, Currency) of
                 undefined ->
-                    ProviderTerms = get_provider_terms(ProviderRef, Revision),
                     extract_provider_limit(ProviderTerms, Currency);
-                _ ->
+                TerminalLimit ->
                     TerminalLimit
             end;
-        _ ->
+        false ->
             undefined
     end.
 
-get_and_check_terminal(TerminalRef, Revision) ->
-    case wapi_domain_backend:get_object(Revision, {terminal, TerminalRef}) of
-        {ok, #domain_Terminal{terms = Terms} = Terminal} ->
-            case extract_terminal_cash_limit(Terms) of
-                {decisions, _} ->
-                    undefined;
-                _ ->
-                    {ok, Terminal}
-            end;
-        _ ->
-            undefined
-    end.
+extract_withdrawal_terms(#domain_ProvisionTermSet{
+    wallet = #domain_WalletProvisionTerms{withdrawals = WithdrawalTerms}
+}) ->
+    WithdrawalTerms;
+extract_withdrawal_terms(_) ->
+    undefined.
 
-extract_terminal_cash_limit(#domain_ProvisionTermSet{
+predicate_allowed({constant, false}) ->
+    false;
+predicate_allowed({all_of, List}) when is_list(List) ->
+    lists:all(fun predicate_allowed/1, List);
+predicate_allowed(_) ->
+    true.
+
+terminal_and_provider_allowed(undefined, ProviderTerms) ->
+    provider_withdrawal_allowed(ProviderTerms);
+terminal_and_provider_allowed(#domain_WithdrawalProvisionTerms{} = TerminalTerms, ProviderTerms) ->
+    TerminalAllowed = predicate_allowed(TerminalTerms#domain_WithdrawalProvisionTerms.allow),
+    TerminalGlobalAllowed = predicate_allowed(TerminalTerms#domain_WithdrawalProvisionTerms.global_allow),
+    TerminalAllowed andalso TerminalGlobalAllowed andalso provider_withdrawal_allowed(ProviderTerms).
+
+provider_withdrawal_allowed(undefined) ->
+    true;
+provider_withdrawal_allowed(#domain_ProvisionTermSet{
     wallet = #domain_WalletProvisionTerms{
-        withdrawals = #domain_WithdrawalProvisionTerms{cash_limit = CashLimit}
+        withdrawals = #domain_WithdrawalProvisionTerms{} = ProviderWithdrawalTerms
     }
 }) ->
-    CashLimit;
-extract_terminal_cash_limit(_) ->
-    undefined.
+    predicate_allowed(ProviderWithdrawalTerms#domain_WithdrawalProvisionTerms.allow) andalso
+        predicate_allowed(ProviderWithdrawalTerms#domain_WithdrawalProvisionTerms.global_allow);
+provider_withdrawal_allowed(_) ->
+    true.
 
 get_provider_terms(ProviderRef, Revision) ->
     case wapi_domain_backend:get_object(Revision, {provider, ProviderRef}) of
@@ -288,3 +318,194 @@ encode_withdrawal_method(digital_wallet) ->
     };
 encode_withdrawal_method(generic) ->
     #{<<"method">> => <<"WithdrawalMethodGeneric">>}.
+
+-ifdef(TEST).
+-include_lib("eunit/include/eunit.hrl").
+
+-spec test() -> _.
+
+-spec predicate_allowed_undefined_test() -> _.
+predicate_allowed_undefined_test() ->
+    ?assertEqual(true, predicate_allowed(undefined)).
+
+-spec predicate_allowed_constant_true_test() -> _.
+predicate_allowed_constant_true_test() ->
+    ?assertEqual(true, predicate_allowed({constant, true})).
+
+-spec predicate_allowed_constant_false_test() -> _.
+predicate_allowed_constant_false_test() ->
+    ?assertEqual(false, predicate_allowed({constant, false})).
+
+-spec predicate_allowed_other_predicates_test() -> _.
+predicate_allowed_other_predicates_test() ->
+    ?assertEqual(true, predicate_allowed({all_of, []})),
+    ?assertEqual(true, predicate_allowed({all_of, [{constant, true}, {constant, true}]})),
+    ?assertEqual(false, predicate_allowed({all_of, [{constant, true}, {constant, false}]})),
+    ?assertEqual(false, predicate_allowed({all_of, [{all_of, [{constant, true}, {constant, false}]}]})),
+    ?assertEqual(true, predicate_allowed({any_of, []})),
+    ?assertEqual(true, predicate_allowed({condition, []})).
+
+-spec terminal_and_provider_allowed_all_true_test() -> _.
+terminal_and_provider_allowed_all_true_test() ->
+    TerminalTerms = #domain_WithdrawalProvisionTerms{
+        allow = {constant, true},
+        global_allow = {constant, true}
+    },
+    ProviderTerms = #domain_ProvisionTermSet{
+        wallet = #domain_WalletProvisionTerms{
+            withdrawals = #domain_WithdrawalProvisionTerms{
+                allow = {constant, true},
+                global_allow = {constant, true}
+            }
+        }
+    },
+    ?assertEqual(true, terminal_and_provider_allowed(TerminalTerms, ProviderTerms)).
+
+-spec terminal_and_provider_allowed_terminal_allow_false_test() -> _.
+terminal_and_provider_allowed_terminal_allow_false_test() ->
+    TerminalTerms = #domain_WithdrawalProvisionTerms{
+        allow = {constant, false},
+        global_allow = {constant, true}
+    },
+    ProviderTerms = #domain_ProvisionTermSet{
+        wallet = #domain_WalletProvisionTerms{
+            withdrawals = #domain_WithdrawalProvisionTerms{
+                allow = {constant, true},
+                global_allow = {constant, true}
+            }
+        }
+    },
+    ?assertEqual(false, terminal_and_provider_allowed(TerminalTerms, ProviderTerms)).
+
+-spec terminal_and_provider_allowed_provider_global_allow_false_test() -> _.
+terminal_and_provider_allowed_provider_global_allow_false_test() ->
+    TerminalTerms = #domain_WithdrawalProvisionTerms{
+        allow = {constant, true},
+        global_allow = {constant, true}
+    },
+    ProviderTerms = #domain_ProvisionTermSet{
+        wallet = #domain_WalletProvisionTerms{
+            withdrawals = #domain_WithdrawalProvisionTerms{
+                allow = {constant, true},
+                global_allow = {constant, false}
+            }
+        }
+    },
+    ?assertEqual(false, terminal_and_provider_allowed(TerminalTerms, ProviderTerms)).
+
+-spec terminal_and_provider_allowed_provider_allow_false_test() -> _.
+terminal_and_provider_allowed_provider_allow_false_test() ->
+    TerminalTerms = #domain_WithdrawalProvisionTerms{
+        allow = {constant, true},
+        global_allow = {constant, true}
+    },
+    ProviderTerms = #domain_ProvisionTermSet{
+        wallet = #domain_WalletProvisionTerms{
+            withdrawals = #domain_WithdrawalProvisionTerms{
+                allow = {constant, false},
+                global_allow = {constant, true}
+            }
+        }
+    },
+    ?assertEqual(false, terminal_and_provider_allowed(TerminalTerms, ProviderTerms)).
+
+-spec terminal_and_provider_allowed_provider_undefined_test() -> _.
+terminal_and_provider_allowed_provider_undefined_test() ->
+    TerminalTerms = #domain_WithdrawalProvisionTerms{
+        allow = {constant, true},
+        global_allow = {constant, true}
+    },
+    ?assertEqual(true, terminal_and_provider_allowed(TerminalTerms, undefined)).
+
+-spec intersect_ranges_non_overlapping_test() -> _.
+intersect_ranges_non_overlapping_test() ->
+    R1 = #{currency => <<"RUB">>, lower => 200, upper => 400},
+    R2 = #{currency => <<"RUB">>, lower => 500, upper => 800},
+    ?assertEqual(undefined, intersect_ranges(R1, R2)).
+
+-spec compute_terminal_limit_provider_disallowed_returns_undefined_test() -> _.
+compute_terminal_limit_provider_disallowed_returns_undefined_test() ->
+    Rub = #domain_CurrencyRef{symbolic_code = <<"RUB">>},
+    TerminalLimitRange = #domain_CashRange{
+        lower = {inclusive, #domain_Cash{amount = 300, currency = Rub}},
+        upper = {inclusive, #domain_Cash{amount = 900, currency = Rub}}
+    },
+    TerminalTerms = #domain_ProvisionTermSet{
+        wallet = #domain_WalletProvisionTerms{
+            withdrawals = #domain_WithdrawalProvisionTerms{
+                allow = {constant, true},
+                global_allow = {constant, true},
+                cash_limit = {value, TerminalLimitRange}
+            }
+        }
+    },
+    ProviderTerms = #domain_ProvisionTermSet{
+        wallet = #domain_WalletProvisionTerms{
+            withdrawals = #domain_WithdrawalProvisionTerms{
+                allow = {constant, true},
+                global_allow = {constant, false}
+            }
+        }
+    },
+    ?assertEqual(undefined, compute_terminal_limit(TerminalTerms, ProviderTerms, Rub)).
+
+-spec compute_terminal_limit_allowed_returns_terminal_limit_test() -> _.
+compute_terminal_limit_allowed_returns_terminal_limit_test() ->
+    Rub = #domain_CurrencyRef{symbolic_code = <<"RUB">>},
+    TerminalLimitRange = #domain_CashRange{
+        lower = {inclusive, #domain_Cash{amount = 300, currency = Rub}},
+        upper = {inclusive, #domain_Cash{amount = 900, currency = Rub}}
+    },
+    TerminalTerms = #domain_ProvisionTermSet{
+        wallet = #domain_WalletProvisionTerms{
+            withdrawals = #domain_WithdrawalProvisionTerms{
+                allow = {constant, true},
+                global_allow = {constant, true},
+                cash_limit = {value, TerminalLimitRange}
+            }
+        }
+    },
+    ProviderTerms = #domain_ProvisionTermSet{
+        wallet = #domain_WalletProvisionTerms{
+            withdrawals = #domain_WithdrawalProvisionTerms{
+                allow = {constant, true},
+                global_allow = {constant, true}
+            }
+        }
+    },
+    ?assertEqual(
+        #{currency => <<"RUB">>, lower => 300, upper => 900},
+        compute_terminal_limit(TerminalTerms, ProviderTerms, Rub)
+    ).
+
+-spec compute_terminal_limit_allowed_fallback_to_provider_limit_test() -> _.
+compute_terminal_limit_allowed_fallback_to_provider_limit_test() ->
+    Rub = #domain_CurrencyRef{symbolic_code = <<"RUB">>},
+    ProviderLimitRange = #domain_CashRange{
+        lower = {inclusive, #domain_Cash{amount = 100, currency = Rub}},
+        upper = {inclusive, #domain_Cash{amount = 500, currency = Rub}}
+    },
+    TerminalTerms = #domain_ProvisionTermSet{
+        wallet = #domain_WalletProvisionTerms{
+            withdrawals = #domain_WithdrawalProvisionTerms{
+                allow = {constant, true},
+                global_allow = {constant, true},
+                cash_limit = undefined
+            }
+        }
+    },
+    ProviderTerms = #domain_ProvisionTermSet{
+        wallet = #domain_WalletProvisionTerms{
+            withdrawals = #domain_WithdrawalProvisionTerms{
+                allow = {constant, true},
+                global_allow = {constant, true},
+                cash_limit = {value, ProviderLimitRange}
+            }
+        }
+    },
+    ?assertEqual(
+        #{currency => <<"RUB">>, lower => 100, upper => 500},
+        compute_terminal_limit(TerminalTerms, ProviderTerms, Rub)
+    ).
+
+-endif.

@@ -3,6 +3,7 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("damsel/include/dmsl_domain_conf_v2_thrift.hrl").
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_payproc_thrift.hrl").
 -include_lib("wapi_wallet_dummy_data.hrl").
 -include_lib("wapi_token_keeper_data.hrl").
 
@@ -24,7 +25,9 @@
 -export([stop_mocked_service_sup/1]).
 -export([mock_services/2]).
 -export([mock_services_/2]).
--export([mock_wallet_limits_domain/2]).
+-export([default_party_management_routing/0]).
+-export([set_party_management_account/1]).
+-export([init_party_management_mock/1]).
 -export([get_lifetime/0]).
 -export([create_auth_ctx/1]).
 
@@ -101,6 +104,7 @@ init_suite(Module, Config) ->
             start_app(woody) ++
             start_app({dmt_client, SupPid}) ++
             start_app({wapi_lib, Config}),
+    ok = init_party_management_mock(SupPid),
     {ok, _} = supervisor:start_child(
         SupPid, wapi_ct_helper_swagger_server:child_spec(#{wallet => {wapi_ct_helper_handler, #{}}})
     ),
@@ -134,28 +138,18 @@ start_app(woody = AppName) ->
         {acceptors_pool_size, 4}
     ]);
 start_app({dmt_client = AppName, SupPid}) ->
-    WalletConfigObject = #domain_WalletConfigObject{
-        ref = #domain_WalletConfigRef{id = ?STRING},
-        data = #domain_WalletConfig{
-            name = ?STRING,
-            block =
-                {unblocked, #domain_Unblocked{
-                    reason = <<"">>,
-                    since = wapi_time:rfc3339()
-                }},
-            suspension =
-                {active, #domain_Active{
-                    since = wapi_time:rfc3339()
-                }},
-            payment_institution = #domain_PaymentInstitutionRef{id = 1},
-            terms = #domain_TermSetHierarchyRef{id = 1},
-            account = #domain_WalletAccount{
-                currency = #domain_CurrencyRef{symbolic_code = <<"RUB">>},
-                settlement = ?INTEGER
-            },
-            party_ref = #domain_PartyConfigRef{id = ?STRING}
-        }
-    },
+    CurrencyRef = #domain_CurrencyRef{symbolic_code = <<"RUB">>},
+    Version = ?INTEGER,
+    %% Base wallet config (get_ok, get_account_ok)
+    WalletConfigObject = mk_wallet_config(?STRING, 1),
+    %% Wallet configs for cash limits scenarios (each -> different PI)
+    WalletConfigLimitsOk = mk_wallet_config(?WALLET_ID_OK, 1),
+    WalletConfigCandidateDisabled = mk_wallet_config(?WALLET_ID_CANDIDATE_DISABLED, 2),
+    WalletConfigProviderGlobalDisallow = mk_wallet_config(?WALLET_ID_PROVIDER_GLOBAL_DISALLOW, 10),
+    WalletConfigTerminal2Disabled = mk_wallet_config(?WALLET_ID_TERMINAL_2_DISABLED, 4),
+    WalletConfigTerminal1Disabled = mk_wallet_config(?WALLET_ID_TERMINAL_1_DISABLED, 5),
+    WalletConfigProvider2Disabled = mk_wallet_config(?WALLET_ID_PROVIDER_2_DISABLED, 6),
+    WalletConfigProvider1Disabled = mk_wallet_config(?WALLET_ID_PROVIDER_1_DISABLED, 9),
     PartyConfigObject = #domain_PartyConfigObject{
         ref = #domain_PartyConfigRef{id = ?STRING},
         data = #domain_PartyConfig{
@@ -174,41 +168,223 @@ start_app({dmt_client = AppName, SupPid}) ->
             }
         }
     },
+    %% Term set hierarchy (shared)
+    WithdrawalLimitRange = #domain_CashRange{
+        lower = {inclusive, #domain_Cash{amount = 100, currency = CurrencyRef}},
+        upper = {inclusive, #domain_Cash{amount = 500, currency = CurrencyRef}}
+    },
+    PaymentMethods = [
+        #domain_PaymentMethodRef{id = {bank_card, #domain_BankCardPaymentMethod{}}},
+        #domain_PaymentMethodRef{id = {digital_wallet, #domain_PaymentServiceRef{id = <<"DW">>}}}
+    ],
+    TermSetHierarchyObject = #domain_TermSetHierarchyObject{
+        ref = #domain_TermSetHierarchyRef{id = 1},
+        data = #domain_TermSetHierarchy{
+            term_set = #domain_TermSet{
+                wallets = #domain_WalletServiceTerms{
+                    withdrawals = #domain_WithdrawalServiceTerms{
+                        methods = {value, PaymentMethods},
+                        cash_limit = {value, WithdrawalLimitRange}
+                    }
+                }
+            }
+        }
+    },
+    Term10Limit = #domain_CashRange{
+        lower = {inclusive, #domain_Cash{amount = 200, currency = CurrencyRef}},
+        upper = {inclusive, #domain_Cash{amount = 900, currency = CurrencyRef}}
+    },
+    Term20Limit = #domain_CashRange{
+        lower = {inclusive, #domain_Cash{amount = 300, currency = CurrencyRef}},
+        upper = {inclusive, #domain_Cash{amount = 800, currency = CurrencyRef}}
+    },
+    Allowed = {constant, true},
+    Disallowed = {constant, false},
+    Terminal10 = mk_terminal_object(10, 11, Term10Limit, Allowed, Allowed),
+    Terminal20 = mk_terminal_object(20, 21, Term20Limit, Allowed, Allowed),
+    Terminal12 = mk_terminal_object(12, 12, Term10Limit, Allowed, Allowed),
+    Terminal22 = mk_terminal_object(22, 22, Term20Limit, Disallowed, Allowed),
+    Provider11 = mk_provider_object(11, Allowed, Allowed),
+    Provider21 = mk_provider_object(21, Allowed, Allowed),
+    Provider12 = mk_provider_object(12, Allowed, Disallowed),
+    Provider22 = mk_provider_object(22, Allowed, Allowed),
+    %% Routing rulesets: 100 both, 101 none, 103 term20 only, 104 term10 only,
+    %% 105 term10+22 (prov2 off), 106 term12+20 (prov1 off), 107 term12+22 (both prov off)
+    Routing100 = #domain_RoutingRuleset{
+        name = <<"both">>,
+        decisions =
+            {candidates, [
+                #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 10}},
+                #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 20}}
+            ]}
+    },
+    Routing101 = #domain_RoutingRuleset{
+        name = <<"none">>,
+        decisions =
+            {candidates, [
+                #domain_RoutingCandidate{allowed = Disallowed, terminal = #domain_TerminalRef{id = 10}},
+                #domain_RoutingCandidate{allowed = Disallowed, terminal = #domain_TerminalRef{id = 20}}
+            ]}
+    },
+    Routing103 = #domain_RoutingRuleset{
+        name = <<"term20">>,
+        decisions =
+            {candidates, [
+                #domain_RoutingCandidate{allowed = Disallowed, terminal = #domain_TerminalRef{id = 10}},
+                #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 20}}
+            ]}
+    },
+    Routing104 = #domain_RoutingRuleset{
+        name = <<"term10">>,
+        decisions =
+            {candidates, [
+                #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 10}},
+                #domain_RoutingCandidate{allowed = Disallowed, terminal = #domain_TerminalRef{id = 20}}
+            ]}
+    },
+    Routing105 = #domain_RoutingRuleset{
+        name = <<"prov2_off">>,
+        decisions =
+            {candidates, [
+                #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 10}},
+                #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 22}}
+            ]}
+    },
+    Routing106 = #domain_RoutingRuleset{
+        name = <<"prov1_off">>,
+        decisions =
+            {candidates, [
+                #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 12}},
+                #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 20}}
+            ]}
+    },
+    Routing107 = #domain_RoutingRuleset{
+        name = <<"both_prov_off">>,
+        decisions =
+            {candidates, [
+                #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 12}},
+                #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 22}}
+            ]}
+    },
+    %% Routing 108: empty (for provider_global_disallow - both term 12,22 have disallowed providers)
+    Routing108 = #domain_RoutingRuleset{
+        name = <<"empty">>,
+        decisions = {candidates, []}
+    },
+    RoutingRules = #{
+        100 => Routing100,
+        101 => Routing101,
+        103 => Routing103,
+        104 => Routing104,
+        105 => Routing105,
+        106 => Routing106,
+        107 => Routing107,
+        108 => Routing108
+    },
+    RoutingRulesObjects = [
+        #domain_RoutingRulesObject{ref = #domain_RoutingRulesetRef{id = Id}, data = Data}
+     || {Id, Data} <- maps:to_list(RoutingRules)
+    ],
+    %% PIs: 1=100, 2=101, 4=104, 5=103, 6=105, 7=107, 8=107, 9=106, 10=108
+    ProhibitionsId = 101,
+    PiObjects = [
+        mk_pi_object(1, 100, ProhibitionsId),
+        mk_pi_object(2, 101, ProhibitionsId),
+        mk_pi_object(4, 104, ProhibitionsId),
+        mk_pi_object(5, 103, ProhibitionsId),
+        mk_pi_object(6, 105, ProhibitionsId),
+        mk_pi_object(7, 107, ProhibitionsId),
+        mk_pi_object(8, 107, ProhibitionsId),
+        mk_pi_object(9, 106, ProhibitionsId),
+        mk_pi_object(10, 108, ProhibitionsId)
+    ],
+    PiMap = maps:from_list([
+        {(P#domain_PaymentInstitutionObject.ref)#domain_PaymentInstitutionRef.id, P}
+     || P <- PiObjects
+    ]),
+    RoutingMap = maps:from_list([
+        {(R#domain_RoutingRulesObject.ref)#domain_RoutingRulesetRef.id, R}
+     || R <- RoutingRulesObjects
+    ]),
+    DomainConfigClient = fun
+        ('CheckoutObject', {{version, V}, {wallet_config, #domain_WalletConfigRef{id = Id}}}) when
+            V =:= Version
+        ->
+            Wc =
+                case Id of
+                    ?STRING -> WalletConfigObject;
+                    ?WALLET_ID_OK -> WalletConfigLimitsOk;
+                    ?WALLET_ID_CANDIDATE_DISABLED -> WalletConfigCandidateDisabled;
+                    ?WALLET_ID_PROVIDER_GLOBAL_DISALLOW -> WalletConfigProviderGlobalDisallow;
+                    ?WALLET_ID_TERMINAL_2_DISABLED -> WalletConfigTerminal2Disabled;
+                    ?WALLET_ID_TERMINAL_1_DISABLED -> WalletConfigTerminal1Disabled;
+                    ?WALLET_ID_PROVIDER_2_DISABLED -> WalletConfigProvider2Disabled;
+                    ?WALLET_ID_PROVIDER_1_DISABLED -> WalletConfigProvider1Disabled;
+                    _ -> undefined
+                end,
+            case Wc of
+                undefined -> woody_error:raise(business, #domain_conf_v2_ObjectNotFound{});
+                _ -> {ok, mk_versioned_object(wallet_config, Wc, Version)}
+            end;
+        ('CheckoutObject', {{version, V}, {party_config, #domain_PartyConfigRef{id = ?STRING}}}) when
+            V =:= Version
+        ->
+            {ok, mk_versioned_object(party_config, PartyConfigObject, Version)};
+        ('CheckoutObject', {{version, V}, {term_set_hierarchy, #domain_TermSetHierarchyRef{id = 1}}}) when
+            V =:= Version
+        ->
+            {ok, mk_versioned_object(term_set_hierarchy, TermSetHierarchyObject, Version)};
+        ('CheckoutObject', {{version, V}, {payment_institution, #domain_PaymentInstitutionRef{id = PiId}}}) when
+            V =:= Version
+        ->
+            case maps:get(PiId, PiMap, undefined) of
+                undefined -> woody_error:raise(business, #domain_conf_v2_ObjectNotFound{});
+                PiObj -> {ok, mk_versioned_object(payment_institution, PiObj, Version)}
+            end;
+        ('CheckoutObject', {{version, V}, {routing_rules, #domain_RoutingRulesetRef{id = Id}}}) when
+            V =:= Version
+        ->
+            case maps:get(Id, RoutingMap, undefined) of
+                undefined -> woody_error:raise(business, #domain_conf_v2_ObjectNotFound{});
+                RrObj -> {ok, mk_versioned_object(routing_rules, RrObj, Version)}
+            end;
+        ('CheckoutObject', {{version, V}, {terminal, #domain_TerminalRef{id = Id}}}) when
+            V =:= Version
+        ->
+            T =
+                case Id of
+                    10 -> Terminal10;
+                    20 -> Terminal20;
+                    12 -> Terminal12;
+                    22 -> Terminal22;
+                    _ -> undefined
+                end,
+            case T of
+                undefined -> woody_error:raise(business, #domain_conf_v2_ObjectNotFound{});
+                _ -> {ok, mk_versioned_object(terminal, T, Version)}
+            end;
+        ('CheckoutObject', {{version, V}, {provider, #domain_ProviderRef{id = Id}}}) when
+            V =:= Version
+        ->
+            P =
+                case Id of
+                    11 -> Provider11;
+                    21 -> Provider21;
+                    12 -> Provider12;
+                    22 -> Provider22;
+                    _ -> undefined
+                end,
+            case P of
+                undefined -> woody_error:raise(business, #domain_conf_v2_ObjectNotFound{});
+                _ -> {ok, mk_versioned_object(provider, P, Version)}
+            end;
+        ('CheckoutObject', _) ->
+            woody_error:raise(business, #domain_conf_v2_ObjectNotFound{})
+    end,
     Urls = mock_services_(
         [
-            {domain_config_client, fun
-                ('CheckoutObject', {{version, ?INTEGER}, {wallet_config, #domain_WalletConfigRef{id = ?STRING}}}) ->
-                    {ok, #domain_conf_v2_VersionedObject{
-                        info = #domain_conf_v2_VersionedObjectInfo{
-                            version = ?INTEGER,
-                            changed_at = genlib_rfc3339:format(genlib_time:unow(), second),
-                            changed_by = #domain_conf_v2_Author{
-                                id = ?STRING,
-                                name = ?STRING,
-                                email = ?STRING
-                            }
-                        },
-                        object = {wallet_config, WalletConfigObject}
-                    }};
-                ('CheckoutObject', {{version, ?INTEGER}, {party_config, #domain_PartyConfigRef{id = ?STRING}}}) ->
-                    {ok, #domain_conf_v2_VersionedObject{
-                        info = #domain_conf_v2_VersionedObjectInfo{
-                            version = ?INTEGER,
-                            changed_at = genlib_rfc3339:format(genlib_time:unow(), second),
-                            changed_by = #domain_conf_v2_Author{
-                                id = ?STRING,
-                                name = ?STRING,
-                                email = ?STRING
-                            }
-                        },
-                        object = {party_config, PartyConfigObject}
-                    }};
-                ('CheckoutObject', _) ->
-                    woody_error:raise(business, #domain_conf_v2_ObjectNotFound{})
-            end},
-            {domain_config, fun('GetLatestVersion', _) ->
-                {ok, ?INTEGER}
-            end}
+            {domain_config_client, DomainConfigClient},
+            {domain_config, fun('GetLatestVersion', _) -> {ok, Version} end}
         ],
         SupPid
     ),
@@ -303,10 +479,15 @@ start_woody_client(bender, Urls) ->
     ),
     start_app(bender_client, []);
 start_woody_client(wapi_lib, Urls) ->
+    Existing =
+        case application:get_env(wapi_lib, service_urls) of
+            {ok, M} when is_map(M) -> M;
+            _ -> #{}
+        end,
     ok = application:set_env(
         wapi_lib,
         service_urls,
-        Urls
+        maps:merge(Existing, Urls)
     );
 start_woody_client(domain_config, Url) ->
     update_dmt_service_url('Repository', Url);
@@ -413,147 +594,117 @@ create_auth_ctx(PartyID) ->
         swagger_context => #{auth_context => {?STRING, PartyID, #{}}}
     }.
 
--spec mock_wallet_limits_domain(binary(), sup_or_config()) -> ok.
-mock_wallet_limits_domain(PartyID, SupOrConfig) ->
-    CurrencyRef = #domain_CurrencyRef{symbolic_code = <<"RUB">>},
-    WithdrawalLimitRange = #domain_CashRange{
-        lower = {inclusive, #domain_Cash{amount = 200, currency = CurrencyRef}},
-        upper = {inclusive, #domain_Cash{amount = 800, currency = CurrencyRef}}
-    },
-    TerminalLimitRange = #domain_CashRange{
-        lower = {inclusive, #domain_Cash{amount = 300, currency = CurrencyRef}},
-        upper = {inclusive, #domain_Cash{amount = 900, currency = CurrencyRef}}
-    },
-    PaymentMethods = [
-        #domain_PaymentMethodRef{id = {bank_card, #domain_BankCardPaymentMethod{}}},
-        #domain_PaymentMethodRef{id = {digital_wallet, #domain_PaymentServiceRef{id = <<"DW">>}}}
-    ],
-    TermSetHierarchyObject =
-        #domain_TermSetHierarchyObject{
-            ref = #domain_TermSetHierarchyRef{id = 1},
-            data = #domain_TermSetHierarchy{
-                term_set = #domain_TermSet{
-                    wallets = #domain_WalletServiceTerms{
-                        withdrawals = #domain_WithdrawalServiceTerms{
-                            methods = {value, PaymentMethods},
-                            cash_limit = {value, WithdrawalLimitRange}
-                        }
-                    }
-                }
-            }
-        },
-    RoutingRulesObject =
-        #domain_RoutingRulesObject{
-            ref = #domain_RoutingRulesetRef{id = 100},
-            data = #domain_RoutingRuleset{
-                name = <<"test">>,
-                decisions = {candidates, [
-                    #domain_RoutingCandidate{
-                        allowed = {constant, true},
-                        terminal = #domain_TerminalRef{id = 10}
-                    }
-                ]}
-            }
-        },
-    TerminalTerms = #domain_ProvisionTermSet{
-        wallet = #domain_WalletProvisionTerms{
-            withdrawals = #domain_WithdrawalProvisionTerms{
-                cash_limit = {value, TerminalLimitRange}
-            }
-        }
-    },
-    TerminalObject =
-        #domain_TerminalObject{
-            ref = #domain_TerminalRef{id = 10},
-            data = #domain_Terminal{
-                name = <<"test">>,
-                description = <<"test">>,
-                provider_ref = #domain_ProviderRef{id = 11},
-                terms = TerminalTerms
-            }
-        },
-    ProviderObject =
-        #domain_ProviderObject{
-            ref = #domain_ProviderRef{id = 11},
-            data = #domain_Provider{
-                name = <<"test">>,
-                description = <<"test">>,
-                proxy = #domain_Proxy{
-                    ref = #domain_ProxyRef{id = 1},
-                    additional = #{}
-                },
-                realm = test,
-                terms = TerminalTerms
-            }
-        },
-    PaymentInstitutionObject =
-        #domain_PaymentInstitutionObject{
-            ref = #domain_PaymentInstitutionRef{id = 1},
-            data = #domain_PaymentInstitution{
-                name = <<"test">>,
-                system_account_set = {value, #domain_SystemAccountSetRef{id = 1}},
-                inspector = {value, #domain_InspectorRef{id = 1}},
-                realm = test,
-                residences = [rus],
-                withdrawal_routing_rules = #domain_RoutingRules{
-                    policies = #domain_RoutingRulesetRef{id = 100},
-                    prohibitions = #domain_RoutingRulesetRef{id = 101}
-                }
-            }
-        },
-    WalletConfigObject =
-        #domain_WalletConfigObject{
-            ref = #domain_WalletConfigRef{id = ?STRING},
-            data = #domain_WalletConfig{
-                name = ?STRING,
-                block =
-                    {unblocked, #domain_Unblocked{
-                        reason = <<"">>,
-                        since = wapi_time:rfc3339()
-                    }},
-                suspension =
-                    {active, #domain_Active{
-                        since = wapi_time:rfc3339()
-                    }},
-                payment_institution = #domain_PaymentInstitutionRef{id = 1},
-                terms = #domain_TermSetHierarchyRef{id = 1},
-                account = #domain_WalletAccount{
-                    currency = CurrencyRef,
-                    settlement = ?INTEGER
-                },
-                party_ref = #domain_PartyConfigRef{id = PartyID}
-            }
-        },
-    DomainConfigClient = fun
-        ('CheckoutObject', {{version, ?INTEGER}, {wallet_config, #domain_WalletConfigRef{id = ?STRING}}}) ->
-            {ok, mk_versioned_object(wallet_config, WalletConfigObject)};
-        ('CheckoutObject', {{version, ?INTEGER}, {term_set_hierarchy, #domain_TermSetHierarchyRef{id = 1}}}) ->
-            {ok, mk_versioned_object(term_set_hierarchy, TermSetHierarchyObject)};
-        ('CheckoutObject', {{version, ?INTEGER}, {payment_institution, #domain_PaymentInstitutionRef{id = 1}}}) ->
-            {ok, mk_versioned_object(payment_institution, PaymentInstitutionObject)};
-        ('CheckoutObject', {{version, ?INTEGER}, {routing_rules, #domain_RoutingRulesetRef{id = 100}}}) ->
-            {ok, mk_versioned_object(routing_rules, RoutingRulesObject)};
-        ('CheckoutObject', {{version, ?INTEGER}, {terminal, #domain_TerminalRef{id = 10}}}) ->
-            {ok, mk_versioned_object(terminal, TerminalObject)};
-        ('CheckoutObject', {{version, ?INTEGER}, {provider, #domain_ProviderRef{id = 11}}}) ->
-            {ok, mk_versioned_object(provider, ProviderObject)};
-        ('CheckoutObject', _) ->
-            woody_error:raise(business, #domain_conf_v2_ObjectNotFound{})
-    end,
-    DomainConfig = fun('GetLatestVersion', _) -> {ok, ?INTEGER} end,
-    _ = mock_services(
-        [
-            {domain_config, DomainConfig},
-            {domain_config_client, DomainConfigClient}
-        ],
-        SupOrConfig
-    ),
-    ok.
+%% Sets which account ID exists for GetAccountState (used by mock_account_with_balance)
+-spec set_party_management_account(integer() | undefined) -> ok.
+set_party_management_account(AccountID) ->
+    application:set_env(wapi_lib, test_account_id, AccountID).
 
-mk_versioned_object(Type, Object) ->
+%% Starts party_management mock (separate from dmt_client)
+-spec init_party_management_mock(pid()) -> ok.
+init_party_management_mock(SupPid) ->
+    RoutingFun = default_party_management_routing(),
+    PartyManagement = fun
+        ('ComputeRoutingRuleset', X) ->
+            RoutingFun('ComputeRoutingRuleset', X);
+        ('GetAccountState', {_PartyRef, AccountID, ?INTEGER}) ->
+            case application:get_env(wapi_lib, test_account_id, undefined) of
+                AccountID ->
+                    {ok, #payproc_AccountState{
+                        account_id = AccountID,
+                        own_amount = ?INTEGER,
+                        available_amount = ?INTEGER,
+                        currency = #domain_Currency{
+                            name = ?STRING,
+                            symbolic_code = ?RUB,
+                            numeric_code = ?INTEGER,
+                            exponent = ?INTEGER
+                        }
+                    }};
+                _ ->
+                    throw(#payproc_AccountNotFound{})
+            end
+    end,
+    Urls = mock_services_([{party_management, PartyManagement}], SupPid),
+    case maps:get(wapi_lib, Urls, undefined) of
+        undefined -> ok;
+        WapiUrls -> start_woody_client(wapi_lib, WapiUrls)
+    end.
+
+%% Returns ComputeRoutingRuleset handler for wallet limits domain
+-spec default_party_management_routing() -> fun().
+default_party_management_routing() ->
+    Allowed = {constant, true},
+    Disallowed = {constant, false},
+    RoutingRules = #{
+        100 => #domain_RoutingRuleset{
+            name = <<"both">>,
+            decisions =
+                {candidates, [
+                    #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 10}},
+                    #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 20}}
+                ]}
+        },
+        101 => #domain_RoutingRuleset{
+            name = <<"none">>,
+            decisions =
+                {candidates, [
+                    #domain_RoutingCandidate{allowed = Disallowed, terminal = #domain_TerminalRef{id = 10}},
+                    #domain_RoutingCandidate{allowed = Disallowed, terminal = #domain_TerminalRef{id = 20}}
+                ]}
+        },
+        103 => #domain_RoutingRuleset{
+            name = <<"term20">>,
+            decisions =
+                {candidates, [
+                    #domain_RoutingCandidate{allowed = Disallowed, terminal = #domain_TerminalRef{id = 10}},
+                    #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 20}}
+                ]}
+        },
+        104 => #domain_RoutingRuleset{
+            name = <<"term10">>,
+            decisions =
+                {candidates, [
+                    #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 10}},
+                    #domain_RoutingCandidate{allowed = Disallowed, terminal = #domain_TerminalRef{id = 20}}
+                ]}
+        },
+        105 => #domain_RoutingRuleset{
+            name = <<"prov2_off">>,
+            decisions =
+                {candidates, [
+                    #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 10}},
+                    #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 22}}
+                ]}
+        },
+        106 => #domain_RoutingRuleset{
+            name = <<"prov1_off">>,
+            decisions =
+                {candidates, [
+                    #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 12}},
+                    #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 20}}
+                ]}
+        },
+        107 => #domain_RoutingRuleset{
+            name = <<"both_prov_off">>,
+            decisions =
+                {candidates, [
+                    #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 12}},
+                    #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 22}}
+                ]}
+        },
+        108 => #domain_RoutingRuleset{name = <<"empty">>, decisions = {candidates, []}}
+    },
+    fun('ComputeRoutingRuleset', {#domain_RoutingRulesetRef{id = Id}, _V, _Varset}) ->
+        case maps:get(Id, RoutingRules, undefined) of
+            undefined -> {ok, #domain_RoutingRuleset{name = <<"empty">>, decisions = {candidates, []}}};
+            Ruleset -> {ok, Ruleset}
+        end
+    end.
+
+mk_versioned_object(Type, Object, Version) ->
     #domain_conf_v2_VersionedObject{
         info = #domain_conf_v2_VersionedObjectInfo{
-            version = ?INTEGER,
+            version = Version,
             changed_at = genlib_rfc3339:format(genlib_time:unow(), second),
             changed_by = #domain_conf_v2_Author{
                 id = ?STRING,
@@ -562,4 +713,89 @@ mk_versioned_object(Type, Object) ->
             }
         },
         object = {Type, Object}
+    }.
+
+%% Terminal helper: TerminalRefId, ProviderRefId, CashLimitRange, Allow, GlobalAllow
+mk_terminal_object(TermId, ProvId, LimitRange, Allow, GlobalAllow) ->
+    #domain_TerminalObject{
+        ref = #domain_TerminalRef{id = TermId},
+        data = #domain_Terminal{
+            name = <<"term">>,
+            description = <<"test">>,
+            provider_ref = #domain_ProviderRef{id = ProvId},
+            terms = #domain_ProvisionTermSet{
+                wallet = #domain_WalletProvisionTerms{
+                    withdrawals = #domain_WithdrawalProvisionTerms{
+                        cash_limit = {value, LimitRange},
+                        allow = Allow,
+                        global_allow = GlobalAllow
+                    }
+                }
+            }
+        }
+    }.
+
+%% Payment institution helper: PiRefId, PoliciesRulesetId, ProhibitionsRulesetId
+mk_pi_object(PiId, PoliciesId, ProhibitionsId) ->
+    #domain_PaymentInstitutionObject{
+        ref = #domain_PaymentInstitutionRef{id = PiId},
+        data = #domain_PaymentInstitution{
+            name = <<"test">>,
+            system_account_set = {value, #domain_SystemAccountSetRef{id = 1}},
+            inspector = {value, #domain_InspectorRef{id = 1}},
+            realm = test,
+            residences = [rus],
+            withdrawal_routing_rules = #domain_RoutingRules{
+                policies = #domain_RoutingRulesetRef{id = PoliciesId},
+                prohibitions = #domain_RoutingRulesetRef{id = ProhibitionsId}
+            }
+        }
+    }.
+
+%% Wallet config helper: WalletConfigRefId, PaymentInstitutionId
+mk_wallet_config(WalletRefId, PiId) ->
+    #domain_WalletConfigObject{
+        ref = #domain_WalletConfigRef{id = WalletRefId},
+        data = #domain_WalletConfig{
+            name = ?STRING,
+            block =
+                {unblocked, #domain_Unblocked{
+                    reason = <<"">>,
+                    since = wapi_time:rfc3339()
+                }},
+            suspension =
+                {active, #domain_Active{
+                    since = wapi_time:rfc3339()
+                }},
+            payment_institution = #domain_PaymentInstitutionRef{id = PiId},
+            terms = #domain_TermSetHierarchyRef{id = 1},
+            account = #domain_WalletAccount{
+                currency = #domain_CurrencyRef{symbolic_code = <<"RUB">>},
+                settlement = ?INTEGER
+            },
+            party_ref = #domain_PartyConfigRef{id = ?STRING}
+        }
+    }.
+
+%% Provider helper: ProviderRefId, Allow, GlobalAllow
+mk_provider_object(ProvId, Allow, GlobalAllow) ->
+    #domain_ProviderObject{
+        ref = #domain_ProviderRef{id = ProvId},
+        data = #domain_Provider{
+            name = <<"provider">>,
+            description = <<"test">>,
+            proxy = #domain_Proxy{
+                ref = #domain_ProxyRef{id = 1},
+                additional = #{}
+            },
+            realm = test,
+            terms = #domain_ProvisionTermSet{
+                wallet = #domain_WalletProvisionTerms{
+                    withdrawals = #domain_WithdrawalProvisionTerms{
+                        allow = Allow,
+                        global_allow = GlobalAllow
+                    }
+                }
+            }
+        }
     }.
