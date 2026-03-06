@@ -135,12 +135,10 @@ start_app(woody = AppName) ->
 start_app({dmt_client = AppName, SupPid}) ->
     CurrencyRef = #domain_CurrencyRef{symbolic_code = <<"RUB">>},
     Version = ?INTEGER,
-    %% Base wallet config (get_ok, get_account_ok)
     WalletConfigObject = mk_wallet_config(?STRING, 1),
     %% Wallet configs for cash limits scenarios (each -> different PI)
     WalletConfigLimitsOk = mk_wallet_config(?WALLET_ID_OK, 1),
     WalletConfigCandidateDisabled = mk_wallet_config(?WALLET_ID_CANDIDATE_DISABLED, 2),
-    WalletConfigProviderGlobalDisallow = mk_wallet_config(?WALLET_ID_PROVIDER_GLOBAL_DISALLOW, 10),
     WalletConfigPrimaryDisabled = mk_wallet_config(?WALLET_ID_PRIMARY_DISABLED, 5),
     PartyConfigObject = #domain_PartyConfigObject{
         ref = #domain_PartyConfigRef{id = ?STRING},
@@ -196,7 +194,7 @@ start_app({dmt_client = AppName, SupPid}) ->
     Terminal20 = mk_terminal_object(20, 21, Term20Limit, Allowed, Allowed),
     Provider11 = mk_provider_object(11, Allowed, Allowed),
     Provider21 = mk_provider_object(21, Allowed, Allowed),
-    %% Routing rulesets: 100 both, 101 none, 103 term20 only, 108 empty
+
     Routing100 = #domain_RoutingRuleset{
         name = <<"both">>,
         decisions =
@@ -221,28 +219,21 @@ start_app({dmt_client = AppName, SupPid}) ->
                 #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 20}}
             ]}
     },
-    %% Routing 108: empty (for provider_global_disallow)
-    Routing108 = #domain_RoutingRuleset{
-        name = <<"empty">>,
-        decisions = {candidates, []}
-    },
     RoutingRules = #{
         100 => Routing100,
         101 => Routing101,
-        103 => Routing103,
-        108 => Routing108
+        103 => Routing103
     },
     RoutingRulesObjects = [
         #domain_RoutingRulesObject{ref = #domain_RoutingRulesetRef{id = Id}, data = Data}
      || {Id, Data} <- maps:to_list(RoutingRules)
     ],
-    %% PIs: 1=100, 2=101, 5=103, 10=108
+
     ProhibitionsId = 101,
     PiObjects = [
         mk_pi_object(1, 100, ProhibitionsId),
         mk_pi_object(2, 101, ProhibitionsId),
-        mk_pi_object(5, 103, ProhibitionsId),
-        mk_pi_object(10, 108, ProhibitionsId)
+        mk_pi_object(5, 103, ProhibitionsId)
     ],
     PiMap = maps:from_list([
         {(P#domain_PaymentInstitutionObject.ref)#domain_PaymentInstitutionRef.id, P}
@@ -253,70 +244,44 @@ start_app({dmt_client = AppName, SupPid}) ->
      || R <- RoutingRulesObjects
     ]),
     DomainConfigClient = fun
-        ('CheckoutObject', {{version, V}, {wallet_config, #domain_WalletConfigRef{id = Id}}}) when
-            V =:= Version
-        ->
-            Wc =
-                case Id of
-                    ?STRING -> WalletConfigObject;
-                    ?WALLET_ID_OK -> WalletConfigLimitsOk;
-                    ?WALLET_ID_CANDIDATE_DISABLED -> WalletConfigCandidateDisabled;
-                    ?WALLET_ID_PROVIDER_GLOBAL_DISALLOW -> WalletConfigProviderGlobalDisallow;
-                    ?WALLET_ID_PRIMARY_DISABLED -> WalletConfigPrimaryDisabled;
-                    _ -> undefined
-                end,
-            case Wc of
-                undefined -> woody_error:raise(business, #domain_conf_v2_ObjectNotFound{});
-                _ -> {ok, mk_versioned_object(wallet_config, Wc, Version)}
-            end;
-        ('CheckoutObject', {{version, V}, {party_config, #domain_PartyConfigRef{id = ?STRING}}}) when
-            V =:= Version
-        ->
+        ('CheckoutObject', {{version, ?INTEGER}, {wallet_config, #domain_WalletConfigRef{id = ?STRING}}}) ->
+            {ok, mk_versioned_object(wallet_config, WalletConfigObject, Version)};
+        ('CheckoutObject', {{version, ?INTEGER}, {wallet_config, #domain_WalletConfigRef{id = ?WALLET_ID_OK}}}) ->
+            {ok, mk_versioned_object(wallet_config, WalletConfigLimitsOk, Version)};
+        (
+            'CheckoutObject',
+            {{version, ?INTEGER}, {wallet_config, #domain_WalletConfigRef{id = ?WALLET_ID_CANDIDATE_DISABLED}}}
+        ) ->
+            {ok, mk_versioned_object(wallet_config, WalletConfigCandidateDisabled, Version)};
+        (
+            'CheckoutObject',
+            {{version, ?INTEGER}, {wallet_config, #domain_WalletConfigRef{id = ?WALLET_ID_PRIMARY_DISABLED}}}
+        ) ->
+            {ok, mk_versioned_object(wallet_config, WalletConfigPrimaryDisabled, Version)};
+        ('CheckoutObject', {{version, ?INTEGER}, {party_config, #domain_PartyConfigRef{id = ?STRING}}}) ->
             {ok, mk_versioned_object(party_config, PartyConfigObject, Version)};
-        ('CheckoutObject', {{version, V}, {term_set_hierarchy, #domain_TermSetHierarchyRef{id = 1}}}) when
-            V =:= Version
-        ->
+        ('CheckoutObject', {{version, ?INTEGER}, {term_set_hierarchy, #domain_TermSetHierarchyRef{id = 1}}}) ->
             {ok, mk_versioned_object(term_set_hierarchy, TermSetHierarchyObject, Version)};
-        ('CheckoutObject', {{version, V}, {payment_institution, #domain_PaymentInstitutionRef{id = PiId}}}) when
-            V =:= Version
-        ->
-            case maps:get(PiId, PiMap, undefined) of
-                undefined -> woody_error:raise(business, #domain_conf_v2_ObjectNotFound{});
-                PiObj -> {ok, mk_versioned_object(payment_institution, PiObj, Version)}
-            end;
-        ('CheckoutObject', {{version, V}, {routing_rules, #domain_RoutingRulesetRef{id = Id}}}) when
-            V =:= Version
-        ->
-            case maps:get(Id, RoutingMap, undefined) of
-                undefined -> woody_error:raise(business, #domain_conf_v2_ObjectNotFound{});
-                RrObj -> {ok, mk_versioned_object(routing_rules, RrObj, Version)}
-            end;
-        ('CheckoutObject', {{version, V}, {terminal, #domain_TerminalRef{id = Id}}}) when
-            V =:= Version
-        ->
-            T =
-                case Id of
-                    10 -> Terminal10;
-                    20 -> Terminal20;
-                    _ -> undefined
-                end,
-            case T of
-                undefined -> woody_error:raise(business, #domain_conf_v2_ObjectNotFound{});
-                _ -> {ok, mk_versioned_object(terminal, T, Version)}
-            end;
-        ('CheckoutObject', {{version, V}, {provider, #domain_ProviderRef{id = Id}}}) when
-            V =:= Version
-        ->
-            P =
-                case Id of
-                    11 -> Provider11;
-                    21 -> Provider21;
-                    _ -> undefined
-                end,
-            case P of
-                undefined -> woody_error:raise(business, #domain_conf_v2_ObjectNotFound{});
-                _ -> {ok, mk_versioned_object(provider, P, Version)}
-            end;
+        ('CheckoutObject', {{version, ?INTEGER}, {payment_institution, #domain_PaymentInstitutionRef{id = 1}}}) ->
+            {ok, mk_versioned_object(payment_institution, maps:get(1, PiMap), Version)};
+        ('CheckoutObject', {{version, ?INTEGER}, {payment_institution, #domain_PaymentInstitutionRef{id = 2}}}) ->
+            {ok, mk_versioned_object(payment_institution, maps:get(2, PiMap), Version)};
+        ('CheckoutObject', {{version, ?INTEGER}, {payment_institution, #domain_PaymentInstitutionRef{id = 5}}}) ->
+            {ok, mk_versioned_object(payment_institution, maps:get(5, PiMap), Version)};
+        ('CheckoutObject', {{version, ?INTEGER}, {routing_rules, #domain_RoutingRulesetRef{id = 100}}}) ->
+            {ok, mk_versioned_object(routing_rules, maps:get(100, RoutingMap), Version)};
+        ('CheckoutObject', {{version, ?INTEGER}, {routing_rules, #domain_RoutingRulesetRef{id = 101}}}) ->
+            {ok, mk_versioned_object(routing_rules, maps:get(101, RoutingMap), Version)};
+        ('CheckoutObject', {{version, ?INTEGER}, {routing_rules, #domain_RoutingRulesetRef{id = 103}}}) ->
+            {ok, mk_versioned_object(routing_rules, maps:get(103, RoutingMap), Version)};
+        ('CheckoutObject', {{version, ?INTEGER}, {terminal, #domain_TerminalRef{id = 10}}}) ->
+            {ok, mk_versioned_object(terminal, Terminal10, Version)};
+        ('CheckoutObject', {{version, ?INTEGER}, {terminal, #domain_TerminalRef{id = 20}}}) ->
+            {ok, mk_versioned_object(terminal, Terminal20, Version)};
+        ('CheckoutObject', {{version, ?INTEGER}, {provider, #domain_ProviderRef{id = 11}}}) ->
+            {ok, mk_versioned_object(provider, Provider11, Version)};
+        ('CheckoutObject', {{version, ?INTEGER}, {provider, #domain_ProviderRef{id = 21}}}) ->
+            {ok, mk_versioned_object(provider, Provider21, Version)};
         ('CheckoutObject', _) ->
             woody_error:raise(business, #domain_conf_v2_ObjectNotFound{})
     end,

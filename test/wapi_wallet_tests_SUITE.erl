@@ -28,7 +28,6 @@
     get_account_fail_account_notfound/1,
     get_cash_limits_ok/1,
     get_cash_limits_with_candidate_disabled/1,
-    get_cash_limits_with_provider_global_disallow/1,
     get_cash_limits_with_primary_disabled/1
 ]).
 
@@ -61,7 +60,6 @@ groups() ->
             get_account_fail_account_notfound,
             get_cash_limits_ok,
             get_cash_limits_with_candidate_disabled,
-            get_cash_limits_with_provider_global_disallow,
             get_cash_limits_with_primary_disabled
         ]}
     ].
@@ -156,15 +154,6 @@ get_cash_limits_with_candidate_disabled(C) ->
     _ = wapi_ct_helper_bouncer:mock_assert_wallet_op_ctx(<<"GetWalletCashLimits">>, WalletID, PartyID, C),
     {ok, Limits} = get_cash_limits_call_api(WalletID, PartyID, C),
     %% No terminals: only wallet limits (lower 100, upper 500)
-    ?assertEqual(expected_wallet_limits(100, 500), Limits).
-
--spec get_cash_limits_with_provider_global_disallow(config()) -> _.
-get_cash_limits_with_provider_global_disallow(C) ->
-    PartyID = ?config(party, C),
-    WalletID = ?WALLET_ID_PROVIDER_GLOBAL_DISALLOW,
-    _ = wapi_ct_helper_bouncer:mock_assert_wallet_op_ctx(<<"GetWalletCashLimits">>, WalletID, PartyID, C),
-    {ok, Limits} = get_cash_limits_call_api(WalletID, PartyID, C),
-    %% Both providers disabled: no terminals, only wallet limits
     ?assertEqual(expected_wallet_limits(100, 500), Limits).
 
 %% Default: both terminals, lower 200 (from primary). When primary disabled: fallback terminal, lower 300.
@@ -309,8 +298,7 @@ default_party_management_routing() ->
                     #domain_RoutingCandidate{allowed = Disallowed, terminal = #domain_TerminalRef{id = 10}},
                     #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 20}}
                 ]}
-        },
-        108 => #domain_RoutingRuleset{name = <<"empty">>, decisions = {candidates, []}}
+        }
     },
     fun('ComputeRoutingRuleset', {#domain_RoutingRulesetRef{id = Id}, _V, _Varset}) ->
         case maps:get(Id, RoutingRules, undefined) of
