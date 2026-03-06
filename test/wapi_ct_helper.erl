@@ -3,7 +3,6 @@
 -include_lib("common_test/include/ct.hrl").
 -include_lib("damsel/include/dmsl_domain_conf_v2_thrift.hrl").
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
--include_lib("damsel/include/dmsl_payproc_thrift.hrl").
 -include_lib("wapi_wallet_dummy_data.hrl").
 -include_lib("wapi_token_keeper_data.hrl").
 
@@ -25,9 +24,6 @@
 -export([stop_mocked_service_sup/1]).
 -export([mock_services/2]).
 -export([mock_services_/2]).
--export([default_party_management_routing/0]).
--export([set_party_management_account/1]).
--export([init_party_management_mock/1]).
 -export([get_lifetime/0]).
 -export([create_auth_ctx/1]).
 
@@ -104,7 +100,6 @@ init_suite(Module, Config) ->
             start_app(woody) ++
             start_app({dmt_client, SupPid}) ++
             start_app({wapi_lib, Config}),
-    ok = init_party_management_mock(SupPid),
     {ok, _} = supervisor:start_child(
         SupPid, wapi_ct_helper_swagger_server:child_spec(#{wallet => {wapi_ct_helper_handler, #{}}})
     ),
@@ -537,81 +532,6 @@ create_auth_ctx(PartyID) ->
     #{
         swagger_context => #{auth_context => {?STRING, PartyID, #{}}}
     }.
-
-%% Sets which account ID exists for GetAccountState (used by mock_account_with_balance)
--spec set_party_management_account(integer() | undefined) -> ok.
-set_party_management_account(AccountID) ->
-    application:set_env(wapi_lib, test_account_id, AccountID).
-
-%% Starts party_management mock (separate from dmt_client)
--spec init_party_management_mock(pid()) -> ok.
-init_party_management_mock(SupPid) ->
-    RoutingFun = default_party_management_routing(),
-    PartyManagement = fun
-        ('ComputeRoutingRuleset', X) ->
-            RoutingFun('ComputeRoutingRuleset', X);
-        ('GetAccountState', {_PartyRef, AccountID, ?INTEGER}) ->
-            case application:get_env(wapi_lib, test_account_id, undefined) of
-                AccountID ->
-                    {ok, #payproc_AccountState{
-                        account_id = AccountID,
-                        own_amount = ?INTEGER,
-                        available_amount = ?INTEGER,
-                        currency = #domain_Currency{
-                            name = ?STRING,
-                            symbolic_code = ?RUB,
-                            numeric_code = ?INTEGER,
-                            exponent = ?INTEGER
-                        }
-                    }};
-                _ ->
-                    throw(#payproc_AccountNotFound{})
-            end
-    end,
-    Urls = mock_services_([{party_management, PartyManagement}], SupPid),
-    case maps:get(wapi_lib, Urls, undefined) of
-        undefined -> ok;
-        WapiUrls -> start_woody_client(wapi_lib, WapiUrls)
-    end.
-
-%% Returns ComputeRoutingRuleset handler for wallet limits domain
--spec default_party_management_routing() -> fun().
-default_party_management_routing() ->
-    Allowed = {constant, true},
-    Disallowed = {constant, false},
-    RoutingRules = #{
-        100 => #domain_RoutingRuleset{
-            name = <<"both">>,
-            decisions =
-                {candidates, [
-                    #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 10}},
-                    #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 20}}
-                ]}
-        },
-        101 => #domain_RoutingRuleset{
-            name = <<"none">>,
-            decisions =
-                {candidates, [
-                    #domain_RoutingCandidate{allowed = Disallowed, terminal = #domain_TerminalRef{id = 10}},
-                    #domain_RoutingCandidate{allowed = Disallowed, terminal = #domain_TerminalRef{id = 20}}
-                ]}
-        },
-        103 => #domain_RoutingRuleset{
-            name = <<"term20">>,
-            decisions =
-                {candidates, [
-                    #domain_RoutingCandidate{allowed = Disallowed, terminal = #domain_TerminalRef{id = 10}},
-                    #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 20}}
-                ]}
-        },
-        108 => #domain_RoutingRuleset{name = <<"empty">>, decisions = {candidates, []}}
-    },
-    fun('ComputeRoutingRuleset', {#domain_RoutingRulesetRef{id = Id}, _V, _Varset}) ->
-        case maps:get(Id, RoutingRules, undefined) of
-            undefined -> {ok, #domain_RoutingRuleset{name = <<"empty">>, decisions = {candidates, []}}};
-            Ruleset -> {ok, Ruleset}
-        end
-    end.
 
 mk_versioned_object(Type, Object, Version) ->
     #domain_conf_v2_VersionedObject{

@@ -71,7 +71,10 @@ groups() ->
 %%
 -spec init_per_suite(config()) -> config().
 init_per_suite(C) ->
-    wapi_ct_helper:init_suite(?MODULE, C).
+    Config = wapi_ct_helper:init_suite(?MODULE, C),
+    SupPid = ?config(suite_test_sup, Config),
+    ok = init_party_management_mock(SupPid),
+    Config.
 
 -spec end_per_suite(config()) -> _.
 end_per_suite(C) ->
@@ -244,4 +247,74 @@ expected_wallet_limits(LowerBound, UpperBound) ->
     ].
 
 mock_account_with_balance(ExistingAccountID, _C) ->
-    wapi_ct_helper:set_party_management_account(ExistingAccountID).
+    set_party_management_account(ExistingAccountID).
+
+%% Party management mock (GetAccountState, ComputeRoutingRuleset for wallet limits)
+-spec init_party_management_mock(pid()) -> ok.
+init_party_management_mock(SupPid) ->
+    RoutingFun = default_party_management_routing(),
+    PartyManagement = fun
+        ('ComputeRoutingRuleset', X) ->
+            RoutingFun('ComputeRoutingRuleset', X);
+        ('GetAccountState', {_PartyRef, AccountID, ?INTEGER}) ->
+            case application:get_env(wapi_lib, test_account_id, undefined) of
+                AccountID ->
+                    {ok, #payproc_AccountState{
+                        account_id = AccountID,
+                        own_amount = ?INTEGER,
+                        available_amount = ?INTEGER,
+                        currency = #domain_Currency{
+                            name = ?STRING,
+                            symbolic_code = ?RUB,
+                            numeric_code = ?INTEGER,
+                            exponent = ?INTEGER
+                        }
+                    }};
+                _ ->
+                    throw(#payproc_AccountNotFound{})
+            end
+    end,
+    _ = wapi_ct_helper:mock_services([{party_management, PartyManagement}], SupPid),
+    ok.
+
+-spec set_party_management_account(integer() | undefined) -> ok.
+set_party_management_account(AccountID) ->
+    application:set_env(wapi_lib, test_account_id, AccountID).
+
+-spec default_party_management_routing() -> fun().
+default_party_management_routing() ->
+    Allowed = {constant, true},
+    Disallowed = {constant, false},
+    RoutingRules = #{
+        100 => #domain_RoutingRuleset{
+            name = <<"both">>,
+            decisions =
+                {candidates, [
+                    #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 10}},
+                    #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 20}}
+                ]}
+        },
+        101 => #domain_RoutingRuleset{
+            name = <<"none">>,
+            decisions =
+                {candidates, [
+                    #domain_RoutingCandidate{allowed = Disallowed, terminal = #domain_TerminalRef{id = 10}},
+                    #domain_RoutingCandidate{allowed = Disallowed, terminal = #domain_TerminalRef{id = 20}}
+                ]}
+        },
+        103 => #domain_RoutingRuleset{
+            name = <<"term20">>,
+            decisions =
+                {candidates, [
+                    #domain_RoutingCandidate{allowed = Disallowed, terminal = #domain_TerminalRef{id = 10}},
+                    #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 20}}
+                ]}
+        },
+        108 => #domain_RoutingRuleset{name = <<"empty">>, decisions = {candidates, []}}
+    },
+    fun('ComputeRoutingRuleset', {#domain_RoutingRulesetRef{id = Id}, _V, _Varset}) ->
+        case maps:get(Id, RoutingRules, undefined) of
+            undefined -> {ok, #domain_RoutingRuleset{name = <<"empty">>, decisions = {candidates, []}}};
+            Ruleset -> {ok, Ruleset}
+        end
+    end.
