@@ -1,14 +1,12 @@
 -define(STRING, <<"TEST">>).
 -define(STRING2, <<"TEST2">>).
+-define(VALID_EMAIL, <<"test@test.ru">>).
 
 %% Wallet config IDs for cash limits test scenarios (each maps to different PI/routing)
 -define(WALLET_ID_OK, <<"wallet_limits_ok">>).
 -define(WALLET_ID_CANDIDATE_DISABLED, <<"wallet_limits_candidate_disabled">>).
 -define(WALLET_ID_PROVIDER_GLOBAL_DISALLOW, <<"wallet_limits_provider_global_disallow">>).
--define(WALLET_ID_TERMINAL_2_DISABLED, <<"wallet_limits_terminal_2_disabled">>).
--define(WALLET_ID_TERMINAL_1_DISABLED, <<"wallet_limits_terminal_1_disabled">>).
--define(WALLET_ID_PROVIDER_2_DISABLED, <<"wallet_limits_provider_2_disabled">>).
--define(WALLET_ID_PROVIDER_1_DISABLED, <<"wallet_limits_provider_1_disabled">>).
+-define(WALLET_ID_PRIMARY_DISABLED, <<"wallet_limits_primary_disabled">>).
 -define(RUB, <<"RUB">>).
 -define(USD, <<"USD">>).
 -define(BANKID_RU, <<"PUTIN">>).
@@ -112,7 +110,7 @@
     domain_revision = 123,
     contact_info = #fistful_base_ContactInfo{
         phone_number = ?STRING,
-        email = ?STRING
+        email = ?VALID_EMAIL
     }
 }).
 

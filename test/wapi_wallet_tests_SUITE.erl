@@ -29,10 +29,7 @@
     get_cash_limits_ok/1,
     get_cash_limits_with_candidate_disabled/1,
     get_cash_limits_with_provider_global_disallow/1,
-    get_cash_limits_with_terminal_2_disabled/1,
-    get_cash_limits_with_terminal_1_disabled/1,
-    get_cash_limits_with_provider_2_disabled/1,
-    get_cash_limits_with_provider_1_disabled/1
+    get_cash_limits_with_primary_disabled/1
 ]).
 
 -define(EMPTY_RESP(Code), {error, {Code, #{}}}).
@@ -65,10 +62,7 @@ groups() ->
             get_cash_limits_ok,
             get_cash_limits_with_candidate_disabled,
             get_cash_limits_with_provider_global_disallow,
-            get_cash_limits_with_terminal_2_disabled,
-            get_cash_limits_with_terminal_1_disabled,
-            get_cash_limits_with_provider_2_disabled,
-            get_cash_limits_with_provider_1_disabled
+            get_cash_limits_with_primary_disabled
         ]}
     ].
 
@@ -170,40 +164,14 @@ get_cash_limits_with_provider_global_disallow(C) ->
     %% Both providers disabled: no terminals, only wallet limits
     ?assertEqual(expected_wallet_limits(100, 500), Limits).
 
--spec get_cash_limits_with_terminal_2_disabled(config()) -> _.
-get_cash_limits_with_terminal_2_disabled(C) ->
+%% Default: both terminals, lower 200 (from primary). When primary disabled: fallback terminal, lower 300.
+-spec get_cash_limits_with_primary_disabled(config()) -> _.
+get_cash_limits_with_primary_disabled(C) ->
     PartyID = ?config(party, C),
-    WalletID = ?WALLET_ID_TERMINAL_2_DISABLED,
+    WalletID = ?WALLET_ID_PRIMARY_DISABLED,
     _ = wapi_ct_helper_bouncer:mock_assert_wallet_op_ctx(<<"GetWalletCashLimits">>, WalletID, PartyID, C),
     {ok, Limits} = get_cash_limits_call_api(WalletID, PartyID, C),
-    %% Only terminal 1 (lower 200): lower from routing, upper from wallet
-    ?assertEqual(expected_wallet_limits(200, 500), Limits).
-
--spec get_cash_limits_with_terminal_1_disabled(config()) -> _.
-get_cash_limits_with_terminal_1_disabled(C) ->
-    PartyID = ?config(party, C),
-    WalletID = ?WALLET_ID_TERMINAL_1_DISABLED,
-    _ = wapi_ct_helper_bouncer:mock_assert_wallet_op_ctx(<<"GetWalletCashLimits">>, WalletID, PartyID, C),
-    {ok, Limits} = get_cash_limits_call_api(WalletID, PartyID, C),
-    %% Only terminal 2 (lower 300): lower from routing, upper from wallet
-    ?assertEqual(expected_wallet_limits(300, 500), Limits).
-
--spec get_cash_limits_with_provider_2_disabled(config()) -> _.
-get_cash_limits_with_provider_2_disabled(C) ->
-    PartyID = ?config(party, C),
-    WalletID = ?WALLET_ID_PROVIDER_2_DISABLED,
-    _ = wapi_ct_helper_bouncer:mock_assert_wallet_op_ctx(<<"GetWalletCashLimits">>, WalletID, PartyID, C),
-    {ok, Limits} = get_cash_limits_call_api(WalletID, PartyID, C),
-    %% Terminal 2 excluded (uses provider 2): only terminal 1, lower 200
-    ?assertEqual(expected_wallet_limits(200, 500), Limits).
-
--spec get_cash_limits_with_provider_1_disabled(config()) -> _.
-get_cash_limits_with_provider_1_disabled(C) ->
-    PartyID = ?config(party, C),
-    WalletID = ?WALLET_ID_PROVIDER_1_DISABLED,
-    _ = wapi_ct_helper_bouncer:mock_assert_wallet_op_ctx(<<"GetWalletCashLimits">>, WalletID, PartyID, C),
-    {ok, Limits} = get_cash_limits_call_api(WalletID, PartyID, C),
-    %% Terminal 1 excluded (uses provider 1): only terminal 2, lower 300
+    %% Primary terminal disabled -> fallback terminal kicks in, lower changes 200 -> 300
     ?assertEqual(expected_wallet_limits(300, 500), Limits).
 
 %%

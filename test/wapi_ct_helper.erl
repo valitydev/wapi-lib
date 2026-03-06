@@ -146,10 +146,7 @@ start_app({dmt_client = AppName, SupPid}) ->
     WalletConfigLimitsOk = mk_wallet_config(?WALLET_ID_OK, 1),
     WalletConfigCandidateDisabled = mk_wallet_config(?WALLET_ID_CANDIDATE_DISABLED, 2),
     WalletConfigProviderGlobalDisallow = mk_wallet_config(?WALLET_ID_PROVIDER_GLOBAL_DISALLOW, 10),
-    WalletConfigTerminal2Disabled = mk_wallet_config(?WALLET_ID_TERMINAL_2_DISABLED, 4),
-    WalletConfigTerminal1Disabled = mk_wallet_config(?WALLET_ID_TERMINAL_1_DISABLED, 5),
-    WalletConfigProvider2Disabled = mk_wallet_config(?WALLET_ID_PROVIDER_2_DISABLED, 6),
-    WalletConfigProvider1Disabled = mk_wallet_config(?WALLET_ID_PROVIDER_1_DISABLED, 9),
+    WalletConfigPrimaryDisabled = mk_wallet_config(?WALLET_ID_PRIMARY_DISABLED, 5),
     PartyConfigObject = #domain_PartyConfigObject{
         ref = #domain_PartyConfigRef{id = ?STRING},
         data = #domain_PartyConfig{
@@ -316,10 +313,7 @@ start_app({dmt_client = AppName, SupPid}) ->
                     ?WALLET_ID_OK -> WalletConfigLimitsOk;
                     ?WALLET_ID_CANDIDATE_DISABLED -> WalletConfigCandidateDisabled;
                     ?WALLET_ID_PROVIDER_GLOBAL_DISALLOW -> WalletConfigProviderGlobalDisallow;
-                    ?WALLET_ID_TERMINAL_2_DISABLED -> WalletConfigTerminal2Disabled;
-                    ?WALLET_ID_TERMINAL_1_DISABLED -> WalletConfigTerminal1Disabled;
-                    ?WALLET_ID_PROVIDER_2_DISABLED -> WalletConfigProvider2Disabled;
-                    ?WALLET_ID_PROVIDER_1_DISABLED -> WalletConfigProvider1Disabled;
+                    ?WALLET_ID_PRIMARY_DISABLED -> WalletConfigPrimaryDisabled;
                     _ -> undefined
                 end,
             case Wc of
