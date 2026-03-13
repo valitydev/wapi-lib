@@ -26,7 +26,9 @@
     get_account_ok/1,
     get_account_fail_wallet_notfound/1,
     get_account_fail_account_notfound/1,
-    get_cash_limits_ok/1
+    get_cash_limits_ok/1,
+    get_cash_limits_fail_forbidden/1,
+    get_cash_limits_fail_wallet_notfound/1
 ]).
 
 -define(EMPTY_RESP(Code), {error, {Code, #{}}}).
@@ -56,7 +58,9 @@ groups() ->
             get_account_ok,
             get_account_fail_wallet_notfound,
             get_account_fail_account_notfound,
-            get_cash_limits_ok
+            get_cash_limits_ok,
+            get_cash_limits_fail_forbidden,
+            get_cash_limits_fail_wallet_notfound
         ]}
     ].
 
@@ -140,6 +144,19 @@ get_cash_limits_ok(C) ->
     {ok, Limits} = get_cash_limits_call_api(WalletID, PartyID, C),
     %% Term union 200-500 (term1: 200-400, term2: 300-500), wallet 100-1000; terminal limits constrain
     ?assertEqual(expected_wallet_limits(), Limits).
+
+-spec get_cash_limits_fail_forbidden(config()) -> _.
+get_cash_limits_fail_forbidden(C) ->
+    _ = wapi_ct_helper_bouncer:mock_arbiter(wapi_ct_helper_bouncer:judge_always_forbidden(), C),
+    ok = mock_party_management(?INTEGER, C),
+    ?assertEqual(?EMPTY_RESP(401), get_cash_limits_call_api(<<"non existant wallet id">>, ?STRING, C)).
+
+-spec get_cash_limits_fail_wallet_notfound(config()) -> _.
+get_cash_limits_fail_wallet_notfound(C) ->
+    PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_arbiter(wapi_ct_helper_bouncer:judge_always_allowed(), C),
+    ok = mock_party_management(?INTEGER, C),
+    ?assertEqual(?EMPTY_RESP(404), get_cash_limits_call_api(<<"non existant wallet id">>, PartyID, C)).
 
 %%
 

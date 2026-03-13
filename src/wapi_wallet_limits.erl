@@ -3,6 +3,7 @@
 % IMPORTANT: calculation is approximate and does NOT cover some cases:
 % - selectors {decisions, _} for terminals are not handled
 % - exclusive bounds are treated as inclusive (strictness lost)
+% - gaps in intervals are not preserved when merging
 % - terminals with withdrawal cash_limit=decisions are ignored (no provider fallback)
 % - candidate terminals with allowed=false are ignored
 %
@@ -275,7 +276,7 @@ union_ranges(#{lower := Lower1, upper := Upper1} = R1, #{lower := Lower2, upper 
     Upper = max(Upper1, Upper2),
     R1#{lower => Lower, upper => Upper}.
 
-valid_range(LowerAmount, UpperAmount) when LowerAmount < UpperAmount ->
+valid_range(LowerAmount, UpperAmount) when LowerAmount =< UpperAmount ->
     true;
 valid_range(_, _) ->
     false.
