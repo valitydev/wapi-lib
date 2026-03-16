@@ -108,7 +108,8 @@ prepare('GetWalletAccount' = OperationID, #{'walletID' := WalletID}, Context, _O
         end
     end,
     {ok, #{authorize => Authorize, process => Process}};
-prepare('GetWalletCashLimits' = OperationID, #{'partyID' := PartyID, 'walletID' := WalletID}, Context, _Opts) ->
+prepare('GetWalletCashLimits' = OperationID, #{'walletID' := WalletID} = Req0, Context, _Opts) ->
+    {_Req, PartyID} = patch_party_req(Context, Req0),
     AuthContext = build_auth_context([{wallet, WalletID}], [], Context),
     Authorize = fun() ->
         Prototypes = [
