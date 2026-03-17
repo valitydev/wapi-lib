@@ -152,7 +152,7 @@ create_ok(C) ->
     {ok, #{
         <<"contactInfo">> := #{
             <<"phoneNumber">> := ?STRING,
-            <<"email">> := ?STRING
+            <<"email">> := ?VALID_EMAIL
         }
     }} = create_withdrawal_call_api(C).
 
@@ -647,7 +647,7 @@ create_withdrawal_call_api(C) ->
                     <<"currency">> => ?RUB
                 },
                 <<"contactInfo">> => #{
-                    <<"email">> => ?STRING,
+                    <<"email">> => ?VALID_EMAIL,
                     <<"phoneNumber">> => ?STRING
                 }
             })

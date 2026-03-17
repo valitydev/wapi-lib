@@ -25,7 +25,10 @@
     get_fail_wallet_notfound/1,
     get_account_ok/1,
     get_account_fail_wallet_notfound/1,
-    get_account_fail_account_notfound/1
+    get_account_fail_account_notfound/1,
+    get_cash_limits_ok/1,
+    get_cash_limits_fail_forbidden/1,
+    get_cash_limits_fail_wallet_notfound/1
 ]).
 
 -define(EMPTY_RESP(Code), {error, {Code, #{}}}).
@@ -54,7 +57,10 @@ groups() ->
             get_fail_wallet_notfound,
             get_account_ok,
             get_account_fail_wallet_notfound,
-            get_account_fail_account_notfound
+            get_account_fail_account_notfound,
+            get_cash_limits_ok,
+            get_cash_limits_fail_forbidden,
+            get_cash_limits_fail_wallet_notfound
         ]}
     ].
 
@@ -113,21 +119,44 @@ get_fail_wallet_notfound(C) ->
 get_account_ok(C) ->
     PartyID = ?config(party, C),
     _ = wapi_ct_helper_bouncer:mock_assert_wallet_op_ctx(<<"GetWalletAccount">>, ?STRING, PartyID, C),
-    ok = mock_account_with_balance(?INTEGER, C),
+    ok = mock_party_management(?INTEGER, C),
     {ok, _} = get_account_call_api(?STRING, C).
 
 -spec get_account_fail_wallet_notfound(config()) -> _.
 get_account_fail_wallet_notfound(C) ->
     _ = wapi_ct_helper_bouncer:mock_arbiter(wapi_ct_helper_bouncer:judge_always_forbidden(), C),
-    ok = mock_account_with_balance(?INTEGER, C),
+    ok = mock_party_management(?INTEGER, C),
     ?assertEqual(?EMPTY_RESP(401), get_account_call_api(<<"non existant wallet id">>, C)).
 
 -spec get_account_fail_account_notfound(config()) -> _.
 get_account_fail_account_notfound(C) ->
     PartyID = ?config(party, C),
     _ = wapi_ct_helper_bouncer:mock_assert_wallet_op_ctx(<<"GetWalletAccount">>, ?STRING, PartyID, C),
-    ok = mock_account_with_balance(424242, C),
+    ok = mock_party_management(424242, C),
     ?assertEqual({error, {404, #{}}}, get_account_call_api(?STRING, C)).
+
+-spec get_cash_limits_ok(config()) -> _.
+get_cash_limits_ok(C) ->
+    PartyID = ?config(party, C),
+    WalletID = ?WALLET_ID_OK,
+    _ = wapi_ct_helper_bouncer:mock_assert_wallet_op_ctx(<<"GetWalletCashLimits">>, WalletID, PartyID, C),
+    ok = mock_party_management(?INTEGER, C),
+    {ok, Limits} = get_cash_limits_call_api(WalletID, PartyID, C),
+    %% Term union 200-500 (term1: 200-400, term2: 300-500), wallet 100-1000; terminal limits constrain
+    ?assertEqual(expected_wallet_limits(), Limits).
+
+-spec get_cash_limits_fail_forbidden(config()) -> _.
+get_cash_limits_fail_forbidden(C) ->
+    _ = wapi_ct_helper_bouncer:mock_arbiter(wapi_ct_helper_bouncer:judge_always_forbidden(), C),
+    ok = mock_party_management(?INTEGER, C),
+    ?assertEqual(?EMPTY_RESP(401), get_cash_limits_call_api(<<"non existant wallet id">>, ?STRING, C)).
+
+-spec get_cash_limits_fail_wallet_notfound(config()) -> _.
+get_cash_limits_fail_wallet_notfound(C) ->
+    PartyID = ?config(party, C),
+    _ = wapi_ct_helper_bouncer:mock_arbiter(wapi_ct_helper_bouncer:judge_always_allowed(), C),
+    ok = mock_party_management(?INTEGER, C),
+    ?assertEqual(?EMPTY_RESP(404), get_cash_limits_call_api(<<"non existant wallet id">>, PartyID, C)).
 
 %%
 
@@ -159,10 +188,61 @@ get_account_call_api(WalletID, C) ->
         wapi_ct_helper:cfg(context, C)
     ).
 
-mock_account_with_balance(ExistingAccountID, C) ->
+get_cash_limits_call_api(WalletID, PartyID, C) ->
+    call_api(
+        fun swag_client_wallet_wallets_api:get_wallet_cash_limits/3,
+        #{
+            binding => #{
+                <<"walletID">> => WalletID
+            },
+            qs_val => #{
+                <<"partyID">> => PartyID
+            }
+        },
+        wapi_ct_helper:cfg(context, C)
+    ).
+
+expected_wallet_limits() ->
+    %% 200-500 from terminal union (term1: 200-400, term2: 300-500)
+    expected_wallet_limits(200, 500).
+
+expected_wallet_limits(LowerBound, UpperBound) ->
+    [
+        #{
+            <<"currency">> => <<"RUB">>,
+            <<"lowerBound">> => #{<<"amount">> => LowerBound, <<"inclusive">> => true},
+            <<"upperBound">> => #{<<"amount">> => UpperBound, <<"inclusive">> => true},
+            <<"withdrawalMethod">> => #{
+                <<"method">> => <<"WithdrawalMethodBankCard">>,
+                <<"paymentSystems">> => []
+            }
+        },
+        #{
+            <<"currency">> => <<"RUB">>,
+            <<"lowerBound">> => #{<<"amount">> => LowerBound, <<"inclusive">> => true},
+            <<"upperBound">> => #{<<"amount">> => UpperBound, <<"inclusive">> => true},
+            <<"withdrawalMethod">> => #{
+                <<"method">> => <<"WithdrawalMethodDigitalWallet">>,
+                <<"providers">> => []
+            }
+        }
+    ].
+
+-spec mock_party_management(integer() | undefined, config()) -> ok.
+mock_party_management(ExistingAccountID, C) ->
     _ = wapi_ct_helper:mock_services(
         [
             {party_management, fun
+                ('ComputeRoutingRuleset', {#domain_RoutingRulesetRef{id = 100}, _V, _Varset}) ->
+                    Allowed = {constant, true},
+                    {ok, #domain_RoutingRuleset{
+                        name = <<"both">>,
+                        decisions =
+                            {candidates, [
+                                #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 10}},
+                                #domain_RoutingCandidate{allowed = Allowed, terminal = #domain_TerminalRef{id = 20}}
+                            ]}
+                    }};
                 ('GetAccountState', {_, AccountID, ?INTEGER}) when AccountID =:= ExistingAccountID ->
                     {ok, #payproc_AccountState{
                         account_id = AccountID,

@@ -1,5 +1,8 @@
 -define(STRING, <<"TEST">>).
 -define(STRING2, <<"TEST2">>).
+-define(VALID_EMAIL, <<"test@test.ru">>).
+
+-define(WALLET_ID_OK, <<"wallet_limits_ok">>).
 -define(RUB, <<"RUB">>).
 -define(USD, <<"USD">>).
 -define(BANKID_RU, <<"PUTIN">>).
@@ -103,7 +106,7 @@
     domain_revision = 123,
     contact_info = #fistful_base_ContactInfo{
         phone_number = ?STRING,
-        email = ?STRING
+        email = ?VALID_EMAIL
     }
 }).
 

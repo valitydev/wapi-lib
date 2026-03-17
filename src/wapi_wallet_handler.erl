@@ -108,6 +108,26 @@ prepare('GetWalletAccount' = OperationID, #{'walletID' := WalletID}, Context, _O
         end
     end,
     {ok, #{authorize => Authorize, process => Process}};
+prepare('GetWalletCashLimits' = OperationID, #{'walletID' := WalletID} = Req0, Context, _Opts) ->
+    {_Req, PartyID} = patch_party_req(Context, Req0),
+    AuthContext = build_auth_context([{wallet, WalletID}], [], Context),
+    Authorize = fun() ->
+        Prototypes = [
+            {operation, build_prototype_for(operation, #{id => OperationID}, AuthContext)},
+            {wallet, build_prototype_for(wallet, [], AuthContext)}
+        ],
+        Resolution = wapi_auth:authorize_operation(Prototypes, Context),
+        {ok, Resolution}
+    end,
+    Process = fun() ->
+        case wapi_wallet_limits:get_wallet_limits(PartyID, WalletID, Context) of
+            {ok, Limits} ->
+                wapi_handler_utils:reply_ok(200, Limits);
+            {error, {wallet, notfound}} ->
+                wapi_handler_utils:reply_ok(404)
+        end
+    end,
+    {ok, #{authorize => Authorize, process => Process}};
 %% Destinations
 prepare('ListDestinations' = OperationID, Req0, Context, _Opts) ->
     AuthContext = build_auth_context(

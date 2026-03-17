@@ -133,28 +133,9 @@ start_app(woody = AppName) ->
         {acceptors_pool_size, 4}
     ]);
 start_app({dmt_client = AppName, SupPid}) ->
-    WalletConfigObject = #domain_WalletConfigObject{
-        ref = #domain_WalletConfigRef{id = ?STRING},
-        data = #domain_WalletConfig{
-            name = ?STRING,
-            block =
-                {unblocked, #domain_Unblocked{
-                    reason = <<"">>,
-                    since = wapi_time:rfc3339()
-                }},
-            suspension =
-                {active, #domain_Active{
-                    since = wapi_time:rfc3339()
-                }},
-            payment_institution = #domain_PaymentInstitutionRef{id = 1},
-            terms = #domain_TermSetHierarchyRef{id = 1},
-            account = #domain_WalletAccount{
-                currency = #domain_CurrencyRef{symbolic_code = <<"RUB">>},
-                settlement = ?INTEGER
-            },
-            party_ref = #domain_PartyConfigRef{id = ?STRING}
-        }
-    },
+    CurrencyRef = #domain_CurrencyRef{symbolic_code = <<"RUB">>},
+    WalletConfigObject = mk_wallet_config(?STRING, 1),
+    WalletConfigLimitsOk = mk_wallet_config(?WALLET_ID_OK, 1),
     PartyConfigObject = #domain_PartyConfigObject{
         ref = #domain_PartyConfigRef{id = ?STRING},
         data = #domain_PartyConfig{
@@ -173,41 +154,71 @@ start_app({dmt_client = AppName, SupPid}) ->
             }
         }
     },
+    %% Term set hierarchy (shared)
+    %% Wallet limit 100-1000 (wide) - terminal limits will constrain
+    WithdrawalLimitRange = #domain_CashRange{
+        lower = {inclusive, #domain_Cash{amount = 100, currency = CurrencyRef}},
+        upper = {inclusive, #domain_Cash{amount = 1000, currency = CurrencyRef}}
+    },
+    PaymentMethods = [
+        #domain_PaymentMethodRef{id = {bank_card, #domain_BankCardPaymentMethod{}}},
+        #domain_PaymentMethodRef{id = {digital_wallet, #domain_PaymentServiceRef{id = <<"DW">>}}}
+    ],
+    TermSetHierarchyObject = #domain_TermSetHierarchyObject{
+        ref = #domain_TermSetHierarchyRef{id = 1},
+        data = #domain_TermSetHierarchy{
+            term_set = #domain_TermSet{
+                wallets = #domain_WalletServiceTerms{
+                    withdrawals = #domain_WithdrawalServiceTerms{
+                        methods = {value, PaymentMethods},
+                        cash_limit = {value, WithdrawalLimitRange}
+                    }
+                }
+            }
+        }
+    },
+    %% Term limits 200-400 and 300-500, union = 200-500 (terminal limits constrain)
+    Term10Limit = #domain_CashRange{
+        lower = {inclusive, #domain_Cash{amount = 200, currency = CurrencyRef}},
+        upper = {inclusive, #domain_Cash{amount = 400, currency = CurrencyRef}}
+    },
+    Term20Limit = #domain_CashRange{
+        lower = {inclusive, #domain_Cash{amount = 300, currency = CurrencyRef}},
+        upper = {inclusive, #domain_Cash{amount = 500, currency = CurrencyRef}}
+    },
+    Allowed = {constant, true},
+    Terminal10 = mk_terminal_object(10, 11, Term10Limit, Allowed, Allowed),
+    Terminal20 = mk_terminal_object(20, 21, Term20Limit, Allowed, Allowed),
+    Provider11 = mk_provider_object(11, Allowed, Allowed),
+    Provider21 = mk_provider_object(21, Allowed, Allowed),
+
+    PiObject = mk_pi_object(1, 100, 101),
+    DomainConfigClient = fun
+        ('CheckoutObject', {{version, V}, {wallet_config, #domain_WalletConfigRef{id = ?STRING}}}) ->
+            {ok, mk_versioned_object(wallet_config, WalletConfigObject, V)};
+        ('CheckoutObject', {{version, V}, {wallet_config, #domain_WalletConfigRef{id = ?WALLET_ID_OK}}}) ->
+            {ok, mk_versioned_object(wallet_config, WalletConfigLimitsOk, V)};
+        ('CheckoutObject', {{version, V}, {party_config, #domain_PartyConfigRef{id = ?STRING}}}) ->
+            {ok, mk_versioned_object(party_config, PartyConfigObject, V)};
+        ('CheckoutObject', {{version, V}, {term_set_hierarchy, #domain_TermSetHierarchyRef{id = 1}}}) ->
+            {ok, mk_versioned_object(term_set_hierarchy, TermSetHierarchyObject, V)};
+        ('CheckoutObject', {{version, V}, {payment_institution, #domain_PaymentInstitutionRef{id = 1}}}) ->
+            {ok, mk_versioned_object(payment_institution, PiObject, V)};
+        ('CheckoutObject', {{version, V}, {terminal, #domain_TerminalRef{id = 10}}}) ->
+            {ok, mk_versioned_object(terminal, Terminal10, V)};
+        ('CheckoutObject', {{version, V}, {terminal, #domain_TerminalRef{id = 20}}}) ->
+            {ok, mk_versioned_object(terminal, Terminal20, V)};
+        ('CheckoutObject', {{version, V}, {provider, #domain_ProviderRef{id = 11}}}) ->
+            {ok, mk_versioned_object(provider, Provider11, V)};
+        ('CheckoutObject', {{version, V}, {provider, #domain_ProviderRef{id = 21}}}) ->
+            {ok, mk_versioned_object(provider, Provider21, V)};
+        ('CheckoutObject', _) ->
+            woody_error:raise(business, #domain_conf_v2_ObjectNotFound{})
+    end,
     Urls = mock_services_(
         [
-            {domain_config_client, fun
-                ('CheckoutObject', {{version, ?INTEGER}, {wallet_config, #domain_WalletConfigRef{id = ?STRING}}}) ->
-                    {ok, #domain_conf_v2_VersionedObject{
-                        info = #domain_conf_v2_VersionedObjectInfo{
-                            version = ?INTEGER,
-                            changed_at = genlib_rfc3339:format(genlib_time:unow(), second),
-                            changed_by = #domain_conf_v2_Author{
-                                id = ?STRING,
-                                name = ?STRING,
-                                email = ?STRING
-                            }
-                        },
-                        object = {wallet_config, WalletConfigObject}
-                    }};
-                ('CheckoutObject', {{version, ?INTEGER}, {party_config, #domain_PartyConfigRef{id = ?STRING}}}) ->
-                    {ok, #domain_conf_v2_VersionedObject{
-                        info = #domain_conf_v2_VersionedObjectInfo{
-                            version = ?INTEGER,
-                            changed_at = genlib_rfc3339:format(genlib_time:unow(), second),
-                            changed_by = #domain_conf_v2_Author{
-                                id = ?STRING,
-                                name = ?STRING,
-                                email = ?STRING
-                            }
-                        },
-                        object = {party_config, PartyConfigObject}
-                    }};
-                ('CheckoutObject', _) ->
-                    woody_error:raise(business, #domain_conf_v2_ObjectNotFound{})
-            end},
-            {domain_config, fun('GetLatestVersion', _) ->
-                {ok, ?INTEGER}
-            end}
+            {domain_config_client, DomainConfigClient},
+            {domain_config, fun('GetLatestVersion', _) -> {ok, ?INTEGER} end}
         ],
         SupPid
     ),
@@ -398,4 +409,103 @@ get_lifetime(YY, MM, DD) ->
 create_auth_ctx(PartyID) ->
     #{
         swagger_context => #{auth_context => {?STRING, PartyID, #{}}}
+    }.
+
+mk_versioned_object(Type, Object, Version) ->
+    #domain_conf_v2_VersionedObject{
+        info = #domain_conf_v2_VersionedObjectInfo{
+            version = Version,
+            changed_at = genlib_rfc3339:format(genlib_time:unow(), second),
+            changed_by = #domain_conf_v2_Author{
+                id = ?STRING,
+                name = ?STRING,
+                email = ?STRING
+            }
+        },
+        object = {Type, Object}
+    }.
+
+%% Terminal helper: TerminalRefId, ProviderRefId, CashLimitRange, Allow, GlobalAllow
+mk_terminal_object(TermId, ProvId, LimitRange, Allow, GlobalAllow) ->
+    #domain_TerminalObject{
+        ref = #domain_TerminalRef{id = TermId},
+        data = #domain_Terminal{
+            name = <<"term">>,
+            description = <<"test">>,
+            provider_ref = #domain_ProviderRef{id = ProvId},
+            terms = #domain_ProvisionTermSet{
+                wallet = #domain_WalletProvisionTerms{
+                    withdrawals = #domain_WithdrawalProvisionTerms{
+                        cash_limit = {value, LimitRange},
+                        allow = Allow,
+                        global_allow = GlobalAllow
+                    }
+                }
+            }
+        }
+    }.
+
+%% Payment institution helper: PiRefId, PoliciesRulesetId, ProhibitionsRulesetId
+mk_pi_object(PiId, PoliciesId, ProhibitionsId) ->
+    #domain_PaymentInstitutionObject{
+        ref = #domain_PaymentInstitutionRef{id = PiId},
+        data = #domain_PaymentInstitution{
+            name = <<"test">>,
+            system_account_set = {value, #domain_SystemAccountSetRef{id = 1}},
+            inspector = {value, #domain_InspectorRef{id = 1}},
+            realm = test,
+            residences = [rus],
+            withdrawal_routing_rules = #domain_RoutingRules{
+                policies = #domain_RoutingRulesetRef{id = PoliciesId},
+                prohibitions = #domain_RoutingRulesetRef{id = ProhibitionsId}
+            }
+        }
+    }.
+
+%% Wallet config helper: WalletConfigRefId, PaymentInstitutionId
+mk_wallet_config(WalletRefId, PiId) ->
+    #domain_WalletConfigObject{
+        ref = #domain_WalletConfigRef{id = WalletRefId},
+        data = #domain_WalletConfig{
+            name = ?STRING,
+            block =
+                {unblocked, #domain_Unblocked{
+                    reason = <<"">>,
+                    since = wapi_time:rfc3339()
+                }},
+            suspension =
+                {active, #domain_Active{
+                    since = wapi_time:rfc3339()
+                }},
+            payment_institution = #domain_PaymentInstitutionRef{id = PiId},
+            terms = #domain_TermSetHierarchyRef{id = 1},
+            account = #domain_WalletAccount{
+                currency = #domain_CurrencyRef{symbolic_code = <<"RUB">>},
+                settlement = ?INTEGER
+            },
+            party_ref = #domain_PartyConfigRef{id = ?STRING}
+        }
+    }.
+
+%% Provider helper: ProviderRefId, Allow, GlobalAllow
+mk_provider_object(ProvId, Allow, GlobalAllow) ->
+    #domain_ProviderObject{
+        ref = #domain_ProviderRef{id = ProvId},
+        data = #domain_Provider{
+            name = <<"provider">>,
+            description = <<"test">>,
+            proxy = #domain_Proxy{
+                ref = #domain_ProxyRef{id = 1},
+                additional = #{}
+            },
+            realm = test,
+            terms = #domain_ProvisionTermSet{
+                wallet = #domain_WalletProvisionTerms{
+                    withdrawals = #domain_WithdrawalProvisionTerms{
+                        allow = Allow,
+                        global_allow = GlobalAllow
+                    }
+                }
+            }
+        }
     }.
