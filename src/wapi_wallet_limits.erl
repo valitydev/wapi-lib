@@ -318,7 +318,10 @@ encode_withdrawal_method(digital_wallet) ->
         <<"providers">> => []
     };
 encode_withdrawal_method(generic) ->
-    #{<<"method">> => <<"WithdrawalMethodGeneric">>}.
+    #{
+        <<"method">> => <<"WithdrawalMethodGeneric">>,
+        <<"providers">> => []
+    }.
 
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
