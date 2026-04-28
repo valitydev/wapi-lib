@@ -194,6 +194,21 @@ start_app({dmt_client = AppName, SupPid}) ->
 
     PiObject = mk_pi_object(1, 100, 101),
     DomainConfigClient = fun
+        ('CheckoutObjectWithReferences', {{version, V}, {party_config, #domain_PartyConfigRef{id = ?STRING}}}) ->
+            {ok, #domain_conf_v2_VersionedObjectWithReferences{
+                object = mk_versioned_object(party_config, PartyConfigObject, V),
+                referenced_by = ordsets:from_list([
+                    mk_versioned_object(wallet_config, WalletConfigObject, V),
+                    mk_versioned_object(wallet_config, WalletConfigLimitsOk, V)
+                ]),
+                references_to = []
+            }};
+        ('CheckoutObjectWithReferences', {{version, V}, {party_config, #domain_PartyConfigRef{id = _} = Ref}}) ->
+            {ok, #domain_conf_v2_VersionedObjectWithReferences{
+                object = mk_versioned_object(party_config, PartyConfigObject#domain_PartyConfigObject{ref = Ref}, V),
+                referenced_by = [],
+                references_to = []
+            }};
         ('CheckoutObject', {{version, V}, {wallet_config, #domain_WalletConfigRef{id = ?STRING}}}) ->
             {ok, mk_versioned_object(wallet_config, WalletConfigObject, V)};
         ('CheckoutObject', {{version, V}, {wallet_config, #domain_WalletConfigRef{id = ?WALLET_ID_OK}}}) ->

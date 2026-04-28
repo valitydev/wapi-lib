@@ -21,6 +21,8 @@
 -export([init/1]).
 
 -export([
+    list_wallets/1,
+    list_wallets_party_id_passed/1,
     get_ok/1,
     get_fail_wallet_notfound/1,
     get_account_ok/1,
@@ -53,6 +55,8 @@ all() ->
 groups() ->
     [
         {base, [], [
+            list_wallets,
+            list_wallets_party_id_passed,
             get_ok,
             get_fail_wallet_notfound,
             get_account_ok,
@@ -103,6 +107,35 @@ end_per_testcase(_Name, C) ->
     ok.
 
 %%% Tests
+
+-spec list_wallets(config()) -> _.
+list_wallets(C) ->
+    PartyID = ?config(party, C),
+    Params = #{
+        qs_val => #{
+            <<"limit">> => <<"123">>
+        }
+    },
+    {ok, #{<<"result">> := [_ | _]}} = assert_list_wallets_party_id(PartyID, Params, C).
+
+-spec list_wallets_party_id_passed(config()) -> _.
+list_wallets_party_id_passed(C) ->
+    PartyID = genlib:bsuuid(),
+    Params = #{
+        qs_val => #{
+            <<"partyID">> => PartyID,
+            <<"limit">> => <<"123">>
+        }
+    },
+    {ok, #{<<"result">> := []}} = assert_list_wallets_party_id(PartyID, Params, C).
+
+assert_list_wallets_party_id(PartyID, Params, C) ->
+    _ = wapi_ct_helper_bouncer:mock_assert_party_op_ctx(<<"ListWallets">>, PartyID, C),
+    {ok, _} = call_api(
+        fun swag_client_wallet_wallets_api:list_wallets/3,
+        Params,
+        wapi_ct_helper:cfg(context, C)
+    ).
 
 -spec get_ok(config()) -> _.
 get_ok(C) ->

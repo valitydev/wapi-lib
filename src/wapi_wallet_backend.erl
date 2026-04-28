@@ -1,14 +1,46 @@
 -module(wapi_wallet_backend).
 
 -type handler_context() :: wapi_handler_utils:handler_context().
+-type request_data() :: #{
+    'partyID' := binary() | undefined,
+    %% TODO Other fields are obsolete, yet mentioned in API spec. Refactor
+    %% request_data away after solving swag specification inconsistency.
+    'currencyID' := binary() | undefined,
+    'limit' := pos_integer() | undefined,
+    'continuationToken' := binary() | undefined,
+    _ => _
+}.
 -type response_data() :: wapi_handler_utils:response_data().
 -type id() :: binary().
 
+-export([list_wallets/2]).
 -export([get/2]).
 -export([get_account/2]).
 
 -include_lib("damsel/include/dmsl_domain_thrift.hrl").
 -include_lib("damsel/include/dmsl_payproc_thrift.hrl").
+
+-spec list_wallets(request_data(), handler_context()) -> {ok, response_data()}.
+list_wallets(#{'partyID' := undefined}, _Context) ->
+    {ok, []};
+list_wallets(#{'partyID' := PartyID}, Context) ->
+    PartyRef = #domain_PartyConfigRef{id = PartyID},
+    case wapi_domain_backend:get_with_related({party_config, PartyRef}, wapi_domain_backend:head(), Context) of
+        {ok, _, ReferencedBy, _} ->
+            F = fun
+                (
+                    {wallet_config, #domain_WalletConfigObject{
+                        ref = #domain_WalletConfigRef{id = WalletID}, data = WalletConfig
+                    }}
+                ) ->
+                    {true, unmarshal(wallet, {WalletID, WalletConfig})};
+                (_) ->
+                    false
+            end,
+            {ok, lists:filtermap(F, ReferencedBy)};
+        {error, not_found} ->
+            {ok, []}
+    end.
 
 -spec get(id(), handler_context()) -> {ok, response_data(), id()} | {error, {wallet, notfound}}.
 get(WalletID, _HandlerContext) ->
