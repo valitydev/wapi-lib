@@ -74,12 +74,8 @@ mask_notfound(Resolution) ->
 
 %% Wallets
 prepare('ListWallets' = OperationID, Req0, Context, _Opts) ->
-    AuthContext = build_auth_context(
-        [wapi_handler_utils:maybe_with('identityID', Req0, fun(IdentityID) -> {identity, IdentityID} end)],
-        [],
-        Context
-    ),
     {Req, PartyID} = patch_party_req(Context, Req0),
+    AuthContext = build_auth_context([{party, PartyID}], [], Context),
     Authorize = fun() ->
         Prototypes = [
             {operation, build_prototype_for(operation, #{party => PartyID, id => OperationID}, AuthContext)},
