@@ -73,6 +73,22 @@ mask_notfound(Resolution) ->
 -spec prepare(operation_id(), request_data(), handler_context(), handler_opts()) -> {ok, request_state()}.
 
 %% Wallets
+prepare('ListWallets' = OperationID, Req0, Context, _Opts) ->
+    {Req, PartyID} = patch_party_req(Context, Req0),
+    AuthContext = build_auth_context([{party, PartyID}], [], Context),
+    Authorize = fun() ->
+        Prototypes = [
+            {operation, build_prototype_for(operation, #{party => PartyID, id => OperationID}, AuthContext)},
+            {wallet, build_prototype_for(wallet, [], AuthContext)}
+        ],
+        Resolution = wapi_auth:authorize_operation(Prototypes, Context),
+        {ok, Resolution}
+    end,
+    Process = fun() ->
+        {ok, Result} = wapi_wallet_backend:list_wallets(Req, Context),
+        wapi_handler_utils:reply_ok(200, Result)
+    end,
+    {ok, #{authorize => Authorize, process => Process}};
 prepare('GetWallet' = OperationID, #{'walletID' := WalletID}, Context, _Opts) ->
     {ResultWallet, ResultWalletOwner} =
         case wapi_wallet_backend:get(WalletID, Context) of

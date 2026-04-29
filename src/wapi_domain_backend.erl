@@ -10,6 +10,7 @@
 -export([get_party_config/1]).
 -export([get_object/1]).
 -export([get_object/2]).
+-export([get_with_related/3]).
 
 %%
 
@@ -58,3 +59,34 @@ get_object(Ref, {Type, ObjectRef}) ->
         #domain_conf_v2_ObjectNotFound{} ->
             {error, notfound}
     end.
+
+-spec get_with_related(
+    dmt_client:object_ref(), dmt_client:version(), wapi_handler_utils:handler_context() | undefined
+) ->
+    {ok, T, ReferencedBy :: [T], ReferencesTo :: [T]} | {error, not_found}
+when
+    T :: dmt_client:domain_object().
+get_with_related(Ref, Revision, Context) ->
+    try
+        Opts = make_opts(Context),
+        #domain_conf_v2_VersionedObjectWithReferences{
+            object = #domain_conf_v2_VersionedObject{object = Object},
+            referenced_by = ReferencedBy,
+            references_to = ReferencesTo
+        } =
+            dmt_client:checkout_object_with_references(Revision, Ref, Opts),
+        Unwrapper = fun(#domain_conf_v2_VersionedObject{object = O}) -> O end,
+        {ok, Object, lists:map(Unwrapper, ReferencedBy), lists:map(Unwrapper, ReferencesTo)}
+    catch
+        error:version_not_found ->
+            {error, not_found};
+        throw:#domain_conf_v2_ObjectNotFound{} ->
+            {error, not_found}
+    end.
+
+%%
+
+make_opts(#{woody_context := WoodyContext}) ->
+    #{woody_context => WoodyContext};
+make_opts(_) ->
+    #{}.
