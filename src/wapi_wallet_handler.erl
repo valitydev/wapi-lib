@@ -85,8 +85,8 @@ prepare('ListWallets' = OperationID, Req0, Context, _Opts) ->
         {ok, Resolution}
     end,
     Process = fun() ->
-        {ok, List} = wapi_wallet_backend:list_wallets(Req, Context),
-        wapi_handler_utils:reply_ok(200, #{<<"result">> => List})
+        {ok, Result} = wapi_wallet_backend:list_wallets(Req, Context),
+        wapi_handler_utils:reply_ok(200, Result)
     end,
     {ok, #{authorize => Authorize, process => Process}};
 prepare('GetWallet' = OperationID, #{'walletID' := WalletID}, Context, _Opts) ->
