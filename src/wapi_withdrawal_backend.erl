@@ -450,17 +450,19 @@ unmarshal(withdrawal, #wthd_WithdrawalState{
     wallet_id = WalletID,
     party_id = PartyID,
     destination_id = DestinationID,
-    body = Body,
+    body = Body0,
     external_id = ExternalID,
     status = Status,
     created_at = CreatedAt,
     metadata = Metadata,
     quote = Quote,
     contact_info = ContactInfo,
-    effective_final_cash_flow = EffectiveFinalCashFlow
+    effective_final_cash_flow = EffectiveFinalCashFlow,
+    new_body = NewBody
 }) ->
     UnmarshaledMetadata = maybe_unmarshal(context, Metadata),
     Fee = maybe_unmarshal_fee(Status, EffectiveFinalCashFlow),
+    Body = genlib:define(NewBody, Body0),
     genlib_map:compact(
         maps:merge(
             #{
