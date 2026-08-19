@@ -44,8 +44,10 @@
 -define(PAYMENT_SERVICE_REF(ID), #'fistful_base_PaymentServiceRef'{id = ID}).
 -define(CRYPTO_CURRENCY_REF(ID), #'fistful_base_CryptoCurrencyRef'{id = ID}).
 
--define(CASH, #'fistful_base_Cash'{
-    amount = ?INTEGER,
+-define(CASH, ?CASH(?INTEGER)).
+
+-define(CASH(Amount), #'fistful_base_Cash'{
+    amount = Amount,
     currency = #'fistful_base_CurrencyRef'{
         symbolic_code = ?RUB
     }

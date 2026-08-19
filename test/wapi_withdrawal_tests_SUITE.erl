@@ -41,6 +41,7 @@
     get_failed_wo_colon/1,
     get_fail_withdrawal_notfound/1,
     get_by_external_id_ok/1,
+    get_with_new_body_ok/1,
     create_quote_ok/1,
     get_quote_fail_wallet_notfound/1,
     get_quote_fail_destination_notfound/1,
@@ -90,6 +91,7 @@ groups() ->
             get_failed_wo_colon,
             get_fail_withdrawal_notfound,
             get_by_external_id_ok,
+            get_with_new_body_ok,
             create_quote_ok,
             get_quote_fail_wallet_notfound,
             get_quote_fail_destination_notfound,
@@ -431,6 +433,38 @@ get_by_external_id_ok(C) ->
         #{
             binding => #{
                 <<"externalID">> => ?STRING
+            }
+        },
+        wapi_ct_helper:cfg(context, C)
+    ).
+
+-spec get_with_new_body_ok(config()) -> _.
+get_with_new_body_ok(C) ->
+    PartyID = ?config(party, C),
+    Withdrawal0 = ?WITHDRAWAL(PartyID),
+    Withdrawal = Withdrawal0#wthd_WithdrawalState{
+        new_body = ?CASH(100500)
+    },
+    _ = wapi_ct_helper_bouncer:mock_assert_withdrawal_op_ctx(<<"GetWithdrawal">>, ?STRING, PartyID, C),
+    _ = wapi_ct_helper:mock_services(
+        [
+            {fistful_withdrawal, fun
+                ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)};
+                ('Get', _) -> {ok, Withdrawal}
+            end}
+        ],
+        C
+    ),
+    {ok, #{
+        <<"body">> := #{
+            <<"amount">> := 100500,
+            <<"currency">> := <<"RUB">>
+        }
+    }} = call_api(
+        fun swag_client_wallet_withdrawals_api:get_withdrawal/3,
+        #{
+            binding => #{
+                <<"withdrawalID">> => ?STRING
             }
         },
         wapi_ct_helper:cfg(context, C)
