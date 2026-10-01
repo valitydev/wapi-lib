@@ -22,8 +22,10 @@ mock_assert_op_ctx(Op, Config) ->
     mock_arbiter(
         ?assertContextMatches(
             #ctx_v1_ContextFragment{
-                wapi = ?CTX_WAPI(?CTX_WAPI_OP(Op))
-            }
+                wapi = ?CTX_WAPI(?CTX_WAPI_OP(Op)),
+                user = UserCtx,
+                party = PartyCtx
+            } when UserCtx =/= undefined orelse PartyCtx =/= undefined
         ),
         Config
     ).
@@ -33,8 +35,10 @@ mock_assert_party_op_ctx(Op, PartyID, Config) ->
     mock_arbiter(
         ?assertContextMatches(
             #ctx_v1_ContextFragment{
-                wapi = ?CTX_WAPI(?CTX_PARTY_OP(Op, PartyID))
-            }
+                wapi = ?CTX_WAPI(?CTX_PARTY_OP(Op, PartyID)),
+                user = UserCtx,
+                party = PartyCtx
+            } when UserCtx =/= undefined orelse PartyCtx =/= undefined
         ),
         Config
     ).
@@ -70,8 +74,10 @@ mock_assert_generic_op_ctx(Entities, WapiContext, Config) ->
         ?assertContextMatches(
             #ctx_v1_ContextFragment{
                 wapi = WapiContext,
-                wallet = List
-            }
+                wallet = List,
+                user = UserCtx,
+                party = PartyCtx
+            } when UserCtx =/= undefined orelse PartyCtx =/= undefined
         ),
         Config
     ).
@@ -151,15 +157,26 @@ mock_client(SupOrConfig) ->
             [
                 {
                     org_management,
-                    fun('GetUserContext', {UserID}) ->
-                        {encoded_fragment, Fragment} = bouncer_client:bake_context_fragment(
-                            bouncer_context_helpers:make_user_fragment(#{
-                                id => UserID,
-                                realm => #{id => ?TEST_USER_REALM},
-                                orgs => [#{id => ?STRING, owner => #{id => UserID}, party => #{id => UserID}}]
-                            })
-                        ),
-                        {ok, Fragment}
+                    fun
+                        ('GetUserContext', {UserID}) ->
+                            {encoded_fragment, Fragment} = bouncer_client:bake_context_fragment(
+                                bouncer_context_helpers:make_user_fragment(#{
+                                    id => UserID,
+                                    realm => #{id => ?TEST_USER_REALM},
+                                    orgs => [#{id => ?STRING, owner => #{id => UserID}, party => #{id => UserID}}]
+                                })
+                            ),
+                            {ok, Fragment};
+                        ('GetPartyContext', {PartyID}) ->
+                            {encoded_fragment, Fragment} = bouncer_client:bake_context_fragment(
+                                bouncer_context_helpers:make_party_fragment(#{
+                                    id => PartyID,
+                                    organization => #{
+                                        id => ?STRING, owner => #{id => ?STRING}, allowed_ips => [?STRING]
+                                    }
+                                })
+                            ),
+                            {ok, Fragment}
                     end
                 }
             ],

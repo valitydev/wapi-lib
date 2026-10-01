@@ -55,7 +55,6 @@
     catch
         error:AssertMatchError:Stacktrace ->
             logger:error("failed ~p at ~p", [AssertMatchError, Stacktrace]),
-            logger:error("~n Expect ~p ~n Context ~p", [Expect, Context]),
             {throwing, #decision_InvalidContext{}}
     end
 end).

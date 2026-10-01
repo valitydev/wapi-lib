@@ -69,12 +69,19 @@ init([]) ->
 -spec all() -> [{group, test_case_name()}].
 all() ->
     [
-        {group, base}
+        {group, operations_by_api_key_token},
+        {group, operations_by_user_session_token}
     ].
 
 -spec groups() -> [{group_name(), list(), [test_case_name()]}].
 groups() ->
     [
+        {operations_by_api_key_token, [], [
+            {group, base}
+        ]},
+        {operations_by_user_session_token, [], [
+            {group, base}
+        ]},
         {base, [], [
             create_ok,
             create_fail_wallet_notfound,
@@ -121,12 +128,16 @@ end_per_suite(C) ->
     ok.
 
 -spec init_per_group(group_name(), config()) -> config().
-init_per_group(Group, Config) when Group =:= base; Group =:= base2 ->
+init_per_group(operations_by_api_key_token, Config) ->
     Party = genlib:bsuuid(),
-    Config1 = [{party, Party} | Config],
     GroupSup = wapi_ct_helper:start_mocked_service_sup(?MODULE),
     _ = wapi_ct_helper_token_keeper:mock_user_session_token(Party, GroupSup),
-    [{group_test_sup, GroupSup}, {context, wapi_ct_helper:get_context(?API_TOKEN)} | Config1];
+    [{group_test_sup, GroupSup}, {context, wapi_ct_helper:get_context(?API_TOKEN)}, {party, Party} | Config];
+init_per_group(operations_by_user_session_token, Config) ->
+    Party = genlib:bsuuid(),
+    GroupSup = wapi_ct_helper:start_mocked_service_sup(?MODULE),
+    _ = wapi_ct_helper_token_keeper:mock_api_key_token(Party, GroupSup),
+    [{group_test_sup, GroupSup}, {context, wapi_ct_helper:get_context(?API_TOKEN)}, {party, Party} | Config];
 init_per_group(_, Config) ->
     Config.
 

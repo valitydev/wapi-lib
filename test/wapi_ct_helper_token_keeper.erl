@@ -14,6 +14,7 @@
 
 -export([mock_token/2]).
 -export([mock_user_session_token/2]).
+-export([mock_api_key_token/2]).
 
 -spec mock_token(token_handler(), sup_or_config()) -> list(app_name()).
 mock_token(HandlerFun, SupOrConfig) ->
@@ -51,6 +52,18 @@ mock_user_session_token(UserID, SupOrConfig) ->
     end),
     mock_token(Handler, SupOrConfig).
 
+-spec mock_api_key_token(binary(), sup_or_config()) -> list(app_name()).
+mock_api_key_token(PartyID, SupOrConfig) ->
+    Handler = make_authenticator_handler(fun() ->
+        AuthParams = #{
+            method => <<"ApiKeyToken">>,
+            token => #{id => ?STRING},
+            scope => [#{party => #{id => PartyID}}]
+        },
+        {?TK_AUTHORITY_APIKEYMGMT, create_bouncer_context(AuthParams), api_key_metadata(PartyID)}
+    end),
+    mock_token(Handler, SupOrConfig).
+
 %%
 
 -spec make_authenticator_handler(function()) -> token_handler().
@@ -75,7 +88,15 @@ user_session_metadata(UserID) ->
         ?TK_META_USER_EMAIL => ?USER_EMAIL
     }).
 
+api_key_metadata(PartyID) ->
+    genlib_map:compact(#{
+        ?TK_META_PARTY_ID => PartyID
+    }).
 %%
+
+create_bouncer_context(AuthParams) ->
+    Fragment0 = bouncer_context_helpers:make_auth_fragment(AuthParams),
+    encode_context(Fragment0).
 
 create_bouncer_context(AuthParams, UserParams) ->
     Fragment0 = bouncer_context_helpers:make_auth_fragment(AuthParams),
