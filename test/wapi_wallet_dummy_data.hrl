@@ -109,6 +109,10 @@
     contact_info = #fistful_base_ContactInfo{
         phone_number = ?STRING,
         email = ?VALID_EMAIL
+    },
+    client_info = #fistful_base_ClientInfo{
+        ip_address = <<"10.0.0.1">>,
+        fingerprint = ?STRING
     }
 }).
 

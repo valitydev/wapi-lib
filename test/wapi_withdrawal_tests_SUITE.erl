@@ -691,6 +691,10 @@ create_withdrawal_call_api(C) ->
                     <<"amount">> => ?INTEGER,
                     <<"currency">> => ?RUB
                 },
+                <<"clientInfo">> => #{
+                    <<"ip">> => <<"10.0.0.1">>,
+                    <<"fingerprint">> => ?STRING
+                },
                 <<"contactInfo">> => #{
                     <<"email">> => ?VALID_EMAIL,
                     <<"phoneNumber">> => ?STRING

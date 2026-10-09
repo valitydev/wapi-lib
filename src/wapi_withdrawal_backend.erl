@@ -373,6 +373,7 @@ marshal(
     Metadata = maps:get(<<"metadata">>, Params, undefined),
     Quote = maps:get(<<"quote">>, Params, undefined),
     ContactInfo = maps:get(<<"contactInfo">>, Params, undefined),
+    ClientInfo = maps:get(<<"clientInfo">>, Params, undefined),
     PartyID = maps:get(<<"party">>, Params, <<>>),
     #wthd_WithdrawalParams{
         id = marshal(id, ID),
@@ -383,7 +384,8 @@ marshal(
         external_id = maybe_marshal(id, ExternalID),
         metadata = maybe_marshal(context, Metadata),
         party_id = PartyID,
-        contact_info = maybe_marshal(contact_info, ContactInfo)
+        contact_info = maybe_marshal(contact_info, ContactInfo),
+        client_info = maybe_marshal(client_info, ClientInfo)
     };
 marshal(contact_info, ContactInfo) ->
     PhoneNumber = maps:get(<<"phoneNumber">>, ContactInfo, undefined),
@@ -391,6 +393,13 @@ marshal(contact_info, ContactInfo) ->
     #fistful_base_ContactInfo{
         phone_number = PhoneNumber,
         email = Email
+    };
+marshal(client_info, ClientInfo) ->
+    IpAddress = maps:get(<<"ip">>, ClientInfo, undefined),
+    Fingerprint = maps:get(<<"fingerprint">>, ClientInfo, undefined),
+    #fistful_base_ClientInfo{
+        ip_address = IpAddress,
+        fingerprint = Fingerprint
     };
 marshal(
     create_quote_params,
