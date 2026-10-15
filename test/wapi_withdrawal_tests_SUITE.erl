@@ -13,6 +13,8 @@
 -include_lib("fistful_proto/include/fistful_wthd_thrift.hrl").
 -include_lib("fistful_proto/include/fistful_wthd_status_thrift.hrl").
 -include_lib("fistful_proto/include/fistful_destination_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_customer_thrift.hrl").
 
 -export([all/0]).
 -export([groups/0]).
@@ -27,6 +29,9 @@
 
 -export([
     create_ok/1,
+    create_with_customer_ok/1,
+    create_with_user_ok/1,
+    create_fail_customer_notfound/1,
     create_fail_wallet_notfound/1,
     create_fail_destination_notfound/1,
     create_fail_forbidden_operation_currency/1,
@@ -84,6 +89,9 @@ groups() ->
         ]},
         {base, [], [
             create_ok,
+            create_with_customer_ok,
+            create_with_user_ok,
+            create_fail_customer_notfound,
             create_fail_wallet_notfound,
             create_fail_destination_notfound,
             create_fail_forbidden_operation_currency,
@@ -168,6 +176,60 @@ create_ok(C) ->
             <<"email">> := ?VALID_EMAIL
         }
     }} = create_withdrawal_call_api(C).
+
+-spec create_with_customer_ok(config()) -> _.
+create_with_customer_ok(C) ->
+    PartyID = ?config(party, C),
+    ClientIdentity = #fistful_base_ClientIdentity{customer_id = ?STRING2},
+    _ = create_withdrawal_start_mocks(
+        C,
+        fun(#wthd_WithdrawalParams{client_identity = Identity}) ->
+            ?assertEqual(ClientIdentity, Identity),
+            {ok, setelement(#wthd_WithdrawalState.client_identity, ?WITHDRAWAL(PartyID), Identity)}
+        end,
+        [
+            {customer_management, fun('Get', {?STRING2, #domain_PartyConfigRef{id = ?STRING}}) ->
+                {ok, ?CUSTOMER_STATE(?STRING2)}
+            end}
+        ]
+    ),
+    Identity = #{<<"clientIdentityType">> => <<"ClientIdentityCustomer">>, <<"customerID">> => ?STRING2},
+    {ok, #{<<"clientIdentity">> := Identity}} = create_withdrawal_call_api(Identity, C).
+
+-spec create_with_user_ok(config()) -> _.
+create_with_user_ok(C) ->
+    PartyID = ?config(party, C),
+    UserID = <<"merchant-user">>,
+    ClientIdentity = #fistful_base_ClientIdentity{customer_id = ?STRING2, user_id = UserID},
+    _ = create_withdrawal_start_mocks(
+        C,
+        fun(#wthd_WithdrawalParams{client_identity = Identity}) ->
+            ?assertEqual(ClientIdentity, Identity),
+            {ok, setelement(#wthd_WithdrawalState.client_identity, ?WITHDRAWAL(PartyID), Identity)}
+        end,
+        [
+            {customer_management, fun('FindOrCreateByExternalID', {#domain_PartyConfigRef{id = ?STRING}, ID}) when
+                ID =:= UserID
+            ->
+                {ok, ?CUSTOMER(?STRING2)}
+            end}
+        ]
+    ),
+    Identity = #{<<"clientIdentityType">> => <<"ClientIdentityUser">>, <<"userID">> => UserID},
+    {ok, #{<<"clientIdentity">> := Identity}} = create_withdrawal_call_api(Identity, C).
+
+-spec create_fail_customer_notfound(config()) -> _.
+create_fail_customer_notfound(C) ->
+    _ = create_withdrawal_start_mocks(
+        C,
+        fun(_) -> {throwing, #fistful_WalletNotFound{}} end,
+        [{customer_management, fun('Get', _) -> {throwing, #customer_CustomerNotFound{}} end}]
+    ),
+    Identity = #{<<"clientIdentityType">> => <<"ClientIdentityCustomer">>, <<"customerID">> => ?STRING2},
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"No such customer">>}}},
+        create_withdrawal_call_api(Identity, C)
+    ).
 
 -spec create_fail_wallet_notfound(config()) -> _.
 create_fail_wallet_notfound(C) ->
@@ -679,11 +741,15 @@ call_api(F, Params, Context) ->
     wapi_client_lib:handle_response(Response).
 
 create_withdrawal_call_api(C) ->
+    create_withdrawal_call_api(undefined, C).
+
+create_withdrawal_call_api(ClientIdentity, C) ->
     PartyID = ?config(party, C),
     call_api(
         fun swag_client_wallet_withdrawals_api:create_withdrawal/3,
         #{
             body => genlib_map:compact(#{
+                <<"clientIdentity">> => ClientIdentity,
                 <<"wallet">> => ?STRING,
                 <<"party">> => PartyID,
                 <<"destination">> => ?STRING,
@@ -725,6 +791,9 @@ create_qoute_call_api(C) ->
     ).
 
 create_withdrawal_start_mocks(C, CreateWithdrawalResultFun) ->
+    create_withdrawal_start_mocks(C, CreateWithdrawalResultFun, []).
+
+create_withdrawal_start_mocks(C, CreateWithdrawalResultFun, ExtraServices) ->
     PartyID = ?config(party, C),
     _ = wapi_ct_helper_bouncer:mock_assert_generic_op_ctx(
         [
@@ -746,9 +815,14 @@ create_withdrawal_start_mocks(C, CreateWithdrawalResultFun) ->
                 ('GetContext', _) -> {ok, ?DEFAULT_CONTEXT(PartyID)}
             end},
             {fistful_withdrawal, fun
-                ('Create', _) -> CreateWithdrawalResultFun();
-                ('Get', _) -> {throwing, #fistful_WithdrawalNotFound{}}
+                ('Create', {Params, _}) when is_function(CreateWithdrawalResultFun, 1) ->
+                    CreateWithdrawalResultFun(Params);
+                ('Create', _) ->
+                    CreateWithdrawalResultFun();
+                ('Get', _) ->
+                    {throwing, #fistful_WithdrawalNotFound{}}
             end}
+            | ExtraServices
         ],
         C
     ).

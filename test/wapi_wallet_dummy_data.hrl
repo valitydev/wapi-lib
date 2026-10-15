@@ -116,6 +116,20 @@
     }
 }).
 
+-define(CUSTOMER(ID), #customer_Customer{
+    id = ID,
+    party_ref = #domain_PartyConfigRef{id = ?STRING},
+    created_at = ?TIMESTAMP,
+    status = {active, #customer_CustomerActive{}}
+}).
+
+-define(CUSTOMER_STATE(ID), #customer_CustomerState{
+    customer = ?CUSTOMER(ID),
+    bank_card_refs = [],
+    payment_refs = [],
+    withdrawal_refs = []
+}).
+
 -define(WITHDRAWAL_QUOTE_STATE, #wthd_QuoteState{
     cash_from = ?CASH,
     cash_to = ?CASH,
