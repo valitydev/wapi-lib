@@ -359,8 +359,7 @@ prepare('CreateWithdrawal' = OperationID, #{'WithdrawalParameters' := Params}, C
         {ok, Resolution}
     end,
     Process = fun() ->
-        {wallet, {_WalletID, _Wallet, WalletPartyID}} = lists:keyfind(wallet, 1, AuthContext),
-        case wapi_withdrawal_backend:create(Params, WalletPartyID, Context) of
+        case wapi_withdrawal_backend:create(Params, Context) of
             {ok, Withdrawal = #{<<"id">> := WithdrawalID}} ->
                 wapi_handler_utils:reply_ok(
                     202, Withdrawal, get_location('GetWithdrawal', [WithdrawalID], Context, Opts)

@@ -46,7 +46,7 @@
     | {realms_mismatch, {realm(), realm()}}
     | {destination_resource, {bin_data, not_found}}.
 
--export([create/3]).
+-export([create/2]).
 -export([get/2]).
 -export([get_by_external_id/2]).
 -export([create_quote/2]).
@@ -66,15 +66,13 @@
 
 -import(wapi_pipeline, [do/1, unwrap/1, unwrap/2]).
 
-%% The recipient is resolved to a Customer of the party owning the wallet, which the
-%% operation is authorized for
--spec create(request_data(), id() | undefined, handler_context()) -> {ok, response_data()} | {error, create_error()}.
-create(Params0, WalletPartyID, HandlerContext) ->
+%% The recipient is resolved before the withdrawal ID is generated, so that a recipient that
+%% does not resolve leaves no ID bound to the request
+-spec create(request_data(), handler_context()) -> {ok, response_data()} | {error, create_error()}.
+create(Params0, HandlerContext) ->
     do(fun() ->
+        ClientIdentity = unwrap(resolve_client_identity(Params0, HandlerContext)),
         Params1 = unwrap(check_withdrawal_params(Params0, HandlerContext)),
-        ClientIdentity = unwrap(
-            resolve_client_identity(maps:get(<<"clientIdentity">>, Params1, undefined), WalletPartyID, HandlerContext)
-        ),
         WithdrawalContext = marshal(context, wapi_backend_utils:make_ctx(Params1)),
         WithdrawalParams = marshal(withdrawal_params, Params1),
         unwrap(
@@ -86,10 +84,22 @@ create(Params0, WalletPartyID, HandlerContext) ->
         )
     end).
 
-resolve_client_identity(undefined, _PartyID, _HandlerContext) ->
-    {ok, undefined};
-resolve_client_identity(_ClientIdentity, undefined, _HandlerContext) ->
-    {error, {wallet, notfound}};
+%% The recipient is a Customer of the party owning the wallet. A wallet outside the party of
+%% the request is not found in it, as the withdrawal itself would not find it
+resolve_client_identity(
+    #{<<"clientIdentity">> := ClientIdentity, <<"wallet">> := WalletID, <<"party">> := PartyID}, HandlerContext
+) ->
+    case wapi_domain_backend:get_object({wallet_config, #domain_WalletConfigRef{id = WalletID}}) of
+        {ok, #domain_WalletConfig{party_ref = #domain_PartyConfigRef{id = PartyID}}} ->
+            resolve_client_identity(ClientIdentity, PartyID, HandlerContext);
+        {ok, #domain_WalletConfig{}} ->
+            {error, {wallet, notfound}};
+        {error, notfound} ->
+            {error, {wallet, notfound}}
+    end;
+resolve_client_identity(_Params, _HandlerContext) ->
+    {ok, undefined}.
+
 resolve_client_identity(
     #{<<"clientIdentityType">> := <<"ClientIdentityCustomer">>, <<"customerID">> := CustomerID}, PartyID, HandlerContext
 ) ->
