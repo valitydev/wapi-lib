@@ -426,7 +426,11 @@ prepare('CreateWithdrawal' = OperationID, #{'WithdrawalParameters' := Params}, C
                 wapi_handler_utils:reply_ok(
                     422,
                     wapi_handler_utils:get_error_msg(<<"Unknown card issuer">>)
-                )
+                );
+            {error, {customer, notfound}} ->
+                wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"No such customer">>));
+            {error, {client_identity, {invalid_user_id, _}}} ->
+                wapi_handler_utils:reply_ok(422, wapi_handler_utils:get_error_msg(<<"Invalid user ID">>))
         end
     end,
     {ok, #{authorize => Authorize, process => Process}};

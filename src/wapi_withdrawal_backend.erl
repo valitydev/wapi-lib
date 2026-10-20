@@ -31,7 +31,9 @@
     | {inconsistent_currency, _}
     | {quote, token_expired}
     | {realms_mismatch, {realm(), realm()}}
-    | {destination_resource, {bin_data, not_found}}.
+    | {destination_resource, {bin_data, not_found}}
+    | {customer, notfound}
+    | {client_identity, {invalid_user_id, [binary()]}}.
 
 -type create_quote_error() ::
     {destination, notfound | unauthorized | forbidden_withdrawal_method}
@@ -56,24 +58,70 @@
 -include_lib("fistful_proto/include/fistful_wthd_thrift.hrl").
 -include_lib("fistful_proto/include/fistful_wthd_status_thrift.hrl").
 -include_lib("fistful_proto/include/fistful_cashflow_thrift.hrl").
+-include_lib("damsel/include/dmsl_base_thrift.hrl").
+-include_lib("damsel/include/dmsl_domain_thrift.hrl").
+-include_lib("damsel/include/dmsl_customer_thrift.hrl").
 
 %% Pipeline
 
 -import(wapi_pipeline, [do/1, unwrap/1, unwrap/2]).
 
+%% The recipient is resolved before the withdrawal ID is generated, so that a recipient that
+%% does not resolve leaves no ID bound to the request
 -spec create(request_data(), handler_context()) -> {ok, response_data()} | {error, create_error()}.
 create(Params0, HandlerContext) ->
-    case check_withdrawal_params(Params0, HandlerContext) of
-        {ok, Params1} ->
-            Context = wapi_backend_utils:make_ctx(Params1),
-            WithdrawalContext = marshal(context, Context),
-            WithdrawalParams = marshal(withdrawal_params, Params1),
-            create(WithdrawalParams, WithdrawalContext, HandlerContext);
-        {error, _} = Error ->
-            Error
+    do(fun() ->
+        ClientIdentity = unwrap(resolve_client_identity(Params0, HandlerContext)),
+        Params1 = unwrap(check_withdrawal_params(Params0, HandlerContext)),
+        WithdrawalContext = marshal(context, wapi_backend_utils:make_ctx(Params1)),
+        WithdrawalParams = marshal(withdrawal_params, Params1),
+        unwrap(
+            create_withdrawal(
+                WithdrawalParams#wthd_WithdrawalParams{client_identity = ClientIdentity},
+                WithdrawalContext,
+                HandlerContext
+            )
+        )
+    end).
+
+%% The recipient is a Customer of the party owning the wallet. A wallet outside the party of
+%% the request is not found in it, as the withdrawal itself would not find it
+resolve_client_identity(
+    #{<<"clientIdentity">> := ClientIdentity, <<"wallet">> := WalletID, <<"party">> := PartyID}, HandlerContext
+) ->
+    case wapi_domain_backend:get_object({wallet_config, #domain_WalletConfigRef{id = WalletID}}) of
+        {ok, #domain_WalletConfig{party_ref = #domain_PartyConfigRef{id = PartyID}}} ->
+            resolve_client_identity(ClientIdentity, PartyID, HandlerContext);
+        {ok, #domain_WalletConfig{}} ->
+            {error, {wallet, notfound}};
+        {error, notfound} ->
+            {error, {wallet, notfound}}
+    end;
+resolve_client_identity(_Params, _HandlerContext) ->
+    {ok, undefined}.
+
+resolve_client_identity(
+    #{<<"clientIdentityType">> := <<"ClientIdentityCustomer">>, <<"customerID">> := CustomerID}, PartyID, HandlerContext
+) ->
+    Request = {customer_management, 'Get', {CustomerID, #domain_PartyConfigRef{id = PartyID}}},
+    case service_call(Request, HandlerContext) of
+        {ok, #customer_CustomerState{}} ->
+            {ok, #fistful_base_ClientIdentity{customer_id = CustomerID}};
+        {exception, #customer_CustomerNotFound{}} ->
+            {error, {customer, notfound}}
+    end;
+resolve_client_identity(
+    #{<<"clientIdentityType">> := <<"ClientIdentityUser">>, <<"userID">> := UserID}, PartyID, HandlerContext
+) ->
+    Request = {customer_management, 'FindOrCreateByExternalID', {#domain_PartyConfigRef{id = PartyID}, UserID}},
+    case service_call(Request, HandlerContext) of
+        {ok, #customer_Customer{id = CustomerID}} ->
+            {ok, #fistful_base_ClientIdentity{customer_id = CustomerID, user_id = UserID}};
+        {exception, #base_InvalidRequest{errors = Errors}} ->
+            {error, {client_identity, {invalid_user_id, Errors}}}
     end.
 
-create(Params, Context, HandlerContext) ->
+create_withdrawal(Params, Context, HandlerContext) ->
     Request = {fistful_withdrawal, 'Create', {Params, Context}},
     case service_call(Request, HandlerContext) of
         {ok, Withdrawal} ->
@@ -84,6 +132,8 @@ create(Params, Context, HandlerContext) ->
             {error, {wallet, notfound}};
         {exception, #fistful_DestinationNotFound{}} ->
             {error, {destination, notfound}};
+        {exception, #fistful_CustomerNotFound{}} ->
+            {error, {customer, notfound}};
         {exception, #fistful_ForbiddenOperationCurrency{currency = Currency}} ->
             {error, {forbidden_currency, unmarshal_currency_ref(Currency)}};
         {exception, #fistful_ForbiddenOperationAmount{amount = Amount}} ->
@@ -466,6 +516,7 @@ unmarshal(withdrawal, #wthd_WithdrawalState{
     metadata = Metadata,
     quote = Quote,
     contact_info = ContactInfo,
+    client_identity = ClientIdentity,
     effective_final_cash_flow = EffectiveFinalCashFlow,
     new_body = NewBody
 }) ->
@@ -485,6 +536,7 @@ unmarshal(withdrawal, #wthd_WithdrawalState{
                 <<"metadata">> => UnmarshaledMetadata,
                 <<"quote">> => maybe_unmarshal(quote_state, Quote),
                 <<"contactInfo">> => maybe_unmarshal(contact_info, ContactInfo),
+                <<"clientIdentity">> => maybe_unmarshal(client_identity, ClientIdentity),
                 <<"fee">> => Fee
             },
             unmarshal_status(Status)
@@ -522,6 +574,11 @@ unmarshal(contact_info, #fistful_base_ContactInfo{
         <<"phoneNumber">> => maybe_unmarshal(string, PhoneNumber),
         <<"email">> => maybe_unmarshal(string, Email)
     });
+%% A Customer found by the user ID is shown as the user it was found by, as the merchant passed it
+unmarshal(client_identity, #fistful_base_ClientIdentity{user_id = UserID}) when UserID =/= undefined ->
+    #{<<"clientIdentityType">> => <<"ClientIdentityUser">>, <<"userID">> => UserID};
+unmarshal(client_identity, #fistful_base_ClientIdentity{customer_id = CustomerID}) ->
+    #{<<"clientIdentityType">> => <<"ClientIdentityCustomer">>, <<"customerID">> => CustomerID};
 unmarshal(event, ?EVENT(EventId, OccuredAt, ?STATUS_CHANGE(Status))) ->
     genlib_map:compact(#{
         <<"eventID">> => EventId,
