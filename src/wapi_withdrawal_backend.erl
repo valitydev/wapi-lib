@@ -132,6 +132,8 @@ create_withdrawal(Params, Context, HandlerContext) ->
             {error, {wallet, notfound}};
         {exception, #fistful_DestinationNotFound{}} ->
             {error, {destination, notfound}};
+        {exception, #fistful_CustomerNotFound{}} ->
+            {error, {customer, notfound}};
         {exception, #fistful_ForbiddenOperationCurrency{currency = Currency}} ->
             {error, {forbidden_currency, unmarshal_currency_ref(Currency)}};
         {exception, #fistful_ForbiddenOperationAmount{amount = Amount}} ->

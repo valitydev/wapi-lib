@@ -37,6 +37,7 @@
     create_with_customer_ok/1,
     create_with_user_ok/1,
     create_fail_customer_notfound/1,
+    create_fail_withdrawal_customer_notfound/1,
     create_fail_invalid_user_id/1,
     create_fail_client_identity_party_mismatch/1,
     create_fail_wallet_notfound/1,
@@ -99,6 +100,7 @@ groups() ->
             create_with_customer_ok,
             create_with_user_ok,
             create_fail_customer_notfound,
+            create_fail_withdrawal_customer_notfound,
             create_fail_invalid_user_id,
             create_fail_client_identity_party_mismatch,
             create_fail_wallet_notfound,
@@ -233,6 +235,20 @@ create_fail_customer_notfound(C) ->
         C,
         fun(_) -> {throwing, #fistful_WalletNotFound{}} end,
         [{customer_management, fun('Get', _) -> {throwing, #customer_CustomerNotFound{}} end}]
+    ),
+    Identity = #{<<"clientIdentityType">> => <<"ClientIdentityCustomer">>, <<"customerID">> => ?CUSTOMER_ID},
+    ?assertEqual(
+        {error, {422, #{<<"message">> => <<"No such customer">>}}},
+        create_withdrawal_call_api(?WALLET_OWNER_BODY(Identity), C)
+    ).
+
+%% A Customer gone by the time fistful checks it at creation is not found as well
+-spec create_fail_withdrawal_customer_notfound(config()) -> _.
+create_fail_withdrawal_customer_notfound(C) ->
+    _ = create_withdrawal_start_mocks(
+        C,
+        fun(_) -> {throwing, #fistful_CustomerNotFound{}} end,
+        [{customer_management, fun('Get', _) -> {ok, ?CUSTOMER_STATE(?CUSTOMER_ID)} end}]
     ),
     Identity = #{<<"clientIdentityType">> => <<"ClientIdentityCustomer">>, <<"customerID">> => ?CUSTOMER_ID},
     ?assertEqual(
